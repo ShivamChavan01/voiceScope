@@ -1,0 +1,1 @@
+venv/\n.env\nchroma_db/\n__pycache__/\n*.pyc
