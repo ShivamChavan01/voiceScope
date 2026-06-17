@@ -1,9 +1,8 @@
-from openai import AsyncOpenAI
+from llm_providers.registry import ProviderRegistry
 from core.context import PipelineContext
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
 from datetime import datetime
-import os
 import json
 
 
@@ -33,7 +32,7 @@ class ReportAgent:
     """
 
     def __init__(self, chroma_store: ChromaStore):
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.provider = ProviderRegistry.get()
         self.chroma = chroma_store
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
@@ -51,22 +50,24 @@ class ReportAgent:
         }
 
         try:
-            response = await self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{
-                    "role": "user",
-                    "content": REPORT_PROMPT.format(analysis_data=json.dumps(analysis_data, indent=2))
-                }],
+            response = await self.provider.complete(
+                prompt=REPORT_PROMPT.format(analysis_data=json.dumps(analysis_data, indent=2)),
                 temperature=0.2,
                 response_format={"type": "json_object"}
             )
 
-            raw = response.choices[0].message.content
-            report_data = json.loads(raw)
+            report_data = json.loads(response.content)
 
             ctx.report = {
                 "run_id": ctx.run_id,
                 "generated_at": datetime.utcnow().isoformat(),
+                "provider": {
+                    "name": response.provider,
+                    "model": response.model,
+                    "cost_usd": response.cost_usd,
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                },
                 "pipeline": {
                     "stages_completed": ctx.stages_completed,
                     "errors": ctx.errors
@@ -82,7 +83,6 @@ class ReportAgent:
 
             ctx.mark_stage("report")
 
-            # Store transcript in ChromaDB for future RAG
             if ctx.raw_transcript:
                 await self.chroma.store(
                     doc_id=ctx.run_id,

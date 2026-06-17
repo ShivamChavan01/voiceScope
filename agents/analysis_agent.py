@@ -1,8 +1,7 @@
-from openai import AsyncOpenAI
+from llm_providers.registry import ProviderRegistry
 from core.context import PipelineContext
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
-import os
 import json
 
 
@@ -35,7 +34,7 @@ class AnalysisAgent:
     """
 
     def __init__(self, chroma_store: ChromaStore):
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.provider = ProviderRegistry.get()
         self.chroma = chroma_store
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
@@ -45,7 +44,6 @@ class AnalysisAgent:
 
         logger.info(f"[AnalysisAgent] run_id={ctx.run_id}")
 
-        # RAG — retrieve similar past calls
         rag_context = await self._get_rag_context(ctx.raw_transcript)
 
         prompt = ANALYSIS_PROMPT.format(
@@ -54,15 +52,13 @@ class AnalysisAgent:
         )
 
         try:
-            response = await self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
+            response = await self.provider.complete(
+                prompt=prompt,
                 temperature=0.1,
                 response_format={"type": "json_object"}
             )
 
-            raw = response.choices[0].message.content
-            result = json.loads(raw)
+            result = json.loads(response.content)
 
             ctx.intent = result.get("intent")
             ctx.sentiment_arc = result.get("sentiment_arc")
