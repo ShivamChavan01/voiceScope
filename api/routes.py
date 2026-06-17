@@ -4,6 +4,7 @@ from api.schemas import HealthResponse
 from api.sse import stream_analysis
 from core.pipeline import VoiceScopePipeline
 from core.batch import BatchProcessor
+from core.harness import TestHarness
 from storage.cost_store import CostStore
 from utils.logger import logger
 from utils.security import hash_api_key, sanitize_log_input
@@ -13,6 +14,7 @@ router = APIRouter()
 _pipeline = None
 _cost_store = None
 _batch_processor = None
+_harness = None
 
 
 def get_pipeline():
@@ -34,6 +36,13 @@ def get_batch_processor():
     if _batch_processor is None:
         _batch_processor = BatchProcessor()
     return _batch_processor
+
+
+def get_harness():
+    global _harness
+    if _harness is None:
+        _harness = TestHarness()
+    return _harness
 
 
 ALLOWED_AUDIO_TYPES = {
@@ -172,3 +181,8 @@ async def get_batch_results(request: Request, batch_id: str):
 @router.get("/costs")
 async def get_costs():
     return await get_cost_store().get_summary()
+
+
+@router.post("/harness/run")
+async def run_harness():
+    return await get_harness().run_all()

@@ -1,0 +1,40 @@
+{
+  "test_suite": "voicescope_regression_v1",
+  "test_cases": [
+    {
+      "test_id": "TC-001",
+      "audio_file": "tests/fixtures/audio_001.mp3",
+      "expected": {
+        "intent_contains": "cancel",
+        "outcome": "resolved",
+        "escalation_signal": false,
+        "hallucination_detected": false,
+        "sentiment_arc": "negative",
+        "min_quality_score": 60
+      }
+    },
+    {
+      "test_id": "TC-002",
+      "audio_file": "tests/fixtures/audio_002.mp3",
+      "expected": {
+        "intent_contains": "billing",
+        "outcome": "escalated",
+        "escalation_signal": true,
+        "hallucination_detected": false,
+        "sentiment_arc": "mixed"
+      }
+    },
+    {
+      "test_id": "TC-003",
+      "audio_file": "tests/fixtures/audio_003.mp3",
+      "expected": {
+        "intent_contains": "technical",
+        "outcome": "unresolved",
+        "escalation_signal": false,
+        "hallucination_detected": true,
+        "sentiment_arc": "neutral",
+        "min_quality_score": 40
+      }
+    }
+  ]
+}
