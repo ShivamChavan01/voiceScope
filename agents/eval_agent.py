@@ -58,14 +58,16 @@ class EvalAgent:
                     report_data=json.dumps(ctx.report.get("report", {}), indent=2),
                 ),
                 temperature=0.1,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
 
             eval_data = json.loads(response.content)
             ctx.report["evaluation"] = eval_data
             ctx.mark_stage("evaluation")
 
-            logger.info(f"[EvalAgent] done — quality={eval_data.get('analysis_quality_score')} confidence={eval_data.get('confidence_score')}")
+            logger.info(
+                f"[EvalAgent] done — quality={eval_data.get('analysis_quality_score')} confidence={eval_data.get('confidence_score')}"
+            )
 
         except Exception as e:
             ctx.add_error("eval", str(e))

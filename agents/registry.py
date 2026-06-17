@@ -1,6 +1,7 @@
 from agents.base import BaseAgent
 from core.context import PipelineContext
 from utils.logger import logger
+from utils.security import validate_plugin_path
 import importlib
 import os
 
@@ -36,6 +37,9 @@ def discover_plugins():
     plugin_modules = [m.strip() for m in plugin_modules if m.strip()]
 
     for module_path in plugin_modules:
+        if not validate_plugin_path(module_path):
+            logger.error(f"[AgentRegistry] invalid plugin path rejected: {module_path}")
+            continue
         try:
             importlib.import_module(module_path)
             logger.info(f"[AgentRegistry] loaded plugin={module_path}")

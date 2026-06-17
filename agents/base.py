@@ -7,8 +7,7 @@ class BaseAgent(ABC):
     description: str = ""
 
     @abstractmethod
-    async def run(self, ctx: PipelineContext, **kwargs) -> PipelineContext:
-        ...
+    async def run(self, ctx: PipelineContext, **kwargs) -> PipelineContext: ...
 
     def validate_input(self, ctx: PipelineContext) -> bool:
         return True

@@ -1,10 +1,20 @@
 import httpx
 from sdk.voicescope.models import AnalysisReport, BatchResult
 from typing import Optional
+import warnings
 
 
 class VoiceScope:
     def __init__(self, api_key: str, base_url: str = "http://localhost:8000"):
+        if (
+            base_url.startswith("http://")
+            and "localhost" not in base_url
+            and "127.0.0.1" not in base_url
+        ):
+            warnings.warn(
+                "Using HTTP for non-localhost URL — API key will be sent in plaintext. Use HTTPS.",
+                stacklevel=2,
+            )
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.headers = {"X-API-Key": api_key}
@@ -22,9 +32,12 @@ class VoiceScope:
 
     def analyze_sync(self, file_path: str) -> AnalysisReport:
         import asyncio
+
         return asyncio.run(self.analyze(file_path))
 
-    async def analyze_batch(self, file_paths: list[str], callback_url: Optional[str] = None) -> BatchResult:
+    async def analyze_batch(
+        self, file_paths: list[str], callback_url: Optional[str] = None
+    ) -> BatchResult:
         async with httpx.AsyncClient(timeout=120.0) as client:
             files = []
             for path in file_paths:

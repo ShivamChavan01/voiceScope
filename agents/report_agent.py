@@ -53,7 +53,7 @@ class ReportAgent:
             response = await self.provider.complete(
                 prompt=REPORT_PROMPT.format(analysis_data=json.dumps(analysis_data, indent=2)),
                 temperature=0.2,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
 
             report_data = json.loads(response.content)
@@ -68,17 +68,14 @@ class ReportAgent:
                     "input_tokens": response.input_tokens,
                     "output_tokens": response.output_tokens,
                 },
-                "pipeline": {
-                    "stages_completed": ctx.stages_completed,
-                    "errors": ctx.errors
-                },
+                "pipeline": {"stages_completed": ctx.stages_completed, "errors": ctx.errors},
                 "transcript_meta": {
                     "language": ctx.language_detected,
                     "duration_seconds": ctx.audio_duration_seconds,
-                    "char_count": len(ctx.raw_transcript or "")
+                    "char_count": len(ctx.raw_transcript or ""),
                 },
                 "analysis": analysis_data,
-                "report": report_data
+                "report": report_data,
             }
 
             ctx.mark_stage("report")
@@ -87,7 +84,7 @@ class ReportAgent:
                 await self.chroma.store(
                     doc_id=ctx.run_id,
                     text=ctx.raw_transcript,
-                    metadata={"outcome": ctx.outcome, "intent": ctx.intent}
+                    metadata={"outcome": ctx.outcome, "intent": ctx.intent},
                 )
 
             logger.info(f"[ReportAgent] done — quality_score={report_data.get('quality_score')}")

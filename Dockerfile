@@ -9,11 +9,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+RUN groupadd -r voicescope && useradd -r -g voicescope voicescope
+
 COPY --from=builder /install /usr/local
 
 COPY . .
 
-RUN mkdir -p /app/chroma_db /app/costs.db /app/logs
+RUN mkdir -p /app/chroma_db /app/logs && \
+    chown -R voicescope:voicescope /app
+
+USER voicescope
 
 EXPOSE 8000
 

@@ -50,9 +50,13 @@ def with_retry(
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries:
-                        delay = min(base_delay * (exponential_base ** attempt), max_delay)
-                        logger.warning(f"[Retry] attempt={attempt + 1} delay={delay:.1f}s error={e}")
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
+                        logger.warning(
+                            f"[Retry] attempt={attempt + 1} delay={delay:.1f}s error={e}"
+                        )
                         await asyncio.sleep(delay)
             raise last_exception
+
         return wrapper
+
     return decorator

@@ -15,8 +15,7 @@ class ChromaStore:
         persist_dir = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
         self.client = chromadb.PersistentClient(path=persist_dir)
         self.collection = self.client.get_or_create_collection(
-            name="voice_calls",
-            metadata={"hnsw:space": "cosine"}
+            name="voice_calls", metadata={"hnsw:space": "cosine"}
         )
         logger.info(f"[ChromaStore] initialized — collection=voice_calls, path={persist_dir}")
 
@@ -25,7 +24,7 @@ class ChromaStore:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
-            partial(self.collection.upsert, ids=[doc_id], documents=[text], metadatas=[metadata])
+            partial(self.collection.upsert, ids=[doc_id], documents=[text], metadatas=[metadata]),
         )
         logger.info(f"[ChromaStore] stored doc_id={doc_id}")
 
@@ -33,8 +32,7 @@ class ChromaStore:
         """Retrieve similar past transcripts."""
         loop = asyncio.get_event_loop()
         results = await loop.run_in_executor(
-            None,
-            partial(self.collection.query, query_texts=[text], n_results=n_results)
+            None, partial(self.collection.query, query_texts=[text], n_results=n_results)
         )
         docs = results.get("documents", [[]])[0]
         logger.info(f"[ChromaStore] query returned {len(docs)} results")

@@ -4,9 +4,11 @@ import httpx
 from datetime import datetime, timezone
 from core.pipeline import VoiceScopePipeline
 from utils.logger import logger
+from utils.security import validate_callback_url
 from typing import Optional
 
 
+MAX_BATCHES = 1000
 batches: dict[str, dict] = {}
 
 
@@ -18,7 +20,15 @@ class BatchProcessor:
         self,
         files: list[tuple[bytes, str]],
         callback_url: Optional[str] = None,
+        owner_key: Optional[str] = None,
     ) -> str:
+        if len(batches) >= MAX_BATCHES:
+            oldest = list(batches.keys())[0]
+            del batches[oldest]
+
+        if callback_url and not validate_callback_url(callback_url):
+            raise ValueError("Invalid callback_url: must be HTTPS and not target private IPs")
+
         batch_id = str(uuid.uuid4())
         batches[batch_id] = {
             "batch_id": batch_id,
@@ -28,6 +38,7 @@ class BatchProcessor:
             "failed": 0,
             "results": [],
             "callback_url": callback_url,
+            "owner_key": owner_key,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -43,7 +54,7 @@ class BatchProcessor:
                 batch["results"].append(result)
                 batch["completed"] += 1
             except Exception as e:
-                batch["results"].append({"filename": filename, "error": str(e)})
+                batch["results"].append({"filename": filename, "error": "processing failed"})
                 batch["failed"] += 1
                 logger.error(f"[BatchProcessor] batch={batch_id} file={filename} error={e}")
 
@@ -56,10 +67,22 @@ class BatchProcessor:
     async def _send_callback(self, batch: dict):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                await client.post(batch["callback_url"], json=batch)
+                await client.post(
+                    batch["callback_url"],
+                    json={
+                        "batch_id": batch["batch_id"],
+                        "status": batch["status"],
+                        "total": batch["total"],
+                        "completed": batch["completed"],
+                        "failed": batch["failed"],
+                    },
+                )
                 logger.info(f"[BatchProcessor] callback sent batch={batch['batch_id']}")
         except Exception as e:
             logger.error(f"[BatchProcessor] callback failed batch={batch['batch_id']} error={e}")
 
-    def get_batch(self, batch_id: str) -> Optional[dict]:
-        return batches.get(batch_id)
+    def get_batch(self, batch_id: str, owner_key: Optional[str] = None) -> Optional[dict]:
+        batch = batches.get(batch_id)
+        if batch and owner_key and batch.get("owner_key") != owner_key:
+            return None
+        return batch

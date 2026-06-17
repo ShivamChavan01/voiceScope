@@ -1,6 +1,9 @@
+import os
+
+os.environ["VALID_API_KEYS"] = "test-key"
+
 from fastapi.testclient import TestClient
 from main import app
-
 
 client = TestClient(app)
 
@@ -24,12 +27,13 @@ class TestRootEndpoint:
 
 class TestAnalyzeEndpoint:
     def test_analyze_no_file(self):
-        response = client.post("/api/v1/analyze")
+        response = client.post("/api/v1/analyze", headers={"X-API-Key": "test-key"})
         assert response.status_code == 422
 
     def test_analyze_invalid_file_type(self):
         response = client.post(
             "/api/v1/analyze",
             files={"file": ("test.txt", b"content", "text/plain")},
+            headers={"X-API-Key": "test-key"},
         )
         assert response.status_code == 400

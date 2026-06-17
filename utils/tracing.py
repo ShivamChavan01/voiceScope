@@ -19,10 +19,7 @@ class RequestContext(BaseModel):
     start_time: float = 0.0
 
     def start_stage(self, stage: str):
-        self.stage_timings.append(StageTiming(
-            stage=stage,
-            start_time=time.time()
-        ))
+        self.stage_timings.append(StageTiming(stage=stage, start_time=time.time()))
 
     def end_stage(self, stage: str):
         for timing in self.stage_timings:
@@ -51,9 +48,7 @@ def get_request_context() -> RequestContext:
     ctx = _request_context.get(None)
     if ctx is None:
         ctx = RequestContext(
-            run_id=str(uuid.uuid4()),
-            correlation_id=str(uuid.uuid4()),
-            start_time=time.time()
+            run_id=str(uuid.uuid4()), correlation_id=str(uuid.uuid4()), start_time=time.time()
         )
         _request_context.set(ctx)
     return ctx

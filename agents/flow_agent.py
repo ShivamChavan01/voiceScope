@@ -44,7 +44,7 @@ class FlowAgent:
             response = await self.provider.complete(
                 prompt=FLOW_PROMPT.format(transcript=ctx.raw_transcript),
                 temperature=0.1,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
 
             flow_data = json.loads(response.content)

@@ -47,15 +47,12 @@ class AnalysisAgent:
         rag_context = await self._get_rag_context(ctx.raw_transcript)
 
         prompt = ANALYSIS_PROMPT.format(
-            transcript=ctx.raw_transcript,
-            rag_context=rag_context or "No similar past calls found."
+            transcript=ctx.raw_transcript, rag_context=rag_context or "No similar past calls found."
         )
 
         try:
             response = await self.provider.complete(
-                prompt=prompt,
-                temperature=0.1,
-                response_format={"type": "json_object"}
+                prompt=prompt, temperature=0.1, response_format={"type": "json_object"}
             )
 
             result = json.loads(response.content)

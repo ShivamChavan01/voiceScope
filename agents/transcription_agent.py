@@ -28,7 +28,7 @@ class TranscriptionAgent:
                 response = await self.client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    response_format="verbose_json"  # gives us language + duration too
+                    response_format="verbose_json",  # gives us language + duration too
                 )
 
             ctx.raw_transcript = response.text
@@ -36,7 +36,9 @@ class TranscriptionAgent:
             ctx.audio_duration_seconds = getattr(response, "duration", None)
             ctx.mark_stage("transcription")
 
-            logger.info(f"[TranscriptionAgent] done — {len(ctx.raw_transcript)} chars, lang={ctx.language_detected}")
+            logger.info(
+                f"[TranscriptionAgent] done — {len(ctx.raw_transcript)} chars, lang={ctx.language_detected}"
+            )
 
         except Exception as e:
             ctx.add_error("transcription", str(e))

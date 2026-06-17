@@ -7,7 +7,7 @@ logger.add(
     sys.stdout,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[correlation_id]}</cyan> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     level="INFO",
-    colorize=True
+    colorize=True,
 )
 
 logger.add(
@@ -16,7 +16,7 @@ logger.add(
     retention="7 days",
     format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[correlation_id]} | {name}:{function}:{line} - {message}",
     level="DEBUG",
-    serialize=True
+    serialize=True,
 )
 
 logger.configure(extra={"correlation_id": "-"})

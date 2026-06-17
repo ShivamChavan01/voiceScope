@@ -37,7 +37,7 @@ class CostStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO cost_logs (run_id, provider, model, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?, ?, ?)",
-                (run_id, provider, model, input_tokens, output_tokens, cost_usd)
+                (run_id, provider, model, input_tokens, output_tokens, cost_usd),
             )
             conn.commit()
         logger.info(f"[CostStore] logged cost={cost_usd:.6f} provider={provider} model={model}")
@@ -47,14 +47,26 @@ class CostStore:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            cursor.execute("SELECT SUM(cost_usd) as total_cost, SUM(input_tokens) as total_input, SUM(output_tokens) as total_output, COUNT(*) as total_calls FROM cost_logs")
+            cursor.execute(
+                "SELECT SUM(cost_usd) as total_cost, SUM(input_tokens) as total_input, SUM(output_tokens) as total_output, COUNT(*) as total_calls FROM cost_logs"
+            )
             overall = dict(cursor.fetchone())
 
-            cursor.execute("SELECT provider, SUM(cost_usd) as cost, COUNT(*) as calls FROM cost_logs GROUP BY provider")
-            by_provider = {row["provider"]: {"cost": row["cost"], "calls": row["calls"]} for row in cursor.fetchall()}
+            cursor.execute(
+                "SELECT provider, SUM(cost_usd) as cost, COUNT(*) as calls FROM cost_logs GROUP BY provider"
+            )
+            by_provider = {
+                row["provider"]: {"cost": row["cost"], "calls": row["calls"]}
+                for row in cursor.fetchall()
+            }
 
-            cursor.execute("SELECT model, SUM(cost_usd) as cost, COUNT(*) as calls FROM cost_logs GROUP BY model")
-            by_model = {row["model"]: {"cost": row["cost"], "calls": row["calls"]} for row in cursor.fetchall()}
+            cursor.execute(
+                "SELECT model, SUM(cost_usd) as cost, COUNT(*) as calls FROM cost_logs GROUP BY model"
+            )
+            by_model = {
+                row["model"]: {"cost": row["cost"], "calls": row["calls"]}
+                for row in cursor.fetchall()
+            }
 
         return {
             "overall": overall,

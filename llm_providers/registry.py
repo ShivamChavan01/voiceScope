@@ -44,30 +44,35 @@ class ProviderRegistry:
 def _register_all():
     try:
         from llm_providers.openai_provider import OpenAIProvider
+
         ProviderRegistry.register(OpenAIProvider)
     except ImportError:
         pass
 
     try:
         from llm_providers.anthropic_provider import AnthropicProvider
+
         ProviderRegistry.register(AnthropicProvider)
     except ImportError:
         pass
 
     try:
         from llm_providers.gemini_provider import GeminiProvider
+
         ProviderRegistry.register(GeminiProvider)
     except ImportError:
         pass
 
     try:
         from llm_providers.ollama_provider import OllamaProvider
+
         ProviderRegistry.register(OllamaProvider)
     except ImportError:
         pass
 
     try:
         from llm_providers.mistral_provider import MistralProvider
+
         ProviderRegistry.register(MistralProvider)
     except ImportError:
         pass
