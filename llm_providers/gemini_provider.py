@@ -1,4 +1,5 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from llm_providers.base import LLMProvider, CompletionResult
 from typing import Optional
 import os
@@ -16,8 +17,7 @@ class GeminiProvider(LLMProvider):
     default_model = "gemini-1.5-pro"
 
     def __init__(self):
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        self.model_name = self.default_model
+        self.client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
     async def complete(
         self,
@@ -27,15 +27,13 @@ class GeminiProvider(LLMProvider):
         response_format: Optional[dict] = None,
     ) -> CompletionResult:
         model = model or self.default_model
-        model_instance = genai.GenerativeModel(model)
 
-        generation_config = genai.types.GenerationConfig(
-            temperature=temperature,
-        )
-
-        response = await model_instance.generate_content_async(
-            prompt,
-            generation_config=generation_config,
+        response = await self.client.aio.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+            ),
         )
 
         input_tokens = response.usage_metadata.prompt_token_count or 0

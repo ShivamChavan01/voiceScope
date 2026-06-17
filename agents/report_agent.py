@@ -2,7 +2,7 @@ from llm_providers.registry import ProviderRegistry
 from core.context import PipelineContext
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 
@@ -60,7 +60,7 @@ class ReportAgent:
 
             ctx.report = {
                 "run_id": ctx.run_id,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "provider": {
                     "name": response.provider,
                     "model": response.model,

@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from utils.resilience import CircuitBreaker, with_retry
 
 

@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from core.pipeline import VoiceScopePipeline
 from utils.logger import logger
 from typing import Optional
@@ -28,7 +28,7 @@ class BatchProcessor:
             "failed": 0,
             "results": [],
             "callback_url": callback_url,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         asyncio.create_task(self._process_batch(batch_id, files))
@@ -48,7 +48,7 @@ class BatchProcessor:
                 logger.error(f"[BatchProcessor] batch={batch_id} file={filename} error={e}")
 
         batch["status"] = "completed"
-        batch["completed_at"] = datetime.utcnow().isoformat()
+        batch["completed_at"] = datetime.now(timezone.utc).isoformat()
 
         if batch["callback_url"]:
             await self._send_callback(batch)

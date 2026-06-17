@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class PipelineContext(BaseModel):
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     raw_transcript: Optional[str] = None
     audio_duration_seconds: Optional[float] = None

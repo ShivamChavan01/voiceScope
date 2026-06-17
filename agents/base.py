@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from core.context import PipelineContext
-from typing import Optional
 
 
 class BaseAgent(ABC):

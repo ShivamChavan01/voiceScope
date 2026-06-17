@@ -1,5 +1,4 @@
 import json
-import asyncio
 from typing import AsyncGenerator
 from core.pipeline import VoiceScopePipeline
 from core.context import PipelineContext

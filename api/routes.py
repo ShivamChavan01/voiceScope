@@ -7,7 +7,6 @@ from core.batch import BatchProcessor
 from storage.cost_store import CostStore
 from utils.logger import logger
 from typing import Optional
-import os
 
 router = APIRouter()
 _pipeline = None

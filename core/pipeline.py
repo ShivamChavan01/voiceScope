@@ -31,7 +31,7 @@ class VoiceScopePipeline:
         if "transcription" in ctx.stages_completed:
             ctx = await self.analysis_agent.run(ctx)
         else:
-            logger.warning(f"[Pipeline] skipping analysis — transcription failed")
+            logger.warning("[Pipeline] skipping analysis — transcription failed")
 
         # Stage 3 — Report (always runs, handles partial data gracefully)
         ctx = await self.report_agent.run(ctx)

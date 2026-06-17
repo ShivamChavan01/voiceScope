@@ -1,5 +1,4 @@
 import chromadb
-from chromadb.config import Settings
 from utils.logger import logger
 import os
 import asyncio

@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from llm_providers.base import CompletionResult
 from llm_providers.registry import ProviderRegistry
 

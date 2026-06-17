@@ -1,6 +1,5 @@
 import sqlite3
 import os
-from datetime import datetime
 from utils.logger import logger
 
 

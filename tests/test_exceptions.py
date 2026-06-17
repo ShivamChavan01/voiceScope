@@ -2,7 +2,6 @@ import pytest
 from utils.exceptions import (
     VoiceScopeError,
     TranscriptionError,
-    AnalysisError,
     ProviderError,
     RateLimitError,
     CircuitBreakerOpenError,
