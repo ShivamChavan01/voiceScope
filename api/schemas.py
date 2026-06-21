@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from utils.logger import logger
 
 
 class AnalyzeResponse(BaseModel):
@@ -38,8 +39,210 @@ class WebhookEvent(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Vapi
+# Generic field discovery — works with ANY platform
 # ---------------------------------------------------------------------------
+
+# Keys to search for, ordered by likelihood. Case-insensitive matching.
+_CALL_ID_KEYS = {"call_id", "callId", "callid", "id", "sid", "call_sid", "callSid"}
+_RECORDING_URL_KEYS = {
+    "recording_url",
+    "recordingUrl",
+    "recordinguri",
+    "recording_uri",
+    "callRecordingUrl",
+    "call_recording_url",
+    "monoUrl",
+    "mono_url",
+    "stereoUrl",
+    "stereo_url",
+    "audio_url",
+    "audioUrl",
+    "url",
+    "src",
+    "audio",
+    "file_url",
+    "fileUrl",
+    "download_url",
+    "downloadUrl",
+    "media_url",
+    "mediaUrl",
+}
+_TRANSCRIPT_KEYS = {
+    "transcript",
+    "transcripts",
+    "concatenated_transcript",
+    "transcript_text",
+    "transcriptText",
+    "full_transcript",
+    "callTranscript",
+    "call_transcript",
+    "conversation_transcript",
+}
+_DURATION_KEYS = {
+    "duration",
+    "duration_ms",
+    "durationMs",
+    "duration_seconds",
+    "durationSeconds",
+    "call_length",
+    "callLength",
+    "conversation_duration",
+    "conversationDuration",
+    "corrected_duration",
+    "correctedDuration",
+    "total_duration",
+    "totalDuration",
+    "length",
+    "callDuration",
+    "call_duration",
+    "time_seconds",
+    "timeSeconds",
+}
+_EVENT_KEYS = {"event", "type", "status", "event_type", "eventType", "action"}
+_ENDED_REASON_KEYS = {
+    "ended_reason",
+    "endedReason",
+    "disconnection_reason",
+    "disconnectionReason",
+    "end_reason",
+    "endReason",
+    "hangup_reason",
+    "hangupReason",
+    "disposition_tag",
+    "dispositionTag",
+    "error_message",
+    "call_ended_by",
+}
+
+
+def _deep_find(data: dict, keys: set[str], max_depth: int = 4):
+    """Search nested dict for any of the given keys. Returns first match."""
+    if max_depth <= 0:
+        return None
+    for key in keys:
+        if key in data:
+            return data[key]
+    for val in data.values():
+        if isinstance(val, dict):
+            result = _deep_find(val, keys, max_depth - 1)
+            if result is not None:
+                return result
+    return None
+
+
+def _deep_find_str(data: dict, keys: set[str], max_depth: int = 4) -> Optional[str]:
+    val = _deep_find(data, keys, max_depth)
+    if isinstance(val, str) and val.strip():
+        return val
+    return None
+
+
+def _deep_find_url(data: dict, keys: set[str], max_depth: int = 4) -> Optional[str]:
+    val = _deep_find(data, keys, max_depth)
+    if isinstance(val, str) and val.startswith("http"):
+        return val
+    return None
+
+
+def _deep_find_duration_ms(data: dict, keys: set[str], max_depth: int = 4) -> Optional[int]:
+    val = _deep_find(data, keys, max_depth)
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        # If value > 10000, likely already ms. If < 10000, likely seconds.
+        if val > 10000:
+            return int(val)
+        return int(val * 1000)
+    if isinstance(val, str):
+        try:
+            f = float(val)
+            if f > 10000:
+                return int(f)
+            return int(f * 1000)
+        except ValueError:
+            pass
+    return None
+
+
+def _build_transcript(data: dict, max_depth: int = 4) -> Optional[str]:
+    """Try to find or build a transcript from the payload."""
+    # Direct string field
+    direct = _deep_find_str(data, _TRANSCRIPT_KEYS, max_depth)
+    if direct and "\n" in direct:
+        return direct
+    if direct:
+        return direct
+
+    # Bland-style transcripts array
+    transcripts = _deep_find(data, {"transcripts"}, max_depth)
+    if isinstance(transcripts, list) and transcripts:
+        parts = []
+        for t in transcripts:
+            if isinstance(t, dict):
+                role = t.get("user") or t.get("role") or t.get("speaker") or "unknown"
+                text = t.get("text") or t.get("message") or t.get("content") or ""
+                if text:
+                    parts.append(f"{role}: {text}")
+        if parts:
+            return "\n".join(parts)
+
+    # messages array (Vapi-style)
+    messages = _deep_find(data, {"messages"}, max_depth)
+    if isinstance(messages, list) and messages:
+        parts = []
+        for m in messages:
+            if isinstance(m, dict):
+                role = m.get("role") or m.get("speaker") or "unknown"
+                text = m.get("message") or m.get("text") or m.get("content") or ""
+                if text:
+                    parts.append(f"{role}: {text}")
+        if parts:
+            return "\n".join(parts)
+
+    return None
+
+
+def parse_generic_webhook(payload: dict) -> WebhookEvent:
+    """Universal parser — discovers fields from any payload structure.
+
+    Searches the entire payload recursively for common field names.
+    Works with flat, nested, or deeply nested payloads from any platform.
+    """
+    call_id = _deep_find_str(payload, _CALL_ID_KEYS) or ""
+    recording_url = _deep_find_url(payload, _RECORDING_URL_KEYS)
+    transcript = _build_transcript(payload)
+    duration_ms = _deep_find_duration_ms(payload, _DURATION_KEYS)
+    event_type = _deep_find_str(payload, _EVENT_KEYS) or "call.ended"
+    ended_reason = _deep_find_str(payload, _ENDED_REASON_KEYS)
+
+    if not call_id:
+        logger.warning("[WebhookParser] no call_id found in payload — using empty string")
+
+    return WebhookEvent(
+        platform="generic",
+        event_type=event_type,
+        call_id=call_id,
+        recording_url=recording_url,
+        transcript=transcript,
+        duration_ms=duration_ms,
+        ended_reason=ended_reason,
+        metadata={"discovered_fields": True},
+        raw=payload,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Known platform parsers (extract richer metadata than generic)
+# ---------------------------------------------------------------------------
+
+
+def _seconds_to_ms(seconds) -> Optional[int]:
+    if seconds is None:
+        return None
+    try:
+        return int(float(seconds) * 1000)
+    except (ValueError, TypeError):
+        return None
 
 
 def parse_vapi_webhook(payload: dict) -> WebhookEvent:
@@ -55,13 +258,28 @@ def parse_vapi_webhook(payload: dict) -> WebhookEvent:
     if not recording_url:
         recording_url = call.get("recordingUrl")
 
+    started = call.get("startedAt")
+    ended = call.get("endedAt")
+    duration_ms = None
+    if started and ended:
+        from datetime import datetime
+
+        try:
+            s = datetime.fromisoformat(started.replace("Z", "+00:00"))
+            e = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+            duration_ms = int((e - s).total_seconds() * 1000)
+        except Exception:
+            pass
+    if duration_ms is None:
+        duration_ms = _seconds_to_ms(message.get("durationSeconds"))
+
     return WebhookEvent(
         platform="vapi",
         event_type=message.get("type", "end-of-call-report"),
         call_id=call.get("id", ""),
         recording_url=recording_url,
         transcript=artifact.get("transcript") or message.get("transcript"),
-        duration_ms=_parse_vapi_duration(call) or _seconds_to_ms(message.get("durationSeconds")),
+        duration_ms=duration_ms,
         ended_reason=message.get("endedReason"),
         metadata={
             "assistant_id": call.get("assistantId"),
@@ -72,35 +290,6 @@ def parse_vapi_webhook(payload: dict) -> WebhookEvent:
         },
         raw=payload,
     )
-
-
-def _parse_vapi_duration(call: dict) -> Optional[int]:
-    started = call.get("startedAt")
-    ended = call.get("endedAt")
-    if started and ended:
-        from datetime import datetime
-
-        try:
-            s = datetime.fromisoformat(started.replace("Z", "+00:00"))
-            e = datetime.fromisoformat(ended.replace("Z", "+00:00"))
-            return int((e - s).total_seconds() * 1000)
-        except Exception:
-            return None
-    return None
-
-
-def _seconds_to_ms(seconds) -> Optional[int]:
-    if seconds is None:
-        return None
-    try:
-        return int(float(seconds) * 1000)
-    except (ValueError, TypeError):
-        return None
-
-
-# ---------------------------------------------------------------------------
-# Retell
-# ---------------------------------------------------------------------------
 
 
 def parse_retell_webhook(payload: dict) -> WebhookEvent:
@@ -125,11 +314,6 @@ def parse_retell_webhook(payload: dict) -> WebhookEvent:
         },
         raw=payload,
     )
-
-
-# ---------------------------------------------------------------------------
-# Bland.ai
-# ---------------------------------------------------------------------------
 
 
 def parse_bland_webhook(payload: dict) -> WebhookEvent:
@@ -176,11 +360,6 @@ def parse_bland_webhook(payload: dict) -> WebhookEvent:
     )
 
 
-# ---------------------------------------------------------------------------
-# Bolna
-# ---------------------------------------------------------------------------
-
-
 def parse_bolna_webhook(payload: dict) -> WebhookEvent:
     """Parse Bolna call completed webhook into WebhookEvent."""
     telephony = payload.get("telephony_data", {})
@@ -208,11 +387,6 @@ def parse_bolna_webhook(payload: dict) -> WebhookEvent:
     )
 
 
-# ---------------------------------------------------------------------------
-# Synthflow
-# ---------------------------------------------------------------------------
-
-
 def parse_synthflow_webhook(payload: dict) -> WebhookEvent:
     """Parse Synthflow call completed webhook into WebhookEvent."""
     return WebhookEvent(
@@ -232,11 +406,6 @@ def parse_synthflow_webhook(payload: dict) -> WebhookEvent:
         },
         raw=payload,
     )
-
-
-# ---------------------------------------------------------------------------
-# Air.ai
-# ---------------------------------------------------------------------------
 
 
 def parse_airai_webhook(payload: dict) -> WebhookEvent:
@@ -265,26 +434,6 @@ def parse_airai_webhook(payload: dict) -> WebhookEvent:
 
 
 # ---------------------------------------------------------------------------
-# Generic / Unknown
-# ---------------------------------------------------------------------------
-
-
-def parse_generic_webhook(payload: dict) -> WebhookEvent:
-    """Parse a generic webhook payload (flat structure)."""
-    return WebhookEvent(
-        platform="generic",
-        event_type=payload.get("event", payload.get("type", payload.get("status", "call.ended"))),
-        call_id=payload.get("call_id", payload.get("id", "")),
-        recording_url=payload.get("recording_url"),
-        transcript=payload.get("transcript"),
-        duration_ms=payload.get("duration_ms"),
-        ended_reason=payload.get("ended_reason", payload.get("disconnection_reason")),
-        metadata=payload.get("metadata", {}),
-        raw=payload,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Auto-detection
 # ---------------------------------------------------------------------------
 
@@ -292,14 +441,9 @@ def parse_generic_webhook(payload: dict) -> WebhookEvent:
 def detect_and_parse_webhook(payload: dict) -> WebhookEvent:
     """Auto-detect platform and parse webhook payload.
 
-    Detection order:
-    1. Vapi — has payload.message.type in (end-of-call-report, status-update)
-    2. Retell — has event in (call_ended, call_analyzed) + call.call_id
-    3. Bland — has concatenated_transcript or transcripts array
-    4. Bolna — has telephony_data.recording_url + conversation_duration
-    5. Synthflow — has collected_variables + executed_actions
-    6. Air.ai — has call.sid + call.callRecordingUrl
-    7. Generic fallback
+    Known platforms get rich metadata extraction.
+    Unknown platforms fall through to the universal generic parser
+    which recursively discovers fields from any payload structure.
     """
 
     # Vapi
@@ -335,5 +479,11 @@ def detect_and_parse_webhook(payload: dict) -> WebhookEvent:
         if "sid" in call and "callRecordingUrl" in call:
             return parse_airai_webhook(payload)
 
-    # Generic
-    return parse_generic_webhook(payload)
+    # Universal generic — discovers fields from ANY structure
+    event = parse_generic_webhook(payload)
+    if not event.recording_url:
+        logger.warning(
+            f"[WebhookParser] generic parser found no recording_url — "
+            f"call_id={event.call_id}, keys={list(payload.keys())[:10]}"
+        )
+    return event

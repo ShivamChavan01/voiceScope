@@ -283,3 +283,121 @@ class TestGenericParser:
         event = parse_generic_webhook(GENERIC_PAYLOAD)
         assert event.call_id == "generic-001"
         assert event.recording_url == "https://example.com/rec.mp3"
+
+
+# ---------------------------------------------------------------------------
+# Universal deep-discovery tests (unknown platforms, nested payloads)
+# ---------------------------------------------------------------------------
+
+DEEPLY_NESTED_PAYLOAD = {
+    "data": {
+        "call": {
+            "meta": {
+                "callId": "deep-nested-001",
+            },
+            "recording": {
+                "url": "https://unknown-platform.com/recordings/deep.mp3",
+            },
+            "conversation": {
+                "transcript": "Agent: Hi there! User: I have a question.",
+            },
+            "timing": {
+                "durationSeconds": 45,
+            },
+        },
+    },
+    "webhookType": "call.completed",
+}
+
+CAMEL_CASE_PAYLOAD = {
+    "callId": "camel-001",
+    "callRecordingUrl": "https://example.com/camel.mp3",
+    "callTranscript": "Agent: Hello. User: Hi.",
+    "callDuration": 30,
+    "eventType": "callFinished",
+}
+
+SNAKE_CASE_PAYLOAD = {
+    "call_id": "snake-001",
+    "recording_url": "https://example.com/snake.mp3",
+    "transcript": "Agent: Hey. User: Hey.",
+    "duration_seconds": 60,
+    "event_type": "call_completed",
+}
+
+MESSAGES_ARRAY_PAYLOAD = {
+    "call_id": "msgs-001",
+    "recording_url": "https://example.com/msgs.mp3",
+    "messages": [
+        {"role": "agent", "message": "Hello!"},
+        {"role": "user", "message": "I need help."},
+        {"role": "agent", "message": "Sure, what's up?"},
+    ],
+    "duration": 25,
+}
+
+TRANSCRIPTS_ARRAY_PAYLOAD = {
+    "call_id": "arr-001",
+    "recording_url": "https://example.com/arr.mp3",
+    "transcripts": [
+        {"user": "customer", "text": "Hi!"},
+        {"user": "bot", "text": "Hello, how can I help?"},
+    ],
+    "duration_ms": 8000,
+}
+
+
+class TestGenericDeepDiscovery:
+    def test_deeply_nested_call_id(self):
+        event = parse_generic_webhook(DEEPLY_NESTED_PAYLOAD)
+        assert event.call_id == "deep-nested-001"
+
+    def test_deeply_nested_recording_url(self):
+        event = parse_generic_webhook(DEEPLY_NESTED_PAYLOAD)
+        assert event.recording_url == "https://unknown-platform.com/recordings/deep.mp3"
+
+    def test_deeply_nested_transcript(self):
+        event = parse_generic_webhook(DEEPLY_NESTED_PAYLOAD)
+        assert "Hi there" in event.transcript
+
+    def test_deeply_nested_duration(self):
+        event = parse_generic_webhook(DEEPLY_NESTED_PAYLOAD)
+        assert event.duration_ms == 45000
+
+    def test_camel_case_fields(self):
+        event = parse_generic_webhook(CAMEL_CASE_PAYLOAD)
+        assert event.call_id == "camel-001"
+        assert event.recording_url == "https://example.com/camel.mp3"
+        assert event.duration_ms == 30000
+
+    def test_snake_case_fields(self):
+        event = parse_generic_webhook(SNAKE_CASE_PAYLOAD)
+        assert event.call_id == "snake-001"
+        assert event.recording_url == "https://example.com/snake.mp3"
+        assert event.duration_ms == 60000
+
+    def test_messages_array_transcript(self):
+        event = parse_generic_webhook(MESSAGES_ARRAY_PAYLOAD)
+        assert "agent: Hello!" in event.transcript
+        assert "user: I need help." in event.transcript
+
+    def test_transcripts_array_transcript(self):
+        event = parse_generic_webhook(TRANSCRIPTS_ARRAY_PAYLOAD)
+        assert "customer: Hi!" in event.transcript
+        assert "bot: Hello, how can I help?" in event.transcript
+
+    def test_auto_detect_deeply_nested(self):
+        event = detect_and_parse_webhook(DEEPLY_NESTED_PAYLOAD)
+        assert event.platform == "generic"
+        assert event.call_id == "deep-nested-001"
+        assert event.recording_url is not None
+
+    def test_empty_payload_graceful(self):
+        event = parse_generic_webhook({})
+        assert event.call_id == ""
+        assert event.recording_url is None
+
+    def test_no_recording_url(self):
+        event = parse_generic_webhook({"call_id": "no-rec"})
+        assert event.call_id == "no-rec"
+        assert event.recording_url is None
