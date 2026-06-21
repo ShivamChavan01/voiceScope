@@ -315,3 +315,159 @@ class TestWebhookInvalidPayload:
         )
         assert response.status_code == 400
         assert "recording_url" in response.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Bland.ai integration
+# ---------------------------------------------------------------------------
+
+BLAND_WEBHOOK = {
+    "call_id": "12345678-1234-1234-1234-123456789012",
+    "completed": True,
+    "status": "completed",
+    "concatenated_transcript": "user: Hello?\nassistant: Test call from Bland.",
+    "corrected_duration": "11",
+    "recording_url": "https://api.twilio.com/Recordings/RE456",
+    "from": "+15559876543",
+    "to": "+15551234567",
+    "price": 0.017,
+}
+
+
+class TestBlandWebhook:
+    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.get_pipeline")
+    @patch("api.routes.httpx.AsyncClient")
+    def test_bland_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
+        mock_pipeline = AsyncMock()
+        mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
+        mock_get_pipeline.return_value = mock_pipeline
+        mock_httpx_cls.return_value = _mock_httpx_client()
+
+        response = client.post(
+            "/api/v1/webhooks/call-completed", json=BLAND_WEBHOOK, headers=HEADERS
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "bland"
+        assert data["call_id"] == "12345678-1234-1234-1234-123456789012"
+
+
+# ---------------------------------------------------------------------------
+# Bolna integration
+# ---------------------------------------------------------------------------
+
+BOLNA_WEBHOOK = {
+    "id": 7432382142914,
+    "agent_id": "3c90c3cc-0d44-4b50-8888-8dd25736052a",
+    "status": "completed",
+    "conversation_duration": 123,
+    "total_cost": 123,
+    "transcript": "Agent: Hello! User: Check my order.",
+    "telephony_data": {
+        "recording_url": "https://bolna-recordings.s3.amazonaws.com/rec.mp3",
+        "from_number": "+1987654007",
+        "to_number": "+10123456789",
+        "call_type": "outbound",
+        "provider": "twilio",
+    },
+}
+
+
+class TestBolnaWebhook:
+    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.get_pipeline")
+    @patch("api.routes.httpx.AsyncClient")
+    def test_bolna_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
+        mock_pipeline = AsyncMock()
+        mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
+        mock_get_pipeline.return_value = mock_pipeline
+        mock_httpx_cls.return_value = _mock_httpx_client()
+
+        response = client.post(
+            "/api/v1/webhooks/call-completed", json=BOLNA_WEBHOOK, headers=HEADERS
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "bolna"
+        assert data["call_id"] == "7432382142914"
+
+
+# ---------------------------------------------------------------------------
+# Synthflow integration
+# ---------------------------------------------------------------------------
+
+SYNTHFLOW_WEBHOOK = {
+    "call_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "agent_goodbye",
+    "duration": 113,
+    "transcript": "\nbot: Hey!\nhuman: Hi.",
+    "collected_variables": {},
+    "executed_actions": {},
+}
+
+
+class TestSynthflowWebhook:
+    def test_synthflow_no_recording_rejected(self):
+        response = client.post(
+            "/api/v1/webhooks/call-completed", json=SYNTHFLOW_WEBHOOK, headers=HEADERS
+        )
+        assert response.status_code == 400
+        assert "recording_url" in response.json()["detail"].lower()
+
+    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.get_pipeline")
+    @patch("api.routes.httpx.AsyncClient")
+    def test_synthflow_with_recording(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
+        mock_pipeline = AsyncMock()
+        mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
+        mock_get_pipeline.return_value = mock_pipeline
+        mock_httpx_cls.return_value = _mock_httpx_client()
+
+        payload = {
+            **SYNTHFLOW_WEBHOOK,
+            "recording_url": "https://synthflow.s3.amazonaws.com/rec.mp3",
+        }
+        response = client.post("/api/v1/webhooks/call-completed", json=payload, headers=HEADERS)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "synthflow"
+        assert data["call_id"] == "550e8400-e29b-41d4-a716-446655440000"
+
+
+# ---------------------------------------------------------------------------
+# Air.ai integration
+# ---------------------------------------------------------------------------
+
+AIRAI_WEBHOOK = {
+    "call": {
+        "sid": "CAec7g2x30425ba039a83ffb4286754983",
+        "llmAnsweredBy": "human",
+        "callRecordingUrl": "https://api.twilio.com/Recordings/RE25a9z",
+        "fromNumber": "+17752432501",
+        "toNumber": "+17752893647",
+        "direction": "outbound-api",
+        "duration": 44,
+        "transcript": "BOT: Hey Tyler!\nHUMAN: How's it going?",
+        "outcome": "Booked appointment",
+    }
+}
+
+
+class TestAiraiWebhook:
+    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.get_pipeline")
+    @patch("api.routes.httpx.AsyncClient")
+    def test_airai_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
+        mock_pipeline = AsyncMock()
+        mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
+        mock_get_pipeline.return_value = mock_pipeline
+        mock_httpx_cls.return_value = _mock_httpx_client()
+
+        response = client.post(
+            "/api/v1/webhooks/call-completed", json=AIRAI_WEBHOOK, headers=HEADERS
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "airai"
+        assert data["call_id"] == "CAec7g2x30425ba039a83ffb4286754983"

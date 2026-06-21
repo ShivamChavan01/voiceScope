@@ -125,13 +125,23 @@ curl http://localhost:8000/api/v1/costs \
 
 ### Webhook Integration
 
-VoiceScope receives call-completed webhooks from Vapi, Retell, and custom platforms for automatic pipeline processing.
+VoiceScope receives call-completed webhooks from **8 voice AI platforms** with automatic payload detection.
 
 **Endpoint:** `POST /api/v1/webhooks/call-completed`
 
-#### Vapi
+#### Supported Platforms
 
-Configure your Vapi assistant to send `end-of-call-report` webhooks to your VoiceScope URL. The endpoint auto-detects the Vapi payload format:
+| Platform | Detection Signal | Recording Source | Region |
+|---|---|---|---|
+| **Vapi** | `message.type: "end-of-call-report"` | `artifact.recording.monoUrl` | Global |
+| **Retell** | `event: "call_ended"` | `call.recording_url` | Global |
+| **Bland.ai** | `concatenated_transcript` or `transcripts[]` | `recording_url` | Global |
+| **Bolna** | `telephony_data` object | `telephony_data.recording_url` | India (YC F25) |
+| **Synthflow** | `collected_variables` or `executed_actions` | *(via API)* | Global |
+| **Air.ai** | `call.sid` + `call.callRecordingUrl` | `call.callRecordingUrl` | Global |
+| **Generic** | any `call_id` + `recording_url` | `recording_url` | Any |
+
+#### Vapi
 
 ```bash
 curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
@@ -155,8 +165,6 @@ curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
 
 #### Retell
 
-Configure your Retell agent to send `call_ended` webhooks. The endpoint auto-detects the Retell payload format:
-
 ```bash
 curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
   -H "Content-Type: application/json" \
@@ -168,6 +176,71 @@ curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
       "transcript": "Agent: Hi! User: I need help.",
       "duration_ms": 15791,
       "disconnection_reason": "user_hangup"
+    }
+  }'
+```
+
+#### Bland.ai
+
+```bash
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "call_id": "12345678-1234-1234-1234-123456789012",
+    "completed": true,
+    "concatenated_transcript": "user: Hello?\nassistant: This is a test call.",
+    "corrected_duration": "11",
+    "recording_url": "https://api.twilio.com/Recordings/RE456",
+    "from": "+15559876543",
+    "to": "+15551234567"
+  }'
+```
+
+#### Bolna (India, YC F25)
+
+```bash
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": 7432382142914,
+    "agent_id": "3c90c3cc-0d44-4b50-8888-8dd25736052a",
+    "status": "completed",
+    "conversation_duration": 123,
+    "transcript": "Agent: Hello! User: Check my order.",
+    "telephony_data": {
+      "recording_url": "https://bolna-recordings.s3.amazonaws.com/rec.mp3",
+      "from_number": "+1987654007",
+      "to_number": "+10123456789"
+    }
+  }'
+```
+
+#### Synthflow
+
+```bash
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "call_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "agent_goodbye",
+    "duration": 113,
+    "transcript": "\nbot: Hey!\nhuman: Hi, I need help.",
+    "collected_variables": {"user_name": {"value": "Julian", "collected": true}}
+  }'
+```
+
+#### Air.ai
+
+```bash
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "call": {
+      "sid": "CAec7g2x30425ba039a83ffb4286754983",
+      "callRecordingUrl": "https://api.twilio.com/Recordings/RE25a9z",
+      "transcript": "BOT: Hey Tyler!\nHUMAN: How's it going?",
+      "duration": 44,
+      "outcome": "Booked appointment"
     }
   }'
 ```
@@ -194,7 +267,7 @@ All webhook URLs are validated:
 - **Private IP blocking** — DNS resolution checked against private/link-local ranges
 - **Content-type verification** — downloaded file must be `audio/*`
 
-> **Note:** Webhook signature verification (Vapi API key / Retell `x-retell-signature` header) is a next step for production hardening.
+> **Note:** Webhook signature verification (Vapi API key / Retell `x-retell-signature` / Synthflow HMAC-SHA256) is a next step for production hardening.
 
 ## Python SDK
 

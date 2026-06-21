@@ -203,6 +203,9 @@ async def webhook_call_completed(request: Request):
         "end-of-call-report",
         "call_ended",
         "call.ended",
+        "call.completed",
+        "completed",
+        "agent_goodbye",
     }
     if event.event_type not in completed_events:
         raise HTTPException(
