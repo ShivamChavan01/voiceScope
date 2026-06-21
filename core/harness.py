@@ -13,7 +13,8 @@ class TestHarness:
         path = Path(self.test_cases_path)
         if not path.exists():
             return {"test_suite": "unknown", "test_cases": []}
-        return json.loads(path.read_text())
+        data: dict = json.loads(path.read_text())
+        return data
 
     async def run_single(self, case: dict) -> dict:
         test_id = case.get("test_id", "unknown")

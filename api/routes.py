@@ -81,7 +81,9 @@ async def analyze_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
     size_mb = _validate_audio(file, audio_bytes)
 
-    logger.info(f"[API] /analyze — file={sanitize_log_input(file.filename)}, size={size_mb:.2f}MB")
+    logger.info(
+        f"[API] /analyze — file={sanitize_log_input(file.filename or 'unknown')}, size={size_mb:.2f}MB"
+    )
 
     result = await get_pipeline().run(audio_bytes, file.filename or "upload.mp3")
 
@@ -108,7 +110,7 @@ async def analyze_audio_stream(file: UploadFile = File(...)):
     size_mb = _validate_audio(file, audio_bytes)
 
     logger.info(
-        f"[API] /analyze/stream — file={sanitize_log_input(file.filename)}, size={size_mb:.2f}MB"
+        f"[API] /analyze/stream — file={sanitize_log_input(file.filename or 'unknown')}, size={size_mb:.2f}MB"
     )
 
     return StreamingResponse(
@@ -139,7 +141,8 @@ async def create_batch(
         audio_bytes = await file.read()
         if len(audio_bytes) / (1024 * 1024) > MAX_FILE_SIZE_MB:
             raise HTTPException(
-                status_code=400, detail=f"File too large: {sanitize_log_input(file.filename)}"
+                status_code=400,
+                detail=f"File too large: {sanitize_log_input(file.filename or 'unknown')}",
             )
         file_data.append((audio_bytes, file.filename or "upload.mp3"))
 

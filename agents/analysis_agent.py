@@ -232,7 +232,8 @@ class AnalysisAgent:
         )
         result = json.loads(response.content)
         if isinstance(result, dict) and "summary" in result:
-            return result["summary"]
+            summary: str = result["summary"]
+            return summary
         return str(result)
 
     async def _extract_claims(self, transcript: str) -> list[str]:
@@ -244,10 +245,13 @@ class AnalysisAgent:
         if isinstance(result, list):
             return result
         if isinstance(result, dict) and "claims" in result:
-            return result["claims"]
+            claims: list[str] = result["claims"]
+            return claims
         return []
 
     async def _get_kb_context(self, claims: list[str]) -> str:
+        if not self.kb:
+            return "No knowledge base available."
         parts: list[str] = []
         for claim in claims:
             results = await self.kb.query(claim, n_results=2)

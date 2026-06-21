@@ -34,6 +34,6 @@ class ChromaStore:
         results = await loop.run_in_executor(
             None, partial(self.collection.query, query_texts=[text], n_results=n_results)
         )
-        docs = results.get("documents", [[]])[0]
+        docs: list[str] = results.get("documents", [[]])[0]
         logger.info(f"[ChromaStore] query returned {len(docs)} results")
         return docs

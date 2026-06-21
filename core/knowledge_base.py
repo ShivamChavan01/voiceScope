@@ -64,7 +64,8 @@ class KnowledgeBase:
                     n_results=n_results,
                 ),
             )
-            docs = results.get("documents", [[]])[0]
+            docs_data = results.get("documents", [[]])
+            docs: list[str] = docs_data[0] if docs_data else []
             logger.debug(f"[KnowledgeBase] query returned {len(docs)} results for '{claim[:50]}'")
             return docs
 

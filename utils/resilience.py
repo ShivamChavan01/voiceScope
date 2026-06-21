@@ -43,7 +43,7 @@ def with_retry(
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            last_exception = None
+            last_exception: Exception | None = None
             for attempt in range(max_retries + 1):
                 try:
                     return await func(*args, **kwargs)
@@ -55,7 +55,7 @@ def with_retry(
                             f"[Retry] attempt={attempt + 1} delay={delay:.1f}s error={e}"
                         )
                         await asyncio.sleep(delay)
-            raise last_exception
+            raise last_exception  # type: ignore[misc]
 
         return wrapper
 

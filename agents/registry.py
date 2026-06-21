@@ -20,11 +20,11 @@ class AgentRegistry:
         return cls._agents.copy()
 
     @classmethod
-    def run_all(cls, ctx: PipelineContext) -> PipelineContext:
+    async def run_all(cls, ctx: PipelineContext) -> PipelineContext:
         for agent_class in cls._agents:
             agent = agent_class()
             if agent.validate_input(ctx):
-                ctx = agent.run_sync(ctx)
+                ctx = await agent.run(ctx)
         return ctx
 
     @classmethod
