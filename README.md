@@ -123,6 +123,35 @@ curl http://localhost:8000/api/v1/costs \
   -H "X-API-Key: your-api-key"
 ```
 
+### Webhook Integration
+
+VoiceScope can receive call-completed webhooks from voice AI platforms (Vapi, Retell, etc.) for automatic pipeline processing:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/webhooks/call-completed \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "call.ended",
+    "call_id": "abc-123",
+    "recording_url": "https://cdn.example.com/recordings/abc-123.mp3",
+    "metadata": {"agent_id": "agent_001"}
+  }'
+```
+
+**Payload:**
+
+| Field | Type | Description |
+|---|---|---|
+| `event` | string | Must be `"call.ended"` |
+| `call_id` | string | Unique call identifier |
+| `recording_url` | string | HTTPS URL to fetch the audio recording |
+| `metadata` | dict | Optional platform-specific extra fields |
+
+The endpoint validates the payload, downloads the recording (SSRF-protected via HTTPS-only + DNS resolution blocking), runs it through the full 3-stage pipeline, and returns the analysis report.
+
+> **Note:** This is built and tested with mocked payloads matching Vapi/Retell-style schemas. Full certification with live platform accounts is a next step.
+
 ## Python SDK
 
 ```python

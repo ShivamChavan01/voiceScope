@@ -2,6 +2,7 @@ from agents.transcription_agent import TranscriptionAgent
 from agents.analysis_agent import AnalysisAgent
 from agents.report_agent import ReportAgent
 from core.context import PipelineContext
+from core.knowledge_base import KnowledgeBase
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
 
@@ -16,8 +17,9 @@ class VoiceScopePipeline:
 
     def __init__(self):
         self.chroma = ChromaStore()
+        self.kb = KnowledgeBase()
         self.transcription_agent = TranscriptionAgent()
-        self.analysis_agent = AnalysisAgent(self.chroma)
+        self.analysis_agent = AnalysisAgent(self.chroma, self.kb)
         self.report_agent = ReportAgent(self.chroma)
 
     async def run(self, audio_bytes: bytes, filename: str) -> dict:

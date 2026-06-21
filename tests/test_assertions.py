@@ -4,7 +4,9 @@ from core.assertions import AssertionEngine, AssertionResult
 engine = AssertionEngine()
 
 
-def _make_report(intent="test", outcome="resolved", esc=False, halluc=False, sentiment="neutral", quality=75):
+def _make_report(
+    intent="test", outcome="resolved", esc=False, halluc=False, sentiment="neutral", quality=75
+):
     return {
         "analysis": {
             "intent": intent,

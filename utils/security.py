@@ -1,6 +1,7 @@
 import ipaddress
 import re
 import hashlib
+import socket
 from urllib.parse import urlparse
 from utils.logger import logger
 
@@ -39,6 +40,19 @@ def validate_callback_url(url: str) -> bool:
             return False
     except ValueError:
         pass
+
+    try:
+        resolved = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in resolved:
+            resolved_ip = ipaddress.ip_address(sockaddr[0])
+            if any(resolved_ip in net for net in PRIVATE_RANGES):
+                logger.warning(
+                    f"[Security] callback_url rejected: resolved {hostname} → private IP {resolved_ip}"
+                )
+                return False
+    except socket.gaierror:
+        logger.warning(f"[Security] callback_url rejected: cannot resolve {hostname}")
+        return False
 
     return True
 

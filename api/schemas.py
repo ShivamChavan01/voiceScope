@@ -21,3 +21,10 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     service: str = "voicescope"
     version: str = "1.0.0"
+
+
+class WebhookPayload(BaseModel):
+    event: str
+    call_id: str
+    recording_url: str
+    metadata: dict = {}

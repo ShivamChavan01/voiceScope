@@ -1,14 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
 from fastapi.responses import StreamingResponse
-from api.schemas import HealthResponse
+from api.schemas import HealthResponse, WebhookPayload
 from api.sse import stream_analysis
 from core.pipeline import VoiceScopePipeline
 from core.batch import BatchProcessor
 from core.harness import TestHarness
 from storage.cost_store import CostStore
 from utils.logger import logger
-from utils.security import hash_api_key, sanitize_log_input
+from utils.security import hash_api_key, sanitize_log_input, validate_callback_url
 from typing import Optional
+import httpx
 
 router = APIRouter()
 _pipeline = None
@@ -186,3 +187,57 @@ async def get_costs():
 @router.post("/harness/run")
 async def run_harness():
     return await get_harness().run_all()
+
+
+@router.post("/webhooks/call-completed")
+async def webhook_call_completed(payload: WebhookPayload):
+    logger.info(f"[API] webhook received — call_id={payload.call_id}, event={payload.event}")
+
+    if payload.event != "call.ended":
+        raise HTTPException(status_code=400, detail="Only 'call.ended' events are accepted")
+
+    if not validate_callback_url(payload.recording_url):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid recording_url: must be HTTPS and not target private IPs",
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+            resp = await client.get(payload.recording_url)
+            resp.raise_for_status()
+            audio_bytes = resp.content
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to download recording: HTTP {e.response.status_code}"
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to download recording: {e}")
+
+    content_type = resp.headers.get("content-type", "")
+    if not content_type.startswith("audio/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Recording is not audio: content-type={content_type}",
+        )
+
+    result = await get_pipeline().run(audio_bytes, f"webhook_{payload.call_id}.mp3")
+
+    if result.get("provider", {}).get("name"):
+        p = result["provider"]
+        await get_cost_store().log_cost(
+            run_id=result["run_id"],
+            provider=p["name"],
+            model=p["model"],
+            input_tokens=p["input_tokens"],
+            output_tokens=p["output_tokens"],
+            cost_usd=p["cost_usd"],
+        )
+
+    if result.get("errors") and not result.get("report"):
+        raise HTTPException(status_code=500, detail="Webhook analysis failed")
+
+    logger.info(
+        f"[API] webhook processed — call_id={payload.call_id}, run_id={result.get('run_id')}"
+    )
+    return result
