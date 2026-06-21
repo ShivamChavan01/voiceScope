@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
 from fastapi.responses import StreamingResponse
-from api.schemas import HealthResponse, WebhookPayload
+from api.schemas import HealthResponse, detect_and_parse_webhook
 from api.sse import stream_analysis
 from core.pipeline import VoiceScopePipeline
 from core.batch import BatchProcessor
@@ -190,29 +190,46 @@ async def run_harness():
 
 
 @router.post("/webhooks/call-completed")
-async def webhook_call_completed(payload: WebhookPayload):
-    logger.info(f"[API] webhook received — call_id={payload.call_id}, event={payload.event}")
+async def webhook_call_completed(request: Request):
+    body = await request.json()
+    event = detect_and_parse_webhook(body)
 
-    if payload.event != "call.ended":
-        raise HTTPException(status_code=400, detail="Only 'call.ended' events are accepted")
+    logger.info(
+        f"[API] webhook received — platform={event.platform}, "
+        f"call_id={event.call_id}, event={event.event_type}"
+    )
 
-    if not validate_callback_url(payload.recording_url):
+    completed_events = {
+        "end-of-call-report",
+        "call_ended",
+        "call.ended",
+    }
+    if event.event_type not in completed_events:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Event '{event.event_type}' not supported — expected one of: {completed_events}",
+        )
+
+    if not event.recording_url:
+        raise HTTPException(status_code=400, detail="No recording_url found in webhook payload")
+
+    if not validate_callback_url(event.recording_url):
         raise HTTPException(
             status_code=400,
             detail="Invalid recording_url: must be HTTPS and not target private IPs",
         )
 
     try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
-            resp = await client.get(payload.recording_url)
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as http_client:
+            resp = await http_client.get(event.recording_url)
             resp.raise_for_status()
             audio_bytes = resp.content
     except httpx.HTTPStatusError as e:
         raise HTTPException(
-            status_code=400, detail=f"Failed to download recording: HTTP {e.response.status_code}"
+            status_code=402, detail=f"Failed to download recording: HTTP {e.response.status_code}"
         )
     except httpx.RequestError as e:
-        raise HTTPException(status_code=400, detail=f"Failed to download recording: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to download recording: {e}")
 
     content_type = resp.headers.get("content-type", "")
     if not content_type.startswith("audio/"):
@@ -221,7 +238,18 @@ async def webhook_call_completed(payload: WebhookPayload):
             detail=f"Recording is not audio: content-type={content_type}",
         )
 
-    result = await get_pipeline().run(audio_bytes, f"webhook_{payload.call_id}.mp3")
+    ext = "mp3"
+    if "wav" in content_type:
+        ext = "wav"
+    elif "webm" in content_type:
+        ext = "webm"
+    elif "ogg" in content_type:
+        ext = "ogg"
+    elif "m4a" in content_type or "mp4" in content_type:
+        ext = "m4a"
+
+    filename = f"webhook_{event.call_id}.{ext}"
+    result = await get_pipeline().run(audio_bytes, filename)
 
     if result.get("provider", {}).get("name"):
         p = result["provider"]
@@ -238,6 +266,11 @@ async def webhook_call_completed(payload: WebhookPayload):
         raise HTTPException(status_code=500, detail="Webhook analysis failed")
 
     logger.info(
-        f"[API] webhook processed — call_id={payload.call_id}, run_id={result.get('run_id')}"
+        f"[API] webhook processed — platform={event.platform}, "
+        f"call_id={event.call_id}, run_id={result.get('run_id')}"
     )
-    return result
+    return {
+        "platform": event.platform,
+        "call_id": event.call_id,
+        "pipeline_result": result,
+    }

@@ -125,32 +125,76 @@ curl http://localhost:8000/api/v1/costs \
 
 ### Webhook Integration
 
-VoiceScope can receive call-completed webhooks from voice AI platforms (Vapi, Retell, etc.) for automatic pipeline processing:
+VoiceScope receives call-completed webhooks from Vapi, Retell, and custom platforms for automatic pipeline processing.
+
+**Endpoint:** `POST /api/v1/webhooks/call-completed`
+
+#### Vapi
+
+Configure your Vapi assistant to send `end-of-call-report` webhooks to your VoiceScope URL. The endpoint auto-detects the Vapi payload format:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/webhooks/call-completed \
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": {
+      "type": "end-of-call-report",
+      "endedReason": "hangup",
+      "call": {
+        "id": "7420f27a-30fd-4f49-a995-5549ae7cc00d",
+        "status": "ended",
+        "recordingUrl": "https://storage.vapi.ai/recording.mp3"
+      },
+      "artifact": {
+        "recording": {"monoUrl": "https://storage.vapi.ai/mono.mp3"},
+        "transcript": "AI: How can I help? User: I need a refund."
+      }
+    }
+  }'
+```
+
+#### Retell
+
+Configure your Retell agent to send `call_ended` webhooks. The endpoint auto-detects the Retell payload format:
+
+```bash
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "call_ended",
+    "call": {
+      "call_id": "Jabr9TXYYJHfvl6Syypi88rdAHYHmcq6",
+      "recording_url": "https://retellai.s3.us-west-2.amazonaws.com/recording.wav",
+      "transcript": "Agent: Hi! User: I need help.",
+      "duration_ms": 15791,
+      "disconnection_reason": "user_hangup"
+    }
+  }'
+```
+
+#### Custom / Other Platforms
+
+Any payload with `call_id` + `recording_url` fields is accepted as a generic webhook:
+
+```bash
+curl -X POST https://your-voicescope.com/api/v1/webhooks/call-completed \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
     "event": "call.ended",
-    "call_id": "abc-123",
-    "recording_url": "https://cdn.example.com/recordings/abc-123.mp3",
-    "metadata": {"agent_id": "agent_001"}
+    "call_id": "custom-001",
+    "recording_url": "https://your-cdn.com/calls/custom-001.mp3"
   }'
 ```
 
-**Payload:**
+#### Security
 
-| Field | Type | Description |
-|---|---|---|
-| `event` | string | Must be `"call.ended"` |
-| `call_id` | string | Unique call identifier |
-| `recording_url` | string | HTTPS URL to fetch the audio recording |
-| `metadata` | dict | Optional platform-specific extra fields |
+All webhook URLs are validated:
+- **HTTPS-only** — HTTP URLs are rejected
+- **Private IP blocking** — DNS resolution checked against private/link-local ranges
+- **Content-type verification** — downloaded file must be `audio/*`
 
-The endpoint validates the payload, downloads the recording (SSRF-protected via HTTPS-only + DNS resolution blocking), runs it through the full 3-stage pipeline, and returns the analysis report.
-
-> **Note:** This is built and tested with mocked payloads matching Vapi/Retell-style schemas. Full certification with live platform accounts is a next step.
+> **Note:** Webhook signature verification (Vapi API key / Retell `x-retell-signature` header) is a next step for production hardening.
 
 ## Python SDK
 
