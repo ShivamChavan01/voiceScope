@@ -4,7 +4,16 @@ from core.knowledge_base import KnowledgeBase
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
 import json
+import re
 
+
+CHUNK_WORD_LIMIT = 1000
+ANALYSIS_WORD_THRESHOLD = 4000
+
+_SPEAKER_PATTERN = re.compile(
+    r"^((?:Agent|Customer|User|Bot|Rep|Support|Caller|Agent|Representative|CSR)\s*:)",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 CLAIMS_PROMPT = """
 You are extracting factual claims from a customer service call transcript.
@@ -49,12 +58,66 @@ Return ONLY valid JSON with these exact keys:
 }}
 """
 
+SUMMARIZATION_PROMPT = """
+Summarize this segment of a customer support call in 3-4 sentences.
+Preserve: promises made, complaints raised, resolution status.
+
+Transcript segment:
+{chunk}
+
+Return ONLY valid JSON: {{"summary": "..."}}
+"""
+
+
+def _count_words(text: str) -> int:
+    return len(text.split())
+
+
+def _split_by_speaker_turns(transcript: str) -> list[str]:
+    lines = transcript.splitlines()
+    turns: list[str] = []
+    current_turn: list[str] = []
+
+    for line in lines:
+        if _SPEAKER_PATTERN.match(line.strip()):
+            if current_turn:
+                turns.append("\n".join(current_turn))
+            current_turn = [line]
+        else:
+            current_turn.append(line)
+
+    if current_turn:
+        turns.append("\n".join(current_turn))
+
+    return turns
+
+
+def _chunk_turns(turns: list[str], max_words: int) -> list[str]:
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_words = 0
+
+    for turn in turns:
+        turn_words = _count_words(turn)
+        if current_words + turn_words > max_words and current_chunk:
+            chunks.append("\n".join(current_chunk))
+            current_chunk = []
+            current_words = 0
+        current_chunk.append(turn)
+        current_words += turn_words
+
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+
+    return chunks
+
 
 class AnalysisAgent:
     """
     Agent 2 — LLM-powered analysis of transcript.
     Uses RAG context from ChromaDB for similar past calls.
     Uses KnowledgeBase for policy-grounded hallucination detection.
+    Supports hierarchical summarization for transcripts over 4000 words.
     Populates: intent, sentiment_arc, hallucination_detected, outcome, escalation_signal
     """
 
@@ -70,12 +133,28 @@ class AnalysisAgent:
 
         logger.info(f"[AnalysisAgent] run_id={ctx.run_id}")
 
+        ctx.word_count = _count_words(ctx.raw_transcript)
+        transcript_for_analysis = ctx.raw_transcript
+
+        if ctx.word_count > ANALYSIS_WORD_THRESHOLD:
+            logger.info(
+                f"[AnalysisAgent] transcript is {ctx.word_count} words — "
+                f"using hierarchical summarization"
+            )
+            transcript_for_analysis = await self._hierarchical_summarize(ctx.raw_transcript, ctx)
+            logger.info(
+                f"[AnalysisAgent] summarized {ctx.chunk_count} chunks "
+                f"into {ctx.word_count} words (original: {_count_words(ctx.raw_transcript)} words)"
+            )
+        else:
+            ctx.chunk_count = None
+
         rag_context = await self._get_rag_context(ctx.raw_transcript)
 
         kb_context = "No knowledge base available — performing transcript-only analysis."
         if self.kb and self.kb.available:
             try:
-                claims = await self._extract_claims(ctx.raw_transcript)
+                claims = await self._extract_claims(transcript_for_analysis)
                 if claims:
                     kb_context = await self._get_kb_context(claims)
                     logger.info(
@@ -89,7 +168,7 @@ class AnalysisAgent:
                 logger.warning(f"[AnalysisAgent] KB extraction failed — {e}")
 
         prompt = ANALYSIS_PROMPT.format(
-            transcript=ctx.raw_transcript,
+            transcript=transcript_for_analysis,
             rag_context=rag_context or "No similar past calls found.",
             kb_context=kb_context,
         )
@@ -116,6 +195,45 @@ class AnalysisAgent:
             logger.error(f"[AnalysisAgent] failed — {e}")
 
         return ctx
+
+    async def _hierarchical_summarize(self, transcript: str, ctx: PipelineContext) -> str:
+        turns = _split_by_speaker_turns(transcript)
+        if not turns:
+            logger.warning(
+                "[AnalysisAgent] no speaker turns found — falling back to raw transcript"
+            )
+            return transcript
+
+        chunks = _chunk_turns(turns, CHUNK_WORD_LIMIT)
+        ctx.chunk_count = len(chunks)
+        logger.info(
+            f"[AnalysisAgent] split into {ctx.chunk_count} chunks "
+            f"(turns={len(turns)}, limit={CHUNK_WORD_LIMIT} words/chunk)"
+        )
+
+        summaries: list[str] = []
+        for i, chunk in enumerate(chunks, 1):
+            try:
+                summary = await self._summarize_chunk(chunk)
+                summaries.append(summary)
+                logger.info(f"[AnalysisAgent] chunk {i}/{ctx.chunk_count} summarized")
+            except Exception as e:
+                logger.warning(f"[AnalysisAgent] chunk {i} summarization failed — {e}")
+                summaries.append(chunk)
+
+        combined = "\n\n".join(summaries)
+        ctx.word_count = _count_words(combined)
+        return combined
+
+    async def _summarize_chunk(self, chunk: str) -> str:
+        prompt = SUMMARIZATION_PROMPT.format(chunk=chunk)
+        response = await self.provider.complete(
+            prompt=prompt, temperature=0.0, response_format={"type": "json_object"}
+        )
+        result = json.loads(response.content)
+        if isinstance(result, dict) and "summary" in result:
+            return result["summary"]
+        return str(result)
 
     async def _extract_claims(self, transcript: str) -> list[str]:
         prompt = CLAIMS_PROMPT.format(transcript=transcript)

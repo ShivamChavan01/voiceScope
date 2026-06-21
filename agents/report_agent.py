@@ -73,6 +73,8 @@ class ReportAgent:
                     "language": ctx.language_detected,
                     "duration_seconds": ctx.audio_duration_seconds,
                     "char_count": len(ctx.raw_transcript or ""),
+                    "word_count": ctx.word_count,
+                    "chunk_count": ctx.chunk_count,
                 },
                 "analysis": analysis_data,
                 "report": report_data,

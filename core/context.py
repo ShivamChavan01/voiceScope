@@ -19,6 +19,9 @@ class PipelineContext(BaseModel):
     outcome: Optional[str] = None
     escalation_signal: Optional[bool] = None
 
+    word_count: Optional[int] = None
+    chunk_count: Optional[int] = None
+
     report: Optional[dict] = None
 
     provider_name: Optional[str] = None
