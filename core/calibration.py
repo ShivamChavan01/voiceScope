@@ -7,7 +7,7 @@ import os
 import json
 import time
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from utils.logger import logger
 
 

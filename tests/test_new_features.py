@@ -3,10 +3,8 @@ import pytest
 
 os.environ["VALID_API_KEYS"] = "test-key"
 
-from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from main import app
-from storage.monitoring import MonitoringStore
 from core.qa import QAStore, QACohort, ResolutionCriterion
 from core.extractions import ExtractionStore, ExtractionSchema, ExtractionField
 from utils.guardrails import ContentGuardrails
@@ -71,11 +69,18 @@ class TestAlertChecking:
 
 
 class TestQACohorts:
+    def setup_method(self):
+        from api.routes import get_qa_store
+        store = get_qa_store()
+        store._conn.execute("DELETE FROM qa_cohorts")
+        store._conn.execute("DELETE FROM qa_results")
+        store._conn.commit()
+
     def test_create_cohort(self):
         response = client.post(
             "/api/v1/qa/cohorts",
             json={
-                "name": "Sales QA",
+                "name": "Sales QA Integration",
                 "platform_filter": "vapi",
                 "sampling_pct": 20.0,
                 "criteria": [
@@ -97,7 +102,7 @@ class TestQACohorts:
         # Create a cohort first
         create_resp = client.post(
             "/api/v1/qa/cohorts",
-            json={"name": "Score Test", "criteria": [{"name": "test", "description": "test", "weight": 1.0}]},
+            json={"name": "Score Test Integration", "criteria": [{"name": "test", "description": "test", "weight": 1.0}]},
             headers=HEADERS,
         )
         cohort_id = create_resp.json()["cohort_id"]
@@ -130,11 +135,18 @@ class TestQACohorts:
 
 
 class TestExtractionSchemas:
+    def setup_method(self):
+        from api.routes import get_extraction_store
+        store = get_extraction_store()
+        store._conn.execute("DELETE FROM extraction_schemas")
+        store._conn.execute("DELETE FROM extraction_results")
+        store._conn.commit()
+
     def test_create_schema(self):
         response = client.post(
             "/api/v1/extractions/schemas",
             json={
-                "name": "Call Outcome",
+                "name": "Call Outcome Integration",
                 "description": "Extract call outcome data",
                 "fields": [
                     {"name": "resolved", "description": "Was the issue resolved?", "field_type": "boolean"},
@@ -156,7 +168,7 @@ class TestExtractionSchemas:
         create_resp = client.post(
             "/api/v1/extractions/schemas",
             json={
-                "name": "Test Extraction",
+                "name": "Test Extraction Integration",
                 "fields": [{"name": "summary", "description": "Call summary", "field_type": "text"}],
             },
             headers=HEADERS,

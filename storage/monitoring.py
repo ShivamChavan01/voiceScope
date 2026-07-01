@@ -1,7 +1,5 @@
 import sqlite3
 import os
-import json
-from datetime import datetime, timezone
 from typing import Optional
 from utils.logger import logger
 
@@ -153,7 +151,7 @@ class MonitoringStore:
         if metric not in metric_map:
             return None
 
-        col = metric_map[metric]
+        metric_map[metric]
 
         if metric == "total_calls":
             row = conn.execute(

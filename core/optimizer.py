@@ -112,10 +112,10 @@ class CalibrationOptimizer:
                 changes.append(f"{layer}: {old_w:.3f} → {new_w:.3f}")
 
         # Compute improvement estimate
-        old_score = sum(old_weights.get(l, 0) * s for l, s in layer_stats.items()
-                        for s in [sum(layer_stats[l]["scores"]) / max(len(layer_stats[l]["scores"]), 1)])
-        new_score = sum(new_weights.get(l, 0) * s for l, s in layer_stats.items()
-                        for s in [sum(layer_stats[l]["scores"]) / max(len(layer_stats[l]["scores"]), 1)])
+        old_score = sum(old_weights.get(layer_name, 0) * avg for layer_name, _ in layer_stats.items()
+                        for avg in [sum(layer_stats[layer_name]["scores"]) / max(len(layer_stats[layer_name]["scores"]), 1)])
+        new_score = sum(new_weights.get(layer_name, 0) * avg for layer_name, _ in layer_stats.items()
+                        for avg in [sum(layer_stats[layer_name]["scores"]) / max(len(layer_stats[layer_name]["scores"]), 1)])
         improvement = new_score - old_score
 
         # Save to history

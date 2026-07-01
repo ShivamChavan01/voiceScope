@@ -5,7 +5,6 @@ verifies LLM analysis doesn't contradict them.
 
 import re
 from pydantic import BaseModel
-from utils.logger import logger
 
 
 class Fact(BaseModel):
@@ -91,11 +90,11 @@ class FactExtractor:
                 # Check if analysis claims something was promised when it wasn't, or vice versa
                 promise_keywords = ["promise", "guarantee", "commit", "will do"]
                 has_promise_in_transcript = any(kw in fact.text.lower() for kw in promise_keywords)
-                has_promise_in_analysis = any(kw in analysis_text for kw in promise_keywords)
+                any(kw in analysis_text for kw in promise_keywords)
                 if has_promise_in_transcript and "no promise" in analysis_text:
-                    contradictions.append(f"transcript contains promise but analysis says none")
+                    contradictions.append("transcript contains promise but analysis says none")
                 if not has_promise_in_transcript and "promise" in analysis_text and "no" not in analysis_text:
-                    contradictions.append(f"analysis claims promise but none found in transcript")
+                    contradictions.append("analysis claims promise but none found in transcript")
 
         accuracy = 1.0 - (len(contradictions) / max(len(facts), 1))
 

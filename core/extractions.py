@@ -1,7 +1,7 @@
 import sqlite3
 import os
 import json
-from typing import Optional
+from typing import Any
 from pydantic import BaseModel, Field
 from utils.logger import logger
 
@@ -25,75 +25,70 @@ class ExtractionStore:
 
     def __init__(self):
         self.db_path = os.getenv("EXTRACTIONS_DB_PATH", "./extractions.db")
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS extraction_schemas (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    description TEXT DEFAULT '',
-                    fields_json TEXT DEFAULT '[]',
-                    enabled INTEGER DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS extraction_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    schema_id INTEGER NOT NULL,
-                    run_id TEXT NOT NULL,
-                    results_json TEXT DEFAULT '{}',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (schema_id) REFERENCES extraction_schemas(id)
-                )
-            """)
-            conn.commit()
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS extraction_schemas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                fields_json TEXT DEFAULT '[]',
+                enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS extraction_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                schema_id INTEGER NOT NULL,
+                run_id TEXT NOT NULL,
+                results_json TEXT DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (schema_id) REFERENCES extraction_schemas(id)
+            )
+        """)
+        self._conn.commit()
         logger.info(f"[ExtractionStore] initialized db={self.db_path}")
 
     async def create_schema(self, schema: ExtractionSchema) -> int:
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "INSERT INTO extraction_schemas (name, description, fields_json) VALUES (?, ?, ?)",
-                (schema.name, schema.description, json.dumps([f.model_dump() for f in schema.fields])),
-            )
-            conn.commit()
-            schema_id = cursor.lastrowid
+        cursor = self._conn.execute(
+            "INSERT INTO extraction_schemas (name, description, fields_json) VALUES (?, ?, ?)",
+            (schema.name, schema.description, json.dumps([f.model_dump() for f in schema.fields])),
+        )
+        self._conn.commit()
+        schema_id = cursor.lastrowid
         logger.info(f"[ExtractionStore] created schema id={schema_id} name={schema.name}")
         return schema_id
 
     async def list_schemas(self) -> list[dict]:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute("SELECT * FROM extraction_schemas ORDER BY created_at DESC").fetchall()
-            result = []
-            for r in rows:
-                d = dict(r)
-                d["fields"] = json.loads(d["fields_json"])
-                del d["fields_json"]
-                result.append(d)
-            return result
+        rows = self._conn.execute("SELECT * FROM extraction_schemas ORDER BY created_at DESC").fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["fields"] = json.loads(d["fields_json"])
+            del d["fields_json"]
+            result.append(d)
+        return result
 
     async def delete_schema(self, schema_id: int) -> bool:
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("DELETE FROM extraction_schemas WHERE id = ?", (schema_id,))
-            conn.commit()
-            return cursor.rowcount > 0
+        cursor = self._conn.execute("DELETE FROM extraction_schemas WHERE id = ?", (schema_id,))
+        self._conn.commit()
+        return cursor.rowcount > 0
 
     async def run_extractions(self, schema_id: int, run_id: str, transcript: str, metadata: dict = None) -> dict:
         """Run extraction fields against a transcript using the LLM.
         Returns extracted values for each field.
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            schema = conn.execute(
-                "SELECT * FROM extraction_schemas WHERE id = ?", (schema_id,)
-            ).fetchone()
-            if not schema:
-                raise ValueError(f"Schema {schema_id} not found")
+        schema = self._conn.execute(
+            "SELECT * FROM extraction_schemas WHERE id = ?", (schema_id,)
+        ).fetchone()
+        if not schema:
+            raise ValueError(f"Schema {schema_id} not found")
 
-            fields = json.loads(schema["fields_json"])
+        fields = json.loads(schema["fields_json"])
 
         # Build extraction results using simple heuristics + LLM prompt construction
         results = {}
@@ -111,12 +106,11 @@ class ExtractionStore:
             }
 
         # Store results
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "INSERT INTO extraction_results (schema_id, run_id, results_json) VALUES (?, ?, ?)",
-                (schema_id, run_id, json.dumps(results)),
-            )
-            conn.commit()
+        self._conn.execute(
+            "INSERT INTO extraction_results (schema_id, run_id, results_json) VALUES (?, ?, ?)",
+            (schema_id, run_id, json.dumps(results)),
+        )
+        self._conn.commit()
 
         return {
             "schema_id": schema_id,
@@ -125,7 +119,7 @@ class ExtractionStore:
             "extractions": results,
         }
 
-    def _extract_field(self, field_type: str, field: dict, transcript: str) -> any:
+    def _extract_field(self, field_type: str, field: dict, transcript: str) -> Any:
         """Simple heuristic extraction. In production, this calls the LLM."""
         transcript_lower = transcript.lower()
 
@@ -153,19 +147,17 @@ class ExtractionStore:
             return sentences[0][:200] if sentences else transcript[:200]
 
     async def get_results(self, schema_id: int, limit: int = 100) -> list[dict]:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """SELECT * FROM extraction_results
-                   WHERE schema_id = ?
-                   ORDER BY created_at DESC
-                   LIMIT ?""",
-                (schema_id, limit),
-            ).fetchall()
-            result = []
-            for r in rows:
-                d = dict(r)
-                d["extractions"] = json.loads(d["results_json"])
-                del d["results_json"]
-                result.append(d)
-            return result
+        rows = self._conn.execute(
+            """SELECT * FROM extraction_results
+               WHERE schema_id = ?
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (schema_id, limit),
+        ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["extractions"] = json.loads(d["results_json"])
+            del d["results_json"]
+            result.append(d)
+        return result

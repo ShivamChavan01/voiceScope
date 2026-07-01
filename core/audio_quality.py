@@ -4,10 +4,8 @@ Layer 9: LLM Response Time Monitoring.
 Layer 10: Token Usage Tracking.
 """
 
-import os
 import time
 from pydantic import BaseModel
-from utils.logger import logger
 
 
 class AudioQualityResult(BaseModel):

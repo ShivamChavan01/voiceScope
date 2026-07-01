@@ -4,7 +4,6 @@ Layer 3: Cross-Check — runs analysis twice with different prompts, compares re
 
 import os
 import json
-from typing import Optional
 from pydantic import BaseModel
 from utils.logger import logger
 

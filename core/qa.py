@@ -1,8 +1,6 @@
 import sqlite3
 import os
 import json
-import random
-from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 from utils.logger import logger

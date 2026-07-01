@@ -6,7 +6,7 @@ compares results with expected answers, tracks accuracy per layer.
 import json
 from pathlib import Path
 from pydantic import BaseModel, Field
-from core.harness import ValidationHarness, HarnessResult
+from core.harness import ValidationHarness
 from core.sentiment_check import SentimentCheck
 from core.outcome_check import OutcomeCheck
 from core.citations import CitationVerifier

@@ -3,8 +3,7 @@ Layer 13: Feedback Loop — endpoint for users to mark results as correct/incorr
 Feeds back into confidence calibration (Layer 12).
 """
 
-import os
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from utils.logger import logger
 
 

@@ -1,14 +1,11 @@
 import os
-import pytest
-import json
-from pathlib import Path
 
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["CALIBRATION_DB_PATH"] = ":memory:"
 os.environ["OPTIMIZER_DB_PATH"] = ":memory:"
 os.environ["PROMPT_TRACKER_DB_PATH"] = ":memory:"
 
-from core.benchmark import HarnessBenchmark, BenchmarkSummary
+from core.benchmark import HarnessBenchmark
 from core.optimizer import CalibrationOptimizer, OptimizationResult
 from core.prompt_tracker import PromptTracker
 from core.self_improve import SelfImprovementLoop, LoopResult

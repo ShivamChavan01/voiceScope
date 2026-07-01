@@ -13,7 +13,6 @@ import httpx
 import json
 import sys
 import time
-from pathlib import Path
 
 BASE_URL = "http://localhost:8000"
 API_KEY = "demo-key-voicescope"
@@ -219,7 +218,7 @@ def send_webhook(platform: str, payload: dict) -> dict | None:
             return resp.json() if resp.status_code == 200 else {"error": resp.json()}
     except httpx.ConnectError:
         print(f"  ERROR: Cannot connect to {BASE_URL}. Is VoiceScope running?")
-        print(f"  Start it with: uvicorn main:app --reload")
+        print("  Start it with: uvicorn main:app --reload")
         return None
     except Exception as e:
         print(f"  ERROR: {e}")
@@ -244,7 +243,7 @@ def print_report(result: dict, platform: str):
 
     if report:
         print(f"\n  📊 QUALITY SCORE: {report.get('quality_score', 'N/A')}/100")
-        print(f"\n  📝 SUMMARY:")
+        print("\n  📝 SUMMARY:")
         summary = report.get("executive_summary", "")
         if summary:
             for line in summary.split("\n")[:5]:
@@ -252,18 +251,18 @@ def print_report(result: dict, platform: str):
 
         findings = report.get("key_findings", [])
         if findings:
-            print(f"\n  🔍 KEY FINDINGS:")
+            print("\n  🔍 KEY FINDINGS:")
             for f in findings[:5]:
                 print(f"     • {f}")
 
         recs = report.get("recommendations", [])
         if recs:
-            print(f"\n  💡 RECOMMENDATIONS:")
+            print("\n  💡 RECOMMENDATIONS:")
             for r in recs[:5]:
                 print(f"     • {r}")
 
     if analysis:
-        print(f"\n  📈 ANALYSIS:")
+        print("\n  📈 ANALYSIS:")
         print(f"     Intent:          {analysis.get('intent', 'N/A')}")
         print(f"     Sentiment:       {analysis.get('sentiment_arc', 'N/A')}")
         print(f"     Outcome:         {analysis.get('outcome', 'N/A')}")

@@ -21,7 +21,6 @@ import hashlib
 from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 from enum import Enum
-from utils.logger import logger
 
 
 class SentimentType(str, Enum):
@@ -245,7 +244,7 @@ class ValidationHarness:
                 errors=["empty analysis output"],
             )
         try:
-            validated = AnalysisOutput(**raw_output)
+            AnalysisOutput(**raw_output)
             return ValidationResult(passed=True, confidence=1.0)
         except Exception as e:
             return ValidationResult(
@@ -257,7 +256,7 @@ class ValidationHarness:
     def _schema_validate_report(self, raw_output: dict) -> ValidationResult:
         """Layer 1: Schema validation for report output."""
         try:
-            validated = ReportOutput(**raw_output)
+            ReportOutput(**raw_output)
             return ValidationResult(passed=True, confidence=1.0)
         except Exception as e:
             return ValidationResult(

@@ -2,9 +2,7 @@
 Layer 5: Sentiment Consistency Check — verifies LLM sentiment matches transcript cues.
 """
 
-import re
 from pydantic import BaseModel
-from utils.logger import logger
 
 
 class SentimentCheckResult(BaseModel):

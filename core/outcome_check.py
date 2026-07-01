@@ -3,9 +3,7 @@ Layer 6 & 7: Outcome Evidence Check + Escalation Signal Verification.
 Verifies LLM outcome/escalation labels have supporting evidence in transcript.
 """
 
-import re
 from pydantic import BaseModel
-from utils.logger import logger
 
 
 class OutcomeCheckResult(BaseModel):

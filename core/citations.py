@@ -4,9 +4,7 @@ Layer 2: Citation Verification — checks that LLM findings reference the actual
 
 import re
 from difflib import SequenceMatcher
-from typing import Optional
 from pydantic import BaseModel
-from utils.logger import logger
 
 
 class CitationResult(BaseModel):
