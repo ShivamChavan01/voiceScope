@@ -221,7 +221,6 @@ class ValidationHarness:
         if hasattr(ctx, "llm_response_time_ms"):
             result.response_time_ms = ctx.llm_response_time_ms
             if ctx.llm_response_time_ms > 10000:
-                result.validation_warnings = getattr(result, "validation_warnings", [])
                 result.validation_errors.append("LLM response time >10s (model may be struggling)")
 
         # Layer 9: Token usage tracking

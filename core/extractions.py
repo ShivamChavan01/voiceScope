@@ -1,7 +1,7 @@
 import sqlite3
 import os
 import json
-from typing import Any
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 from utils.logger import logger
 
@@ -61,7 +61,7 @@ class ExtractionStore:
         self._conn.commit()
         schema_id = cursor.lastrowid
         logger.info(f"[ExtractionStore] created schema id={schema_id} name={schema.name}")
-        return schema_id
+        return int(schema_id)
 
     async def list_schemas(self) -> list[dict]:
         rows = self._conn.execute("SELECT * FROM extraction_schemas ORDER BY created_at DESC").fetchall()
@@ -76,9 +76,9 @@ class ExtractionStore:
     async def delete_schema(self, schema_id: int) -> bool:
         cursor = self._conn.execute("DELETE FROM extraction_schemas WHERE id = ?", (schema_id,))
         self._conn.commit()
-        return cursor.rowcount > 0
+        return bool(cursor.rowcount > 0)
 
-    async def run_extractions(self, schema_id: int, run_id: str, transcript: str, metadata: dict = None) -> dict:
+    async def run_extractions(self, schema_id: int, run_id: str, transcript: str, metadata: Optional[dict] = None) -> dict:
         """Run extraction fields against a transcript using the LLM.
         Returns extracted values for each field.
         """

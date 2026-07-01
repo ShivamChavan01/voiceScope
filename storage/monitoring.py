@@ -275,6 +275,7 @@ class MonitoringStore:
             )
             conn.commit()
             rule_id = cursor.lastrowid
+        assert rule_id is not None
         logger.info(f"[MonitoringStore] created alert rule id={rule_id} name={name}")
         return rule_id
 

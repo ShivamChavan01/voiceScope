@@ -6,6 +6,7 @@ and suggests improvements based on common failure patterns.
 import json
 import os
 import time
+from typing import Optional
 from pathlib import Path
 from pydantic import BaseModel, Field
 from utils.logger import logger
@@ -56,7 +57,7 @@ class PromptTracker:
         except Exception as e:
             logger.warning(f"[PromptTracker] failed to save: {e}")
 
-    def record_run(self, prompt_name: str, accuracy: float, errors: list[str] = None):
+    def record_run(self, prompt_name: str, accuracy: float, errors: Optional[list[str]] = None):
         """Record a prompt execution result."""
         existing = next((r for r in self._records if r.prompt_name == prompt_name), None)
         if existing:

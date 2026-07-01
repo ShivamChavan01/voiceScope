@@ -36,4 +36,4 @@ class FeedbackStore:
         }
 
     def get_calibration(self) -> dict:
-        return self.calibrator.get_calibration().model_dump()
+        return dict(self.calibrator.get_calibration().model_dump())

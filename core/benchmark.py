@@ -59,7 +59,7 @@ class HarnessBenchmark:
         if not path.exists():
             logger.warning(f"[Benchmark] test data not found: {self.test_data_path}")
             return []
-        return json.loads(path.read_text())
+        return list(json.loads(path.read_text()))
 
     def run_benchmark(self) -> BenchmarkSummary:
         """Run all labeled tests through harness, return summary."""
@@ -135,7 +135,7 @@ class HarnessBenchmark:
         avg_facts = sum(r.fact_accuracy for r in results) / n
 
         # Find weakest and strongest layers
-        layer_avgs = {}
+        layer_avgs: dict[str, list[float]] = {}
         for r in results:
             for layer, score in r.layer_scores.items():
                 if layer not in layer_avgs:
@@ -143,8 +143,8 @@ class HarnessBenchmark:
                 layer_avgs[layer].append(score)
 
         layer_means = {k: sum(v) / len(v) for k, v in layer_avgs.items() if v}
-        weakest = min(layer_means, key=layer_means.get) if layer_means else "none"
-        strongest = max(layer_means, key=layer_means.get) if layer_means else "none"
+        weakest = min(layer_means, key=lambda k: layer_means[k]) if layer_means else "none"
+        strongest = max(layer_means, key=lambda k: layer_means[k]) if layer_means else "none"
 
         return BenchmarkSummary(
             total_tests=n,

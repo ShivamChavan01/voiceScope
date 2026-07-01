@@ -83,7 +83,7 @@ class QAStore:
         self._conn.commit()
         cohort_id = cursor.lastrowid
         logger.info(f"[QAStore] created cohort id={cohort_id} name={cohort.name}")
-        return cohort_id
+        return int(cohort_id)
 
     async def list_cohorts(self) -> list[dict]:
         rows = self._conn.execute("SELECT * FROM qa_cohorts ORDER BY created_at DESC").fetchall()
@@ -158,7 +158,7 @@ class QAStore:
             score = metrics.get("quality_score")
             if score is None:
                 return 0.5
-            return min(1.0, max(0.0, score / 100.0))
+            return float(min(1.0, max(0.0, score / 100.0)))
 
         elif metric_type == "outcome":
             outcome = metrics.get("outcome", "")

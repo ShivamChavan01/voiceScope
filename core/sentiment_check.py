@@ -52,7 +52,7 @@ class SentimentCheck:
             "positive": pos_count,
             "neutral": neu_count,
         }
-        suggested = max(scores, key=scores.get)
+        suggested = max(scores, key=lambda k: scores[k])
         total_cues = neg_count + pos_count + neu_count
 
         cues_found = []

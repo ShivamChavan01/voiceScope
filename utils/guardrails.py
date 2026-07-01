@@ -88,7 +88,7 @@ class ContentGuardrails:
 
         return result
 
-    def redact_pii(self, text: str) -> tuple[str, list[str]]:
+    def redact_pii(self, text: str) -> tuple[str, list[dict[str, str]]]:
         """Redact PII from text. Returns (redacted_text, list_of_redactions)."""
         redacted = text
         redactions = []

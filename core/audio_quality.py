@@ -104,7 +104,7 @@ class TokenTracker:
         if not self._records:
             return False
         latest = self._records[-1]
-        return latest["total"] > 10000
+        return bool(latest["total"] > 10000)
 
     def get_average(self) -> dict:
         if not self._records:

@@ -77,7 +77,7 @@ class CalibrationOptimizer:
 
         # Calculate new weights proportional to accuracy
         new_weights = {}
-        total_acc = 0
+        total_acc: float = 0.0
         for layer, stats in layer_stats.items():
             avg_acc = sum(stats["scores"]) / len(stats["scores"]) if stats["scores"] else 0.5
             new_weights[layer] = avg_acc
@@ -137,7 +137,7 @@ class CalibrationOptimizer:
 
     def get_current_weights(self) -> dict[str, float]:
         if self._history:
-            return self._history[-1].get("weights", self.DEFAULT_WEIGHTS)
+            return dict(self._history[-1].get("weights", self.DEFAULT_WEIGHTS))
         return self.DEFAULT_WEIGHTS
 
     def get_history(self) -> list[dict]:
