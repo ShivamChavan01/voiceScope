@@ -83,6 +83,14 @@ class BatchProcessor:
 
     def get_batch(self, batch_id: str, owner_key: Optional[str] = None) -> Optional[dict]:
         batch = batches.get(batch_id)
-        if batch and owner_key and batch.get("owner_key") != owner_key:
+        if not batch:
+            return None
+        batch_owner = batch.get("owner_key")
+        # If batch has an owner, caller must match
+        if batch_owner:
+            if owner_key != batch_owner:
+                return None
+        # If batch has no owner (created unauthenticated), require caller to also be unauthenticated
+        elif owner_key:
             return None
         return batch

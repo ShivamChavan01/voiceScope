@@ -21,7 +21,7 @@ class ErrorResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     service: str = "voicescope"
-    version: str = "1.0.0"
+    version: str = "2.0.0"
 
 
 class WebhookEvent(BaseModel):

@@ -1,0 +1,132 @@
+[
+  {
+    "id": "TD-001",
+    "name": "Billing complaint — resolved",
+    "transcript": "Customer: I was charged $49.99 twice for my subscription. This is unacceptable.\nAgent: I apologize for the inconvenience. Let me look into that right away. I can see the duplicate charge. I've processed a refund of $49.99 to your card. You should see it within 3-5 business days.\nCustomer: Thank you, that's great.\nAgent: Is there anything else I can help you with today?\nCustomer: No, that's all. Thanks for fixing it so quickly.",
+    "expected": {
+      "sentiment_arc": "negative",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "billing complaint about duplicate charge",
+      "key_facts": ["$49.99 charged twice", "refund processed", "3-5 business days"]
+    }
+  },
+  {
+    "id": "TD-002",
+    "name": "Product defect — escalated",
+    "transcript": "Customer: Your product is broken. It stopped working after one day. I want a refund.\nAgent: I'm sorry to hear that. Can you tell me more about what happened?\nCustomer: It just won't turn on. I followed all the instructions.\nAgent: I understand your frustration. This seems like a hardware defect. Let me transfer you to our specialist team who can process a replacement or full refund.\nCustomer: Fine, but this is really frustrating.\nAgent: I completely understand. I'm connecting you now.",
+    "expected": {
+      "sentiment_arc": "negative",
+      "outcome": "escalated",
+      "hallucination_detected": false,
+      "escalation_signal": true,
+      "intent": "product defect complaint requiring specialist",
+      "key_facts": ["product stopped working after one day", "transfer to specialist", "replacement or refund offered"]
+    }
+  },
+  {
+    "id": "TD-003",
+    "name": "Shipping inquiry — resolved",
+    "transcript": "Customer: Hi, I placed an order three days ago and haven't received a shipping confirmation yet.\nAgent: Let me check that for you. Can I have your order number?\nCustomer: It's order 12345.\nAgent: I see your order. It was processed yesterday and should ship today. You'll get a tracking email by end of day.\nCustomer: Oh great, so it's on its way?\nAgent: Yes, it's being packed now. Expected delivery is Friday.\nCustomer: Perfect, thanks!",
+    "expected": {
+      "sentiment_arc": "neutral",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "shipping status inquiry",
+      "key_facts": ["order 12345", "shipped today", "tracking email by end of day", "delivery Friday"]
+    }
+  },
+  {
+    "id": "TD-004",
+    "name": "Subscription cancellation — unresolved",
+    "transcript": "Customer: I want to cancel my subscription.\nAgent: I'm sorry to hear that. May I ask why?\nCustomer: I just don't use it anymore.\nAgent: I understand. I can process the cancellation, but your access will end at the current billing cycle. Are you sure?\nCustomer: Yes, cancel it.\nAgent: Okay, I've submitted the cancellation request. You'll receive a confirmation email.\nCustomer: When does it actually end?\nAgent: At the end of your current billing period, which is March 15th.\nCustomer: That's still two weeks away. Can you end it now?\nAgent: I'm sorry, our policy doesn't allow mid-cycle cancellations. I can escalate this to a supervisor if you'd like.\nCustomer: Forget it, just cancel it.",
+    "expected": {
+      "sentiment_arc": "negative",
+      "outcome": "unresolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "subscription cancellation request",
+      "key_facts": ["cancellation submitted", "ends March 15th", "no mid-cycle cancellation", "supervisor offered"]
+    }
+  },
+  {
+    "id": "TD-005",
+    "name": "Technical support — resolved",
+    "transcript": "Customer: I can't log into my account. It says invalid password.\nAgent: Have you tried resetting your password?\nCustomer: Yes, I didn't get the email.\nAgent: Let me check. Can you confirm the email on your account?\nCustomer: john@example.com\nAgent: I see the account. The reset email was sent but might be in spam. Let me send a new one. Done. Check your inbox now.\nCustomer: Got it! I can log in now. Thanks.\nAgent: Great! Make sure to check your spam folder if you don't see emails from us.\nCustomer: Will do, thanks for the help.",
+    "expected": {
+      "sentiment_arc": "neutral",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "login issue — password reset email not received",
+      "key_facts": ["john@example.com", "new reset email sent", "login successful", "check spam folder"]
+    }
+  },
+  {
+    "id": "TD-006",
+    "name": "Hallucination test — agent makes false claim",
+    "transcript": "Customer: What's the status of my order?\nAgent: Your order shipped yesterday and will arrive tomorrow.\nCustomer: Really? I never got a confirmation email.\nAgent: The system shows it was confirmed on January 5th.\nCustomer: I placed the order on January 10th.\nAgent: Let me check again. You're right, I apologize. The order was placed January 10th and is still being processed. It should ship within 48 hours.\nCustomer: Okay, that's more like it.",
+    "expected": {
+      "sentiment_arc": "mixed",
+      "outcome": "resolved",
+      "hallucination_detected": true,
+      "escalation_signal": false,
+      "intent": "order status inquiry with incorrect initial information",
+      "key_facts": ["order placed January 10th", "ships within 48 hours", "initial wrong info corrected"]
+    }
+  },
+  {
+    "id": "TD-007",
+    "name": "Angry customer — negative sentiment",
+    "transcript": "Customer: This is absolutely terrible! I've been waiting for THREE HOURS for support! Nobody cares about your customers!\nAgent: I sincerely apologize for the wait. I understand how frustrating this is. How can I help you?\nCustomer: My internet has been down since morning! I work from home and I'm losing money!\nAgent: That's unacceptable. Let me run a diagnostic on your line right now. I can see there's an outage in your area. Technicians are on site and it should be restored within the hour.\nCustomer: An hour?! I've already lost half a day!\nAgent: I understand. I'll credit your account for the full day. And I'll call you personally when it's restored.\nCustomer: Fine. But this better not happen again.",
+    "expected": {
+      "sentiment_arc": "negative",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "internet outage complaint with service credit",
+      "key_facts": ["3 hour wait", "outage in area", "restored within hour", "full day credit", "personal call back"]
+    }
+  },
+  {
+    "id": "TD-008",
+    "name": "Positive experience",
+    "transcript": "Customer: I just wanted to call and say your service is amazing! The new feature is exactly what I needed.\nAgent: Thank you so much! That really means a lot. We worked hard on that update.\nCustomer: The setup was so easy. I had it running in five minutes.\nAgent: That's great to hear. We designed it to be simple. Is there anything else you'd like to see?\nCustomer: Maybe a dark mode? But honestly, I'm happy with everything.\nAgent: I'll pass that suggestion along. Thanks for taking the time to call!",
+    "expected": {
+      "sentiment_arc": "positive",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "positive feedback and feature request",
+      "key_facts": ["service praised", "new feature useful", "setup easy", "dark mode requested"]
+    }
+  },
+  {
+    "id": "TD-009",
+    "name": "Confused customer — mixed outcome",
+    "transcript": "Customer: I'm not sure I understand my bill. There are charges I don't recognize.\nAgent: Let me walk you through it. The first charge is your monthly subscription of $29.99.\nCustomer: Okay, that I understand.\nAgent: The second charge is $9.99 for the premium add-on you signed up for last month.\nCustomer: I don't remember signing up for that.\nAgent: It was activated on December 1st. Would you like me to disable it?\nCustomer: Yes, disable it. But I still don't think I should be charged.\nAgent: I can issue a one-time credit for this month. Going forward you won't be charged.\nCustomer: I guess that's fair. But I wish these things were clearer.\nAgent: I completely understand. I'll pass that feedback along.",
+    "expected": {
+      "sentiment_arc": "mixed",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "billing confusion about unauthorized charge",
+      "key_facts": ["$29.99 monthly", "$9.99 premium add-on", "activated December 1st", "one-time credit", "add-on disabled"]
+    }
+  },
+  {
+    "id": "TD-010",
+    "name": "Short call — minimal data",
+    "transcript": "Customer: Hi, I need to update my address.\nAgent: Sure. What's your new address?\nCustomer: 123 Main Street, Apt 4B, New York, NY 10001.\nAgent: Done. Your address has been updated.\nCustomer: Thanks.",
+    "expected": {
+      "sentiment_arc": "neutral",
+      "outcome": "resolved",
+      "hallucination_detected": false,
+      "escalation_signal": false,
+      "intent": "address update request",
+      "key_facts": ["123 Main Street Apt 4B", "New York NY 10001", "address updated"]
+    }
+  }
+]

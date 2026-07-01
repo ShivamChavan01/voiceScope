@@ -127,7 +127,7 @@ def _mock_httpx_client(response=None):
 
 
 class TestVapiWebhook:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_vapi_end_of_call_report(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -145,7 +145,7 @@ class TestVapiWebhook:
         assert data["call_id"] == "7420f27a-30fd-4f49-a995-5549ae7cc00d"
         assert data["pipeline_result"]["run_id"] == "test-run-001"
 
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_vapi_uses_mono_url(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -161,7 +161,7 @@ class TestVapiWebhook:
 
 
 class TestRetellWebhook:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_retell_call_ended(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -178,7 +178,7 @@ class TestRetellWebhook:
         assert data["platform"] == "retell"
         assert data["call_id"] == "Jabr9TXYYJHfvl6Syypi88rdAHYHmcq6"
 
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_retell_uses_recording_url(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -194,7 +194,7 @@ class TestRetellWebhook:
 
 
 class TestGenericWebhook:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_generic_payload(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -275,7 +275,7 @@ class TestWebhookNoRecordingUrl:
 
 
 class TestWebhookDownloadFailure:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.httpx.AsyncClient")
     def test_download_404(self, mock_httpx_cls, mock_validate):
         mock_httpx_cls.return_value = _mock_httpx_client(_mock_httpx_response(status_code=404))
@@ -286,7 +286,7 @@ class TestWebhookDownloadFailure:
         assert response.status_code == 402
         assert "download" in response.json()["detail"].lower()
 
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.httpx.AsyncClient")
     def test_non_audio_content_type(self, mock_httpx_cls, mock_validate):
         mock_httpx_cls.return_value = _mock_httpx_client(
@@ -335,7 +335,7 @@ BLAND_WEBHOOK = {
 
 
 class TestBlandWebhook:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_bland_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -375,7 +375,7 @@ BOLNA_WEBHOOK = {
 
 
 class TestBolnaWebhook:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_bolna_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -415,7 +415,7 @@ class TestSynthflowWebhook:
         assert response.status_code == 400
         assert "recording_url" in response.json()["detail"].lower()
 
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_synthflow_with_recording(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
@@ -455,7 +455,7 @@ AIRAI_WEBHOOK = {
 
 
 class TestAiraiWebhook:
-    @patch("api.routes.validate_callback_url", return_value=True)
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
     def test_airai_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):

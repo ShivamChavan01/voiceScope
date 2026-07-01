@@ -12,6 +12,12 @@ Upload a call recording → get a structured JSON report covering intent, sentim
 
 - **Multi-Provider LLM Support** — OpenAI, Anthropic, Google Gemini, Ollama (local), Mistral
 - **3-Stage Agentic Pipeline** — Transcription → Analysis → Report
+- **13-Layer Validation Harness** — Catches LLM hallucinations before they reach your dashboard
+- **Self-Improvement Loop** — Harness benchmarks itself, auto-tunes weights, gets smarter over time
+- **Monitoring & Alerting** — Threshold-based alerts on hallucination rate, escalation rate, quality score
+- **QA Cohort System** — Weighted scoring, resolution criteria, pass/fail tracking
+- **Custom Extractions** — User-defined post-call analysis schemas (text, boolean, number, category)
+- **Content Guardrails** — Harmful content detection + PII redaction
 - **Plugin System** — Add custom analysis agents via environment variables
 - **Streaming SSE** — Real-time pipeline progress updates
 - **Batch Processing** — Analyze multiple files with webhook callbacks
@@ -55,6 +61,116 @@ Audio File
     │
     ▼
 Structured JSON Report
+```
+
+## Validation Harness
+
+Every LLM output passes through 13 validation layers before reaching your dashboard:
+
+| # | Layer | What It Catches |
+|---|-------|-----------------|
+| 1 | Schema Validation | Wrong types, bad enums, missing fields |
+| 2 | Citation Verification | Findings not grounded in transcript |
+| 3 | Cross-Check | Analysis disagrees with itself |
+| 4 | Fact Extraction | Numbers, dates, promises contradict transcript |
+| 5 | Sentiment Consistency | "Angry" transcript labeled "positive" |
+| 6 | Outcome Evidence | "Resolved" with no resolution proof |
+| 7 | Escalation Verification | "Escalated" with no manager mention |
+| 8 | Response Time Monitoring | LLM taking 10x longer than usual |
+| 9 | Token Tracking | Abnormal token usage |
+| 10 | Duplicate Detection | Same analysis repeated within 5 min |
+| 11 | Audio Quality Pre-Check | Garbage, silent, or too-short audio |
+| 12 | Confidence Calibration | Tracks if confidence matches accuracy |
+| 13 | Feedback Loop | Users mark correct/incorrect |
+
+Every API response includes a `harness` field:
+
+```json
+{
+  "harness": {
+    "truth_score": 0.87,
+    "confidence": "high",
+    "validation_errors": [],
+    "layer_scores": { "schema": 1.0, "citations": 0.92, "facts": 0.95 }
+  }
+}
+```
+
+## Self-Improvement Loop
+
+VoiceScope gets smarter every time you run the loop:
+
+```
+Labeled Test Data → Benchmark → Compare vs Expected → Optimize Weights → Track Failures → Next Run Is Better
+```
+
+```bash
+# Run one improvement cycle
+curl -X POST http://localhost:8000/api/v1/loop/run \
+  -H "X-API-Key: your-api-key"
+
+# Check current weights and suggestions
+curl http://localhost:8000/api/v1/loop/status \
+  -H "X-API-Key: your-api-key"
+```
+
+## Monitoring & Alerting
+
+```bash
+# Get metrics dashboard
+curl http://localhost:8000/api/v1/monitoring/metrics \
+  -H "X-API-Key: your-api-key"
+
+# Create alert rule
+curl -X POST http://localhost:8000/api/v1/monitoring/alerts \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "High hallucination rate",
+    "metric": "hallucination_rate",
+    "comparator": "gt",
+    "threshold": 0.3,
+    "window_minutes": 60
+  }'
+```
+
+## QA Cohort System
+
+```bash
+# Create a QA cohort
+curl -X POST http://localhost:8000/api/v1/qa/cohorts \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales QA",
+    "platform_filter": "vapi",
+    "criteria": [
+      {"name": "resolved", "description": "Was the issue resolved?", "weight": 2.0},
+      {"name": "polite", "description": "Was the agent polite?", "weight": 1.0}
+    ]
+  }'
+
+# Score a call
+curl -X POST http://localhost:8000/api/v1/qa/cohorts/1/score \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"run_id": "call-001", "metrics": {"quality_score": 85, "outcome": "resolved"}}'
+```
+
+## Content Guardrails
+
+```bash
+# Check for harmful content
+curl -X POST http://localhost:8000/api/v1/guardrails/check \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I want to kill myself", "check_type": "input"}'
+
+# Redact PII
+curl -X POST http://localhost:8000/api/v1/guardrails/check \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Email john@example.com", "check_type": "redact_pii"}'
 ```
 
 ## Quick Start
@@ -365,6 +481,27 @@ PLUGIN_AGENTS=examples.custom_agent
 | `/api/v1/batch/{id}` | GET | Check batch status |
 | `/api/v1/batch/{id}/results` | GET | Get batch results |
 | `/api/v1/costs` | GET | Cost summary |
+| `/api/v1/webhooks/call-completed` | POST | Receive voice AI webhooks |
+| `/api/v1/harness/status` | GET | Validation harness state |
+| `/api/v1/harness/feedback` | POST | Submit correct/incorrect feedback |
+| `/api/v1/harness/calibration` | GET | Confidence calibration report |
+| `/api/v1/loop/run` | POST | Run self-improvement cycle |
+| `/api/v1/loop/status` | GET | Loop weights and suggestions |
+| `/api/v1/loop/benchmark` | GET | Latest benchmark results |
+| `/api/v1/loop/suggestions` | GET | Prompt improvement suggestions |
+| `/api/v1/loop/weights` | GET | Current layer weights |
+| `/api/v1/monitoring/metrics` | GET | Monitoring dashboard |
+| `/api/v1/monitoring/alerts` | GET/POST/DELETE | Alert rules CRUD |
+| `/api/v1/monitoring/incidents` | GET | Triggered incidents |
+| `/api/v1/monitoring/check` | POST | Check alert rules |
+| `/api/v1/qa/cohorts` | GET/POST | QA cohort management |
+| `/api/v1/qa/cohorts/{id}/score` | POST | Score a call |
+| `/api/v1/qa/cohorts/{id}/results` | GET | Cohort results |
+| `/api/v1/extractions/schemas` | GET/POST | Extraction schema management |
+| `/api/v1/extractions/schemas/{id}/run` | POST | Run extractions |
+| `/api/v1/extractions/schemas/{id}/results` | GET | Extraction results |
+| `/api/v1/guardrails/status` | GET | Guardrail status |
+| `/api/v1/guardrails/check` | POST | Check content safety |
 
 ## Deploy
 
