@@ -63,4 +63,5 @@ class VoiceScopePipeline:
         report = ctx.report or {"run_id": ctx.run_id, "status": "failed"}
         report["harness"] = harness_result.model_dump()
         report["errors"] = ctx.errors
+        report["raw_transcript"] = ctx.raw_transcript
         return report

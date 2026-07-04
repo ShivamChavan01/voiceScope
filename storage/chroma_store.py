@@ -12,7 +12,7 @@ class ChromaStore:
     """
 
     def __init__(self):
-        persist_dir = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+        persist_dir = os.getenv("CHROMA_PERSIST_DIR", "/tmp/chroma_db")
         self.client = chromadb.PersistentClient(path=persist_dir)
         self.collection = self.client.get_or_create_collection(
             name="voice_calls", metadata={"hnsw:space": "cosine"}
