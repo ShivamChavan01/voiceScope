@@ -97,11 +97,18 @@ ALLOWED_AUDIO_TYPES = {
 MAX_FILE_SIZE_MB = 25
 
 
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".webm", ".ogg"}
+
+
 def _validate_audio(file: UploadFile, audio_bytes: bytes):
-    if file.content_type not in ALLOWED_AUDIO_TYPES:
+    # Check content type first, fall back to filename extension
+    ext = ""
+    if file.filename:
+        ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if file.content_type not in ALLOWED_AUDIO_TYPES and ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: {file.content_type}. Allowed: mp3, wav, m4a, webm",
+            detail=f"Unsupported file type: {file.content_type} ({ext}). Allowed: mp3, wav, m4a, webm",
         )
     size_mb = len(audio_bytes) / (1024 * 1024)
     if size_mb > MAX_FILE_SIZE_MB:
