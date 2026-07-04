@@ -11,3 +11,4 @@ logs/
 .coverage
 *.db
 :memory:
+.gstack/

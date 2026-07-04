@@ -14,6 +14,28 @@ class MonitoringStore:
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id TEXT UNIQUE NOT NULL,
+                    intent TEXT,
+                    sentiment TEXT,
+                    outcome TEXT,
+                    hallucination_detected INTEGER DEFAULT 0,
+                    escalation_signal INTEGER DEFAULT 0,
+                    truth_score REAL,
+                    confidence TEXT,
+                    quality_score REAL,
+                    cost_usd REAL DEFAULT 0.0,
+                    provider TEXT,
+                    model TEXT,
+                    duration_seconds REAL,
+                    word_count INTEGER,
+                    transcript_preview TEXT,
+                    status TEXT DEFAULT 'completed',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS call_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     run_id TEXT NOT NULL,
@@ -61,6 +83,124 @@ class MonitoringStore:
             """)
             conn.commit()
         logger.info(f"[MonitoringStore] initialized db={self.db_path}")
+
+    async def log_run(self, result: dict, harness_result=None):
+        """Log run metadata for the Runs page."""
+        report = result.get("report", {})
+        analysis = result.get("analysis", {})
+        provider_data = result.get("provider", {})
+        transcript_meta = result.get("transcript_meta", {})
+
+        quality_score = None
+        if report and isinstance(report, dict):
+            quality_score = report.get("quality_score")
+
+        truth_score = None
+        confidence = None
+        if harness_result:
+            if isinstance(harness_result, dict):
+                truth_score = harness_result.get("truth_score")
+                confidence = harness_result.get("confidence")
+            else:
+                truth_score = harness_result.truth_score
+                confidence = harness_result.confidence
+
+        transcript_preview = None
+        raw = result.get("raw_transcript")
+        if raw:
+            transcript_preview = raw[:200] + "..." if len(raw) > 200 else raw
+
+        status = "completed"
+        if result.get("errors"):
+            status = "partial"
+        if result.get("status") == "failed":
+            status = "failed"
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO runs
+                   (run_id, intent, sentiment, outcome, hallucination_detected,
+                    escalation_signal, truth_score, confidence, quality_score,
+                    cost_usd, provider, model, duration_seconds, word_count,
+                    transcript_preview, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    result.get("run_id", ""),
+                    analysis.get("intent") if analysis else None,
+                    analysis.get("sentiment_arc") if analysis else None,
+                    analysis.get("outcome") if analysis else None,
+                    1 if analysis and analysis.get("hallucination_detected") else 0,
+                    1 if analysis and analysis.get("escalation_signal") else 0,
+                    truth_score,
+                    confidence,
+                    quality_score,
+                    provider_data.get("cost_usd", 0.0) if provider_data else 0.0,
+                    provider_data.get("name") if provider_data else None,
+                    provider_data.get("model") if provider_data else None,
+                    transcript_meta.get("duration_seconds"),
+                    transcript_meta.get("word_count"),
+                    transcript_preview,
+                    status,
+                ),
+            )
+            conn.commit()
+        logger.debug(f"[MonitoringStore] logged run run_id={result.get('run_id')}")
+
+    async def get_runs(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        search: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> dict:
+        """Get paginated list of runs with optional filters."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            where_clauses = []
+            params: list = []
+
+            if search:
+                where_clauses.append("(run_id LIKE ? OR intent LIKE ?)")
+                params.extend([f"%{search}%", f"%{search}%"])
+            if status:
+                where_clauses.append("status = ?")
+                params.append(status)
+
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+            total = conn.execute(
+                f"SELECT COUNT(*) as cnt FROM runs {where_sql}", params
+            ).fetchone()["cnt"]
+
+            rows = conn.execute(
+                f"""SELECT run_id, intent, sentiment, outcome,
+                           hallucination_detected, escalation_signal,
+                           truth_score, confidence, quality_score,
+                           cost_usd, provider, model, duration_seconds,
+                           word_count, status, created_at
+                    FROM runs
+                    {where_sql}
+                    ORDER BY created_at DESC
+                    LIMIT ? OFFSET ?""",
+                params + [limit, offset],
+            ).fetchall()
+
+        return {
+            "runs": [dict(r) for r in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    async def get_run(self, run_id: str) -> Optional[dict]:
+        """Get a single run by ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+        return dict(row) if row else None
 
     async def log_call(self, result: dict):
         """Log call metrics from a pipeline result."""

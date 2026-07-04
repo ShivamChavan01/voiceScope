@@ -74,6 +74,18 @@ async def _log_metrics(result: dict):
     await get_monitoring_store().log_call(result)
 
 
+async def _log_run(result: dict, harness_result=None):
+    """Log run metadata for the Runs page."""
+    harness_obj = None
+    if harness_result:
+        if isinstance(harness_result, dict):
+            from core.harness import HarnessResult
+            harness_obj = HarnessResult(**harness_result)
+        else:
+            harness_obj = harness_result
+    await get_monitoring_store().log_run(result, harness_obj)
+
+
 ALLOWED_AUDIO_TYPES = {
     "audio/mpeg",
     "audio/mp4",
@@ -115,8 +127,10 @@ async def analyze_audio(file: UploadFile = File(...)):
 
     result = await get_pipeline().run(audio_bytes, file.filename or "upload.mp3")
 
+    harness_data = result.get("harness")
     await _log_cost(result)
     await _log_metrics(result)
+    await _log_run(result, harness_data)
 
     if result.get("errors") and not result.get("report"):
         raise HTTPException(status_code=500, detail="Analysis failed")
@@ -207,6 +221,26 @@ async def get_costs():
     return await get_cost_store().get_summary()
 
 
+@router.get("/runs")
+async def get_runs(
+    limit: int = 50,
+    offset: int = 0,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    return await get_monitoring_store().get_runs(
+        limit=limit, offset=offset, search=search, status=status
+    )
+
+
+@router.get("/runs/{run_id}")
+async def get_run(run_id: str):
+    run = await get_monitoring_store().get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    return run
+
+
 @router.post("/harness/run")
 async def run_harness():
     return await get_harness().run_all()
@@ -277,8 +311,10 @@ async def webhook_call_completed(request: Request):
     filename = f"webhook_{event.call_id}.{ext}"
     result = await get_pipeline().run(audio_bytes, filename)
 
+    harness_data = result.get("harness")
     await _log_cost(result)
     await _log_metrics(result)
+    await _log_run(result, harness_data)
 
     if result.get("errors") and not result.get("report"):
         raise HTTPException(status_code=500, detail="Webhook analysis failed")
