@@ -241,6 +241,12 @@ async def get_runs(
     )
 
 
+@router.get("/runs/history")
+async def get_run_history(limit: int = 12):
+    scores = await get_monitoring_store().get_truth_history(limit=limit)
+    return {"scores": scores, "count": len(scores)}
+
+
 @router.get("/runs/{run_id}")
 async def get_run(run_id: str):
     run = await get_monitoring_store().get_run(run_id)

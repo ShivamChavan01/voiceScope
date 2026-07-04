@@ -32,8 +32,9 @@ export interface Run {
   model: string | null;
   duration_seconds: number | null;
   word_count: number | null;
-  status: string;
   transcript_preview: string | null;
+  layer_scores: Record<string, number> | null;
+  status: string;
   created_at: string;
 }
 
@@ -144,6 +145,12 @@ export async function getRuns(params?: {
 
 export async function getRun(runId: string): Promise<Run> {
   return fetchJson<Run>(`/api/v1/runs/${runId}`);
+}
+
+export async function getRunHistory(
+  limit: number = 12
+): Promise<{ scores: number[]; count: number }> {
+  return fetchJson(`/api/v1/runs/history?limit=${limit}`);
 }
 
 export async function analyzeAudio(file: File): Promise<Run> {

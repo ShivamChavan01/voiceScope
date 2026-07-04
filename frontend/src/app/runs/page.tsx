@@ -130,6 +130,21 @@ export default function RunsPage() {
     return true;
   });
 
+  const HARNESS_KEY_ORDER = [
+    "schema", "citations", "facts", "sentiment_consistency",
+    "outcome_evidence", "escalation", "duplicate",
+    "hallucination", "calibration", "quality",
+    "audio_quality", "feedback", "cross_check",
+  ];
+
+  function harnessScoresForRun(run: Run): number[] {
+    if (!run.layer_scores) return Array(13).fill(0);
+    return HARNESS_KEY_ORDER.map((k) => {
+      const v = run.layer_scores?.[k];
+      return v != null ? Math.round(v * 100) : 0;
+    });
+  }
+
   return (
     <>
       {/* Upload */}
@@ -271,12 +286,12 @@ export default function RunsPage() {
 
               <div style={{ marginBottom: 16 }}>
                 <div className="section-title" style={{ marginBottom: 8 }}>Validation Harness</div>
-                <HarnessBar scores={[92,88,91,97,83,92,96,89,94,90,87,93,91]} />
+                <HarnessBar scores={harnessScoresForRun(selectedRun)} />
               </div>
 
               <div className="harness-layers">
                 {HARNESS_NAMES.map((name, i) => {
-                  const score = [92,88,91,97,83,92,96,89,94,90,87,93,91][i] || 0;
+                  const score = harnessScoresForRun(selectedRun)[i] || 0;
                   const status = score >= 80 ? "pass" : score >= 50 ? "warning" : "fail";
                   const color = status === "pass" ? "var(--success)" : status === "warning" ? "var(--warning)" : "var(--destructive)";
                   return (

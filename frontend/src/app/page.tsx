@@ -5,8 +5,10 @@ import { HarnessBar } from "@/components/harness-bar";
 import { TrendChart } from "@/components/trend-chart";
 import {
   getRuns,
+  getRun,
   getIncidents,
   getMetrics,
+  getRunHistory,
   type Run,
   type AlertIncident,
   type MetricsSummary,
@@ -48,6 +50,8 @@ export default function OverviewPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [incidents, setIncidents] = useState<AlertIncident[]>([]);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [historyScores, setHistoryScores] = useState<number[]>([]);
+  const [harnessScores, setHarnessScores] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,10 +59,27 @@ export default function OverviewPage() {
       getRuns({ limit: 5 }).catch(() => ({ runs: [], total: 0, limit: 5, offset: 0 })),
       getIncidents(10).catch(() => []),
       getMetrics(1440).catch(() => null),
-    ]).then(([runsRes, inc, met]) => {
+      getRunHistory(12).catch(() => ({ scores: [], count: 0 })),
+    ]).then(([runsRes, inc, met, hist]) => {
       setRuns(runsRes.runs);
       setIncidents(inc);
       setMetrics(met);
+      setHistoryScores(hist.scores);
+      // Use latest run's layer_scores for the harness bar
+      if (runsRes.runs.length > 0) {
+        const latest = runsRes.runs[0];
+        getRun(latest.run_id).then((detail) => {
+          if (detail.layer_scores) {
+            const HARNESS_KEY_ORDER = [
+              "schema", "citations", "facts", "sentiment_consistency",
+              "outcome_evidence", "escalation", "duplicate",
+              "hallucination", "calibration", "quality",
+              "audio_quality", "feedback", "cross_check",
+            ];
+            setHarnessScores(HARNESS_KEY_ORDER.map((k) => detail.layer_scores?.[k] != null ? Math.round(detail.layer_scores[k] * 100) : 0));
+          }
+        }).catch(() => {});
+      }
       setLoading(false);
     });
   }, []);
@@ -92,11 +113,11 @@ export default function OverviewPage() {
           <div className="hero-cell-label">Truth Score</div>
           <div className="hero-cell-value accent">{truthScore.toFixed(2)}</div>
           <div className="hero-cell-sub">last 24h avg · {totalCalls} calls</div>
-          <TrendChart />
+          <TrendChart points={historyScores} />
         </div>
         <div className="hero-cell">
           <div className="hero-cell-label">Harness Integrity</div>
-          <HarnessBar scores={[92,88,91,97,83,92,96,89,94,90,87,93,91]} />
+          <HarnessBar scores={harnessScores.length > 0 ? harnessScores : [0,0,0,0,0,0,0,0,0,0,0,0,0]} />
         </div>
       </div>
 

@@ -1,7 +1,14 @@
 "use client";
 
-export function TrendChart() {
-  const points = [82, 85, 78, 91, 88, 76, 84, 92, 87, 80, 86, 89];
+export function TrendChart({ points = [] }: { points?: number[] }) {
+  if (points.length < 2) {
+    return (
+      <div className="trend-chart" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Not enough data</span>
+      </div>
+    );
+  }
+
   const w = 220;
   const h = 48;
   const pad = 2;

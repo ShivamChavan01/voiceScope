@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import json
 from typing import Optional
 from utils.logger import logger
 
@@ -31,6 +32,7 @@ class MonitoringStore:
                     duration_seconds REAL,
                     word_count INTEGER,
                     transcript_preview TEXT,
+                    layer_scores TEXT,
                     status TEXT DEFAULT 'completed',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -84,6 +86,14 @@ class MonitoringStore:
             conn.commit()
         logger.info(f"[MonitoringStore] initialized db={self.db_path}")
 
+        # Migration: add layer_scores column if missing
+        with sqlite3.connect(self.db_path) as conn:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)").fetchall()}
+            if "layer_scores" not in cols:
+                conn.execute("ALTER TABLE runs ADD COLUMN layer_scores TEXT")
+                conn.commit()
+                logger.info("[MonitoringStore] migrated: added layer_scores column")
+
     async def log_run(self, result: dict, harness_result=None):
         """Log run metadata for the Runs page."""
         report = result.get("report", {})
@@ -108,7 +118,7 @@ class MonitoringStore:
         transcript_preview = None
         raw = result.get("raw_transcript")
         if raw:
-            transcript_preview = raw[:200] + "..." if len(raw) > 200 else raw
+            transcript_preview = raw
 
         status = "completed"
         if result.get("errors"):
@@ -116,14 +126,23 @@ class MonitoringStore:
         if result.get("status") == "failed":
             status = "failed"
 
+        layer_scores_json = None
+        if harness_result:
+            if isinstance(harness_result, dict):
+                ls = harness_result.get("layer_scores")
+            else:
+                ls = getattr(harness_result, "layer_scores", None)
+            if ls:
+                layer_scores_json = json.dumps(ls)
+
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO runs
                    (run_id, intent, sentiment, outcome, hallucination_detected,
                     escalation_signal, truth_score, confidence, quality_score,
                     cost_usd, provider, model, duration_seconds, word_count,
-                    transcript_preview, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    transcript_preview, layer_scores, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     result.get("run_id", ""),
                     analysis.get("intent") if analysis else None,
@@ -140,6 +159,7 @@ class MonitoringStore:
                     transcript_meta.get("duration_seconds"),
                     transcript_meta.get("word_count"),
                     transcript_preview,
+                    layer_scores_json,
                     status,
                 ),
             )
@@ -178,7 +198,8 @@ class MonitoringStore:
                            hallucination_detected, escalation_signal,
                            truth_score, confidence, quality_score,
                            cost_usd, provider, model, duration_seconds,
-                           word_count, status, created_at
+                           word_count, transcript_preview, layer_scores,
+                           status, created_at
                     FROM runs
                     {where_sql}
                     ORDER BY created_at DESC
@@ -186,8 +207,18 @@ class MonitoringStore:
                 params + [limit, offset],
             ).fetchall()
 
+        runs = []
+        for r in rows:
+            d = dict(r)
+            if d.get("layer_scores"):
+                try:
+                    d["layer_scores"] = json.loads(d["layer_scores"])
+                except (json.JSONDecodeError, TypeError):
+                    d["layer_scores"] = None
+            runs.append(d)
+
         return {
-            "runs": [dict(r) for r in rows],
+            "runs": runs,
             "total": total,
             "limit": limit,
             "offset": offset,
@@ -200,7 +231,15 @@ class MonitoringStore:
             row = conn.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
             ).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        d = dict(row)
+        if d.get("layer_scores"):
+            try:
+                d["layer_scores"] = json.loads(d["layer_scores"])
+            except (json.JSONDecodeError, TypeError):
+                d["layer_scores"] = None
+        return d
 
     async def log_call(self, result: dict):
         """Log call metrics from a pipeline result."""
@@ -394,6 +433,18 @@ class MonitoringStore:
                 for r in by_platform
             } if by_platform else {},
         }
+
+    async def get_truth_history(self, limit: int = 12) -> list[float]:
+        """Get recent truth scores for trend chart, ordered by time."""
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                """SELECT truth_score FROM runs
+                   WHERE truth_score IS NOT NULL
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [r[0] for r in reversed(rows)]
 
     # --- Alert Rules CRUD ---
 
