@@ -2,7 +2,6 @@ from core.context import PipelineContext
 from utils.logger import logger
 import tempfile
 import os
-import base64
 
 
 class TranscriptionAgent:
@@ -30,6 +29,7 @@ class TranscriptionAgent:
         return await self._transcribe_whisper(ctx, audio_bytes, filename)
 
     async def _transcribe_gemini(self, ctx: PipelineContext, audio_bytes: bytes, filename: str) -> PipelineContext:
+        import asyncio
         from google import genai
         from google.genai import types
 
@@ -46,29 +46,38 @@ class TranscriptionAgent:
         }
         mime_type = mime_map.get(suffix, "audio/mpeg")
 
-        try:
-            response = await client.aio.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[
-                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                    "Transcribe this audio recording exactly. Output ONLY the transcript text, nothing else. Include speaker labels if discernible (e.g. 'Speaker 1:', 'Agent:'). Preserve the natural flow of conversation.",
-                ],
-                config=types.GenerateContentConfig(
-                    temperature=0.0,
-                ),
-            )
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = await client.aio.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[
+                        types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                        "Transcribe this audio recording exactly. Output ONLY the transcript text, nothing else. Include speaker labels if discernible (e.g. 'Speaker 1:', 'Agent:'). Preserve the natural flow of conversation.",
+                    ],
+                    config=types.GenerateContentConfig(
+                        temperature=0.0,
+                    ),
+                )
 
-            transcript = response.text.strip()
-            ctx.raw_transcript = transcript
-            ctx.language_detected = "unknown"
-            ctx.audio_duration_seconds = None
-            ctx.mark_stage("transcription")
+                transcript = response.text.strip()
+                ctx.raw_transcript = transcript
+                ctx.language_detected = "unknown"
+                ctx.audio_duration_seconds = None
+                ctx.mark_stage("transcription")
 
-            logger.info(f"[TranscriptionAgent] gemini done — {len(transcript)} chars")
+                logger.info(f"[TranscriptionAgent] gemini done — {len(transcript)} chars")
+                break
 
-        except Exception as e:
-            ctx.add_error("transcription", str(e))
-            logger.error(f"[TranscriptionAgent] gemini failed — {e}")
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str and attempt < max_retries - 1:
+                    wait = 30 * (attempt + 1)
+                    logger.warning(f"[TranscriptionAgent] rate limited, retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                    await asyncio.sleep(wait)
+                    continue
+                ctx.add_error("transcription", error_str)
+                logger.error(f"[TranscriptionAgent] gemini failed — {e}")
 
         return ctx
 
