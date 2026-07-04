@@ -5,16 +5,16 @@ import os
 
 
 GROQ_PRICING = {
-    "llama3-70b-8192": {"input": 0.0, "output": 0.0},
-    "llama3-8b-8192": {"input": 0.0, "output": 0.0},
+    "llama-3.3-70b-versatile": {"input": 0.0, "output": 0.0},
+    "llama-3.1-8b-instant": {"input": 0.0, "output": 0.0},
     "mixtral-8x7b-32768": {"input": 0.0, "output": 0.0},
-    "gemma-7b-it": {"input": 0.0, "output": 0.0},
+    "gemma2-9b-it": {"input": 0.0, "output": 0.0},
 }
 
 
 class GroqProvider(LLMProvider):
     name = "groq"
-    default_model = "llama3-70b-8192"
+    default_model = "llama-3.3-70b-versatile"
 
     def __init__(self):
         self.client = AsyncOpenAI(
