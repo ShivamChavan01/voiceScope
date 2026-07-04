@@ -7,7 +7,7 @@ import os
 class TranscriptionAgent:
     """
     Agent 1 — Converts uploaded audio to clean text.
-    Supports OpenAI Whisper and Gemini (native audio understanding).
+    Supports Deepgram, OpenAI Whisper, and Gemini (native audio understanding).
     Populates: ctx.raw_transcript, ctx.audio_duration_seconds, ctx.language_detected
     """
 
@@ -15,6 +15,11 @@ class TranscriptionAgent:
         self.provider = self._detect_provider()
 
     def _detect_provider(self) -> str:
+        explicit = os.getenv("STT_PROVIDER", "").lower()
+        if explicit in ("deepgram", "whisper", "gemini"):
+            return explicit
+        if os.getenv("DEEPGRAM_API_KEY"):
+            return "deepgram"
         if os.getenv("LLM_PROVIDER") == "gemini" or (
             os.getenv("GOOGLE_API_KEY") and not os.getenv("OPENAI_API_KEY")
         ):
@@ -24,9 +29,55 @@ class TranscriptionAgent:
     async def run(self, ctx: PipelineContext, audio_bytes: bytes, filename: str) -> PipelineContext:
         logger.info(f"[TranscriptionAgent] run_id={ctx.run_id} file={filename} provider={self.provider}")
 
+        if self.provider == "deepgram":
+            return await self._transcribe_deepgram(ctx, audio_bytes, filename)
         if self.provider == "gemini":
             return await self._transcribe_gemini(ctx, audio_bytes, filename)
         return await self._transcribe_whisper(ctx, audio_bytes, filename)
+
+    async def _transcribe_deepgram(self, ctx: PipelineContext, audio_bytes: bytes, filename: str) -> PipelineContext:
+        import aiohttp
+
+        api_key = os.getenv("DEEPGRAM_API_KEY")
+        url = "https://api.deepgram.com/v1/listen"
+        params = {
+            "model": "nova-2",
+            "smart_format": "true",
+            "diarize": "true",
+            "punctuate": "true",
+            "language": "en",
+        }
+        headers = {
+            "Authorization": f"Token {api_key}",
+            "Content-Type": "audio/mpeg",
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=audio_bytes, params=params, headers=headers) as resp:
+                    if resp.status != 200:
+                        body = await resp.text()
+                        raise Exception(f"Deepgram API error {resp.status}: {body}")
+
+                    data = await resp.json()
+
+            channels = data.get("results", {}).get("channels", [])
+            if not channels:
+                raise Exception("Deepgram returned no channels")
+
+            transcript = channels[0].get("alternatives", [{}])[0].get("transcript", "")
+            ctx.raw_transcript = transcript
+            ctx.language_detected = data.get("results", {}).get("channels", [{}])[0].get("detected_language", "unknown")
+            ctx.audio_duration_seconds = data.get("metadata", {}).get("duration")
+            ctx.mark_stage("transcription")
+
+            logger.info(f"[TranscriptionAgent] deepgram done — {len(transcript)} chars, lang={ctx.language_detected}")
+
+        except Exception as e:
+            ctx.add_error("transcription", str(e))
+            logger.error(f"[TranscriptionAgent] deepgram failed — {e}")
+
+        return ctx
 
     async def _transcribe_gemini(self, ctx: PipelineContext, audio_bytes: bytes, filename: str) -> PipelineContext:
         import asyncio
