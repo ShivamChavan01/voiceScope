@@ -14,7 +14,7 @@ GEMINI_PRICING = {
 
 class GeminiProvider(LLMProvider):
     name = "gemini"
-    default_model = "gemini-1.5-pro"
+    default_model = "gemini-2.0-flash"
 
     def __init__(self):
         self.client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
