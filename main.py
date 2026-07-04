@@ -18,7 +18,7 @@ IS_PRODUCTION = os.getenv("APP_ENV") == "production"
 app = FastAPI(
     title="VoiceScope",
     description="Open source observability API for voice AI agents. Multi-provider LLM support, plugin system, and comprehensive analytics.",
-    version="2.1.0",
+    version="2.2.0",
     docs_url="/docs" if not IS_PRODUCTION else None,
     redoc_url="/redoc" if not IS_PRODUCTION else None,
 )
