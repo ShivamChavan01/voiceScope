@@ -254,6 +254,13 @@ select.filter-input { appearance: none; background-image: url("data:image/svg+xm
 .harness-layer:hover .harness-layer-score { font-size: 13px; }
 
 /* ── Transcript ────────────────────────────────────────────────── */
+.transcript-speakers { display: flex; flex-direction: column; gap: 12px; }
+.transcript-turn { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.transcript-turn:last-child { border-bottom: none; }
+.speaker-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); letter-spacing: 0.03em; flex-shrink: 0; text-transform: uppercase; min-width: 70px; justify-content: center; }
+.speaker-agent { background: rgba(79,195,247,0.12); color: var(--primary); border: 1px solid rgba(79,195,247,0.2); }
+.speaker-customer { background: rgba(255,255,255,0.06); color: var(--secondary-foreground); border: 1px solid var(--border); }
+.speaker-other { background: rgba(184,149,48,0.12); color: var(--warning); border: 1px solid rgba(184,149,48,0.2); }
 .transcript-line { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .transcript-line:last-child { border-bottom: none; }
 .transcript-speaker { font-weight: 500; color: var(--primary); min-width: 56px; flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; }

@@ -9,6 +9,7 @@ class PipelineContext(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     raw_transcript: Optional[str] = None
+    transcript_speakers: Optional[list[dict]] = None
     audio_duration_seconds: Optional[float] = None
     language_detected: Optional[str] = None
 

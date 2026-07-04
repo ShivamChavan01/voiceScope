@@ -1,4 +1,5 @@
 from agents.transcription_agent import TranscriptionAgent
+from agents.speaker_agent import SpeakerAgent
 from agents.analysis_agent import AnalysisAgent
 from agents.report_agent import ReportAgent
 from core.context import PipelineContext
@@ -22,6 +23,7 @@ class VoiceScopePipeline:
         self.chroma = ChromaStore()
         self.kb = KnowledgeBase()
         self.transcription_agent = TranscriptionAgent()
+        self.speaker_agent = SpeakerAgent()
         self.analysis_agent = AnalysisAgent(self.chroma, self.kb)
         self.report_agent = ReportAgent(self.chroma)
         self.harness = ValidationHarness()
@@ -41,6 +43,10 @@ class VoiceScopePipeline:
 
         # Stage 1 — Transcription
         ctx = await self.transcription_agent.run(ctx, audio_bytes, filename)
+
+        # Stage 1b — Speaker Classification (runs if multiple speakers detected)
+        if ctx.transcript_speakers and len(set(s["speaker"] for s in ctx.transcript_speakers)) >= 2:
+            ctx = await self.speaker_agent.run(ctx)
 
         # Stage 2 — Analysis (only if transcription succeeded)
         if "transcription" in ctx.stages_completed:
@@ -64,4 +70,5 @@ class VoiceScopePipeline:
         report["harness"] = harness_result.model_dump()
         report["errors"] = ctx.errors
         report["raw_transcript"] = ctx.raw_transcript
+        report["transcript_speakers"] = ctx.transcript_speakers
         return report

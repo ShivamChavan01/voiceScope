@@ -310,7 +310,18 @@ export default function RunsPage() {
 
           {drawerTab === "transcript" && selectedRun && (
             <div>
-              {selectedRun.transcript_preview ? (
+              {selectedRun.transcript_speakers && selectedRun.transcript_speakers.length > 1 ? (
+                <div className="transcript-speakers">
+                  {selectedRun.transcript_speakers.map((seg, i) => (
+                    <div key={i} className="transcript-turn">
+                      <span className={`speaker-badge speaker-${seg.role || "other"}`}>
+                        {seg.label || seg.role || `Speaker ${seg.speaker}`}
+                      </span>
+                      <span className="transcript-text">{seg.text}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : selectedRun.transcript_preview ? (
                 <div className="transcript-text" style={{ whiteSpace: "pre-wrap" }}>
                   {selectedRun.transcript_preview}
                 </div>

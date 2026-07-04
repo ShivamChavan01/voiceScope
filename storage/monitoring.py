@@ -32,6 +32,7 @@ class MonitoringStore:
                     duration_seconds REAL,
                     word_count INTEGER,
                     transcript_preview TEXT,
+                    transcript_speakers TEXT,
                     layer_scores TEXT,
                     status TEXT DEFAULT 'completed',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -93,6 +94,10 @@ class MonitoringStore:
                 conn.execute("ALTER TABLE runs ADD COLUMN layer_scores TEXT")
                 conn.commit()
                 logger.info("[MonitoringStore] migrated: added layer_scores column")
+            if "transcript_speakers" not in cols:
+                conn.execute("ALTER TABLE runs ADD COLUMN transcript_speakers TEXT")
+                conn.commit()
+                logger.info("[MonitoringStore] migrated: added transcript_speakers column")
 
     async def log_run(self, result: dict, harness_result=None):
         """Log run metadata for the Runs page."""
@@ -135,14 +140,19 @@ class MonitoringStore:
             if ls:
                 layer_scores_json = json.dumps(ls)
 
+        transcript_speakers_json = None
+        speakers = result.get("transcript_speakers")
+        if speakers:
+            transcript_speakers_json = json.dumps(speakers)
+
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO runs
                    (run_id, intent, sentiment, outcome, hallucination_detected,
                     escalation_signal, truth_score, confidence, quality_score,
                     cost_usd, provider, model, duration_seconds, word_count,
-                    transcript_preview, layer_scores, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    transcript_preview, transcript_speakers, layer_scores, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     result.get("run_id", ""),
                     analysis.get("intent") if analysis else None,
@@ -159,6 +169,7 @@ class MonitoringStore:
                     transcript_meta.get("duration_seconds"),
                     transcript_meta.get("word_count"),
                     transcript_preview,
+                    transcript_speakers_json,
                     layer_scores_json,
                     status,
                 ),
@@ -198,8 +209,8 @@ class MonitoringStore:
                            hallucination_detected, escalation_signal,
                            truth_score, confidence, quality_score,
                            cost_usd, provider, model, duration_seconds,
-                           word_count, transcript_preview, layer_scores,
-                           status, created_at
+                           word_count, transcript_preview, transcript_speakers,
+                           layer_scores, status, created_at
                     FROM runs
                     {where_sql}
                     ORDER BY created_at DESC
@@ -210,11 +221,12 @@ class MonitoringStore:
         runs = []
         for r in rows:
             d = dict(r)
-            if d.get("layer_scores"):
-                try:
-                    d["layer_scores"] = json.loads(d["layer_scores"])
-                except (json.JSONDecodeError, TypeError):
-                    d["layer_scores"] = None
+            for json_field in ("layer_scores", "transcript_speakers"):
+                if d.get(json_field):
+                    try:
+                        d[json_field] = json.loads(d[json_field])
+                    except (json.JSONDecodeError, TypeError):
+                        d[json_field] = None
             runs.append(d)
 
         return {
@@ -234,11 +246,12 @@ class MonitoringStore:
         if not row:
             return None
         d = dict(row)
-        if d.get("layer_scores"):
-            try:
-                d["layer_scores"] = json.loads(d["layer_scores"])
-            except (json.JSONDecodeError, TypeError):
-                d["layer_scores"] = None
+        for json_field in ("layer_scores", "transcript_speakers"):
+            if d.get(json_field):
+                try:
+                    d[json_field] = json.loads(d[json_field])
+                except (json.JSONDecodeError, TypeError):
+                    d[json_field] = None
         return d
 
     async def log_call(self, result: dict):

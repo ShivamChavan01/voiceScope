@@ -33,6 +33,7 @@ export interface Run {
   duration_seconds: number | null;
   word_count: number | null;
   transcript_preview: string | null;
+  transcript_speakers: { speaker: number; text: string; role?: string; label?: string }[] | null;
   layer_scores: Record<string, number> | null;
   status: string;
   created_at: string;

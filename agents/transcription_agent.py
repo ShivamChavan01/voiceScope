@@ -65,10 +65,25 @@ class TranscriptionAgent:
             if not channels:
                 raise Exception("Deepgram returned no channels")
 
-            transcript = channels[0].get("alternatives", [{}])[0].get("transcript", "")
+            alt = channels[0].get("alternatives", [{}])[0]
+            transcript = alt.get("transcript", "")
             ctx.raw_transcript = transcript
             ctx.language_detected = data.get("results", {}).get("channels", [{}])[0].get("detected_language", "unknown")
             ctx.audio_duration_seconds = data.get("metadata", {}).get("duration")
+
+            paragraphs = alt.get("paragraphs", {}).get("paragraphs", [])
+            if paragraphs:
+                speakers = []
+                for para in paragraphs:
+                    speaker_id = para.get("speaker", 0)
+                    text = " ".join(s.get("text", "") for s in para.get("sentences", []))
+                    if text.strip():
+                        speakers.append({"speaker": speaker_id, "text": text.strip()})
+                ctx.transcript_speakers = speakers
+                logger.info(f"[TranscriptionAgent] extracted {len(speakers)} speaker segments")
+            else:
+                ctx.transcript_speakers = [{"speaker": 0, "text": transcript}]
+
             ctx.mark_stage("transcription")
 
             logger.info(f"[TranscriptionAgent] deepgram done — {len(transcript)} chars, lang={ctx.language_detected}")
@@ -113,6 +128,7 @@ class TranscriptionAgent:
 
                 transcript = response.text.strip()
                 ctx.raw_transcript = transcript
+                ctx.transcript_speakers = [{"speaker": 0, "text": transcript}]
                 ctx.language_detected = "unknown"
                 ctx.audio_duration_seconds = None
                 ctx.mark_stage("transcription")
@@ -151,6 +167,7 @@ class TranscriptionAgent:
                 )
 
             ctx.raw_transcript = response.text
+            ctx.transcript_speakers = [{"speaker": 0, "text": response.text}]
             ctx.language_detected = getattr(response, "language", "unknown")
             ctx.audio_duration_seconds = getattr(response, "duration", None)
             ctx.mark_stage("transcription")
