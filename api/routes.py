@@ -132,8 +132,9 @@ async def analyze_audio(file: UploadFile = File(...)):
     await _log_metrics(result)
     await _log_run(result, harness_data)
 
-    if result.get("errors") and not result.get("report"):
-        raise HTTPException(status_code=500, detail="Analysis failed")
+    # Include pipeline errors in response for debugging
+    if result.get("errors"):
+        result["pipeline_errors"] = result["errors"]
 
     return result
 
