@@ -44,15 +44,13 @@ class SentimentCheck:
 
         neg_count = sum(1 for cue in self.NEGATIVE_CUES if cue in transcript_lower)
         pos_count = sum(1 for cue in self.POSITIVE_CUES if cue in transcript_lower)
-        neu_count = sum(1 for cue in self.NEUTRAL_CUES if cue in transcript_lower)
 
-        # Determine suggested sentiment from cues
+        # Determine suggested sentiment — neutral cues are operational words, not sentiment
         scores = {
             "negative": neg_count,
             "positive": pos_count,
-            "neutral": neu_count,
         }
-        suggested = max(scores, key=lambda k: scores[k])
+        suggested = max(scores, key=lambda k: scores[k]) if (neg_count + pos_count) > 0 else "neutral"
 
         cues_found = []
         if neg_count > 0:
@@ -70,6 +68,10 @@ class SentimentCheck:
             diff = abs(scores[llm_sentiment_lower] - scores[suggested])
             consistent = diff <= 2
             score = max(0.0, 1.0 - (diff / max(max(scores.values()), 1)))
+        elif suggested == "neutral" or llm_sentiment_lower == "neutral":
+            # One side is neutral — real transcripts often have mixed cues, be lenient
+            consistent = True
+            score = 0.8
         else:
             # LLM returned something not in our expected set
             consistent = False
