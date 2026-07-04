@@ -1,12 +1,11 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+// Use local proxy to avoid CORS — /api/[...path] forwards to Railway backend
+const API_BASE = "";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": API_KEY,
       ...(init?.headers || {}),
     },
   });
@@ -152,7 +151,6 @@ export async function analyzeAudio(file: File): Promise<Run> {
   formData.append("file", file);
   const res = await fetch(`${API_BASE}/api/v1/analyze`, {
     method: "POST",
-    headers: { "X-API-Key": API_KEY },
     body: formData,
   });
   if (!res.ok) throw new Error(`Analysis failed: ${res.statusText}`);
