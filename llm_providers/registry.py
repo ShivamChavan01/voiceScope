@@ -77,5 +77,12 @@ def _register_all():
     except ImportError:
         pass
 
+    try:
+        from llm_providers.groq_provider import GroqProvider
+
+        ProviderRegistry.register(GroqProvider)
+    except ImportError:
+        pass
+
 
 _register_all()
