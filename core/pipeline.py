@@ -60,6 +60,7 @@ class VoiceScopePipeline:
         )
 
         logger.info(f"[Pipeline] completed run_id={ctx.run_id} stages={ctx.stages_completed}")
-        report = ctx.report or {"run_id": ctx.run_id, "errors": ctx.errors, "status": "failed"}
+        report = ctx.report or {"run_id": ctx.run_id, "status": "failed"}
         report["harness"] = harness_result.model_dump()
+        report["errors"] = ctx.errors
         return report
