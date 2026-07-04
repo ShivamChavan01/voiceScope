@@ -40,7 +40,7 @@ class AnalysisOutput(BaseModel):
     intent: str = ""
     sentiment_arc: str = ""
     hallucination_detected: bool = False
-    hallucination_evidence: str = ""
+    hallucination_evidence: Optional[str] = None
     outcome: str = ""
     escalation_signal: bool = False
     findings: list[str] = Field(default_factory=list)

@@ -53,7 +53,6 @@ class SentimentCheck:
             "neutral": neu_count,
         }
         suggested = max(scores, key=lambda k: scores[k])
-        total_cues = neg_count + pos_count + neu_count
 
         cues_found = []
         if neg_count > 0:
@@ -67,10 +66,10 @@ class SentimentCheck:
             consistent = True
             score = 1.0
         elif llm_sentiment_lower in scores and suggested in scores:
-            # Both are valid sentiments but differ
+            # Both are valid sentiments but differ — check cue strength
             diff = abs(scores[llm_sentiment_lower] - scores[suggested])
             consistent = diff <= 2
-            score = max(0.0, 1.0 - (diff / max(total_cues, 1)))
+            score = max(0.0, 1.0 - (diff / max(max(scores.values()), 1)))
         else:
             # LLM returned something not in our expected set
             consistent = False

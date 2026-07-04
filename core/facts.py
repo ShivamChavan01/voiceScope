@@ -67,7 +67,12 @@ class FactExtractor:
         facts = self.extract_facts(transcript)
         contradictions = []
 
-        analysis_text = str(analysis).lower()
+        # Exclude metadata fields from number comparison
+        analysis_filtered = {
+            k: v for k, v in analysis.items()
+            if k not in ("audio_duration_seconds", "word_count", "char_count")
+        }
+        analysis_text = str(analysis_filtered).lower()
 
         for fact in facts:
             if fact.fact_type == "number":
