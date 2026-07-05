@@ -49,7 +49,7 @@ Instructions for hallucination detection:
 
 Return ONLY valid JSON with these exact keys:
 {{
-  "intent": "short description of what the caller wanted",
+  "intent": "max 8 words describing what the caller wanted (e.g. 'cancel subscription', 'technical support for router')",
   "sentiment_arc": "positive | negative | mixed | neutral",
   "hallucination_detected": true | false,
   "hallucination_evidence": "quote the specific claim and the contradicting policy if hallucination detected, else null",
@@ -180,7 +180,10 @@ class AnalysisAgent:
 
             result = json.loads(response.content)
 
-            ctx.intent = result.get("intent")
+            intent = result.get("intent", "")
+            if len(intent.split()) > 8:
+                intent = " ".join(intent.split()[:8])
+            ctx.intent = intent
             ctx.sentiment_arc = result.get("sentiment_arc")
             ctx.hallucination_detected = result.get("hallucination_detected")
             ctx.hallucination_evidence = result.get("hallucination_evidence")

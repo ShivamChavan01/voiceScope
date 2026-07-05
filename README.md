@@ -4,9 +4,9 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Open source observability API for voice AI agents. Multi-provider LLM support, plugin system, and comprehensive analytics.
+**Voice AI agents hallucinate. Nobody catches it. VoiceScope does.**
 
-Upload a call recording → get a structured JSON report covering intent, sentiment, hallucination detection, outcome, conversation flow, and quality metrics.
+Upload a call recording → get a structured report: intent, sentiment, hallucination detection, outcome, and quality metrics. Built-in validation harness catches LLM errors before they reach your dashboard. Supports Deepgram, Gemini, Whisper (STT) and OpenAI, Anthropic, Gemini, Groq, Ollama (LLM) out of the box.
 
 ## Features
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HarnessBar } from "@/components/harness-bar";
+import { HarnessBar, HARNESS_KEYS } from "@/components/harness-bar";
 import { TrendChart } from "@/components/trend-chart";
 import {
   getRuns,
@@ -70,13 +70,7 @@ export default function OverviewPage() {
         const latest = runsRes.runs[0];
         getRun(latest.run_id).then((detail) => {
           if (detail.layer_scores) {
-            const HARNESS_KEY_ORDER = [
-              "schema", "citations", "facts", "sentiment_consistency",
-              "outcome_evidence", "escalation", "duplicate",
-              "hallucination", "calibration", "quality",
-              "audio_quality", "feedback", "cross_check",
-            ];
-            setHarnessScores(HARNESS_KEY_ORDER.map((k) => detail.layer_scores?.[k] != null ? Math.round(detail.layer_scores[k] * 100) : 0));
+            setHarnessScores(HARNESS_KEYS.map((k) => detail.layer_scores?.[k] != null ? Math.round(detail.layer_scores[k] * 100) : 0));
           }
         }).catch(() => {});
       }
@@ -117,7 +111,7 @@ export default function OverviewPage() {
         </div>
         <div className="hero-cell">
           <div className="hero-cell-label">Harness Integrity</div>
-          <HarnessBar scores={harnessScores.length > 0 ? harnessScores : [0,0,0,0,0,0,0,0,0,0,0,0,0]} />
+          <HarnessBar scores={harnessScores.length > 0 ? harnessScores : Array(HARNESS_KEYS.length).fill(0)} />
         </div>
       </div>
 

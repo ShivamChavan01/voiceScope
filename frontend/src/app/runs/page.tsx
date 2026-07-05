@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { HarnessBar, HARNESS_NAMES } from "@/components/harness-bar";
+import { HarnessBar, HARNESS_NAMES, HARNESS_KEYS } from "@/components/harness-bar";
 import {
   getRuns,
   getRun,
@@ -130,16 +130,9 @@ export default function RunsPage() {
     return true;
   });
 
-  const HARNESS_KEY_ORDER = [
-    "schema", "citations", "facts", "sentiment_consistency",
-    "outcome_evidence", "escalation", "duplicate",
-    "hallucination", "calibration", "quality",
-    "audio_quality", "feedback", "cross_check",
-  ];
-
   function harnessScoresForRun(run: Run): number[] {
-    if (!run.layer_scores) return Array(13).fill(0);
-    return HARNESS_KEY_ORDER.map((k) => {
+    if (!run.layer_scores) return Array(HARNESS_KEYS.length).fill(0);
+    return HARNESS_KEYS.map((k) => {
       const v = run.layer_scores?.[k];
       return v != null ? Math.round(v * 100) : 0;
     });

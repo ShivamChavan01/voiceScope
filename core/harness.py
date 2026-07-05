@@ -276,7 +276,6 @@ class ValidationHarness:
             "outcome_evidence": 0.10,
             "escalation": 0.05,
             "duplicate": 0.05,
-            "cross_check": 0.10,
         }
         total_weight = 0.0
         weighted_sum = 0.0

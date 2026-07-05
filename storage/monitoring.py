@@ -177,6 +177,13 @@ class MonitoringStore:
             conn.commit()
         logger.debug(f"[MonitoringStore] logged run run_id={result.get('run_id')}")
 
+    async def delete_run(self, run_id: str) -> bool:
+        """Delete a single run by ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
     async def get_runs(
         self,
         limit: int = 50,

@@ -148,6 +148,10 @@ export async function getRun(runId: string): Promise<Run> {
   return fetchJson<Run>(`/api/v1/runs/${runId}`);
 }
 
+export async function deleteRun(runId: string): Promise<{ status: string }> {
+  return fetchJson(`/api/v1/runs/${runId}`, { method: "DELETE" });
+}
+
 export async function getRunHistory(
   limit: number = 12
 ): Promise<{ scores: number[]; count: number }> {

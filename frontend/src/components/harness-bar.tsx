@@ -3,24 +3,22 @@
 import React from "react";
 
 const HARNESS_LAYERS = [
-  { id: "transcription", name: "Transcription Quality", weight: 0.10 },
-  { id: "entity", name: "Entity Extraction", weight: 0.08 },
-  { id: "intent", name: "Intent Classification", weight: 0.08 },
-  { id: "sentiment", name: "Sentiment Analysis", weight: 0.06 },
-  { id: "topic", name: "Topic Segmentation", weight: 0.07 },
-  { id: "consistency", name: "Factual Consistency", weight: 0.12 },
-  { id: "coherence", name: "Coherence Score", weight: 0.08 },
-  { id: "resolution", name: "Resolution Detection", weight: 0.09 },
-  { id: "compliance", name: "Compliance Check", weight: 0.10 },
-  { id: "hallucination", name: "Hallucination Detection", weight: 0.11 },
-  { id: "latency", name: "Response Latency", weight: 0.05 },
-  { id: "safety", name: "Safety & Harm", weight: 0.04 },
-  { id: "completion", name: "Completion", weight: 0.02 },
+  { id: "schema", name: "Schema Validation", weight: 0.30 },
+  { id: "citations", name: "Citation Verification", weight: 0.15 },
+  { id: "facts", name: "Fact Extraction", weight: 0.15 },
+  { id: "sentiment_consistency", name: "Sentiment Consistency", weight: 0.10 },
+  { id: "outcome_evidence", name: "Outcome Evidence", weight: 0.10 },
+  { id: "escalation", name: "Escalation Detection", weight: 0.05 },
+  { id: "duplicate", name: "Duplicate Detection", weight: 0.05 },
+  { id: "cross_check", name: "Cross-Check", weight: 0.10 },
 ];
 
 export const HARNESS_NAMES = HARNESS_LAYERS.map((l) => l.name);
+export const HARNESS_KEYS = HARNESS_LAYERS.map((l) => l.id);
+export const HARNESS_WEIGHTS = HARNESS_LAYERS.map((l) => l.weight);
 
-function getStatus(score: number): "pass" | "warning" | "fail" {
+function getStatus(score: number): "pass" | "warning" | "fail" | "na" {
+  if (score === 0) return "na";
   if (score >= 80) return "pass";
   if (score >= 50) return "warning";
   return "fail";
@@ -29,6 +27,7 @@ function getStatus(score: number): "pass" | "warning" | "fail" {
 function statusColor(status: string) {
   if (status === "pass") return "var(--success)";
   if (status === "warning") return "var(--warning)";
+  if (status === "na") return "var(--muted-foreground)";
   return "var(--destructive)";
 }
 
@@ -49,7 +48,8 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun }: HarnessBarPro
     score: scores[i] || 0,
     status: getStatus(scores[i] || 0),
   }));
-  const flagged = layers.filter((l) => l.status !== "pass").length;
+  const flagged = layers.filter((l) => l.status !== "pass" && l.status !== "na").length;
+  const active = layers.filter((l) => l.status !== "na").length;
 
   const setHighlight = (idx: number) => {
     setHl(idx);
@@ -57,7 +57,7 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun }: HarnessBarPro
       rowsRef.current.classList.add("has-highlight");
       const segs = rowsRef.current.querySelectorAll<HTMLElement>(".seg");
       segs.forEach((s, i) => {
-        const si = Math.floor(i / 13);
+        const si = Math.floor(i / HARNESS_LAYERS.length);
         s.classList.toggle("hl", si === idx);
       });
     }
@@ -136,12 +136,12 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun }: HarnessBarPro
                 <div className="expand-bar weight" style={{ width: `${l.weight * 100}%` }} />
                 <div className="expand-bar" data-status={l.status} style={{ width: `${l.weight * 100}%` }} />
               </div>
-              <span className={`expand-score ${l.status}`}>{l.score.toFixed(2)}</span>
+              <span className={`expand-score ${l.status}`}>{l.status === "na" ? "N/A" : l.score.toFixed(2)}</span>
             </div>
           ))}
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span className="harness-caption">
-              13 layers · <span className="flagged">{flagged}</span> flagged
+              {HARNESS_LAYERS.length} layers · <span>{active}</span> active · <span className="flagged">{flagged}</span> flagged
             </span>
             {runId && onOpenRun && (
               <span className="harness-link" onClick={() => onOpenRun(runId)}>

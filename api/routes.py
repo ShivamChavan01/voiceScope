@@ -22,7 +22,10 @@ router = APIRouter()
 
 @lru_cache(maxsize=1)
 def get_pipeline():
-    return VoiceScopePipeline()
+    from core.harness import ValidationHarness
+    p = VoiceScopePipeline()
+    p.harness = get_validation_harness()
+    return p
 
 
 @lru_cache(maxsize=1)
@@ -43,6 +46,12 @@ def get_harness():
 @lru_cache(maxsize=1)
 def get_monitoring_store():
     return MonitoringStore()
+
+
+@lru_cache(maxsize=1)
+def get_validation_harness():
+    from core.harness import ValidationHarness
+    return ValidationHarness()
 
 
 @lru_cache(maxsize=1)
@@ -253,6 +262,14 @@ async def get_run(run_id: str):
     if not run:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     return run
+
+
+@router.delete("/runs/{run_id}")
+async def delete_run(run_id: str):
+    deleted = await get_monitoring_store().delete_run(run_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    return {"status": "deleted", "run_id": run_id}
 
 
 @router.post("/harness/run")
@@ -551,9 +568,7 @@ class FeedbackRequest(BaseModel):
 
 @router.get("/harness/status")
 async def get_harness_status():
-    from core.harness import ValidationHarness
-    h = ValidationHarness()
-    return h.get_summary()
+    return get_validation_harness().get_summary()
 
 
 @router.post("/harness/feedback")
@@ -573,8 +588,7 @@ async def get_calibration():
 @router.post("/harness/validate")
 async def validate_text(req: GuardrailCheckRequest):
     """Run harness validation on arbitrary text (for testing)."""
-    from core.harness import ValidationHarness, AnalysisOutput
-    ValidationHarness()
+    from core.harness import AnalysisOutput
     try:
         validated = AnalysisOutput(
             intent=req.text[:200],
