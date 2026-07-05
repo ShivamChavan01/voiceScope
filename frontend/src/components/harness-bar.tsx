@@ -15,20 +15,12 @@ const HARNESS_LAYERS = [
 
 export const HARNESS_NAMES = HARNESS_LAYERS.map((l) => l.name);
 export const HARNESS_KEYS = HARNESS_LAYERS.map((l) => l.id);
-export const HARNESS_WEIGHTS = HARNESS_LAYERS.map((l) => l.weight);
 
 function getStatus(score: number): "pass" | "warning" | "fail" | "na" {
   if (score === 0) return "na";
   if (score >= 80) return "pass";
   if (score >= 50) return "warning";
   return "fail";
-}
-
-function statusColor(status: string) {
-  if (status === "pass") return "var(--success)";
-  if (status === "warning") return "var(--warning)";
-  if (status === "na") return "var(--muted-foreground)";
-  return "var(--destructive)";
 }
 
 interface HarnessBarProps {

@@ -9,7 +9,6 @@ from core.harness import (
     ValidationHarness,
 )
 from core.citations import CitationVerifier
-from core.crosscheck import CrossChecker, CrossCheckResult
 from core.facts import FactExtractor
 from core.sentiment_check import SentimentCheck
 from core.outcome_check import OutcomeCheck
@@ -159,17 +158,6 @@ class TestCitationVerification:
 
 
 # ─── Layer 3: Cross-Check ────────────────────────────────────────────
-
-
-class TestCrossCheck:
-    def test_disabled_by_default(self):
-        c = CrossChecker()
-        assert not c.enabled
-
-    def test_crosscheck_result_model(self):
-        r = CrossCheckResult(agreement_rate=0.8, disagreements=["test"], checked=True)
-        assert r.agreement_rate == 0.8
-        assert r.checked
 
 
 # ─── Layer 4: Fact Extraction ────────────────────────────────────────

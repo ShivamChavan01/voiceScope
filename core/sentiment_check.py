@@ -32,12 +32,6 @@ class SentimentCheck:
         "resolved", "fixed", "solved", "working", "all set",
     ]
 
-    NEUTRAL_CUES = [
-        "okay", "fine", "alright", "understood", "noted", "sure",
-        "will do", "got it", "i see", "right", "yes", "no",
-        "maybe", "possibly", "perhaps", "depends",
-    ]
-
     def check(self, transcript: str, llm_sentiment: str) -> SentimentCheckResult:
         """Check if LLM sentiment matches transcript cues."""
         transcript_lower = transcript.lower()

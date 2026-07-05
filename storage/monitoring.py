@@ -350,8 +350,6 @@ class MonitoringStore:
         if metric not in metric_map:
             return None
 
-        metric_map[metric]
-
         if metric == "total_calls":
             row = conn.execute(
                 "SELECT COUNT(*) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",

@@ -113,20 +113,6 @@ export interface QACohort {
   created_at: string;
 }
 
-export interface CostSummary {
-  total_cost_usd: number;
-  by_provider: Record<string, number>;
-  by_model: Record<string, number>;
-  daily_costs: Record<string, unknown>[];
-}
-
-export interface HarnessResult {
-  truth_score: number;
-  confidence: string;
-  validation_errors: string[];
-  layer_scores: Record<string, number>;
-}
-
 // ── Runs ───────────────────────────────────────────────────────────────
 
 export async function getRuns(params?: {
@@ -216,13 +202,6 @@ export async function getIncidents(
   );
 }
 
-export async function checkAlerts(): Promise<{
-  triggered: unknown[];
-  count: number;
-}> {
-  return fetchJson("/api/v1/monitoring/check", { method: "POST" });
-}
-
 // ── Extraction Schemas ────────────────────────────────────────────────
 
 export async function getSchemas(): Promise<ExtractionSchema[]> {
@@ -273,10 +252,4 @@ export async function createQACohort(cohort: {
 
 export async function getGuardrailStatus(): Promise<Record<string, unknown>> {
   return fetchJson("/api/v1/guardrails/status");
-}
-
-// ── Costs ──────────────────────────────────────────────────────────────
-
-export async function getCostSummary(): Promise<CostSummary> {
-  return fetchJson<CostSummary>("/api/v1/costs");
 }
