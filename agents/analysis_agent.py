@@ -54,7 +54,8 @@ Return ONLY valid JSON with these exact keys:
   "hallucination_detected": true | false,
   "hallucination_evidence": "quote the specific claim and the contradicting policy if hallucination detected, else null",
   "outcome": "resolved | unresolved | escalated",
-  "escalation_signal": true | false
+  "escalation_signal": true | false,
+  "findings": ["list 2-5 specific factual claims made during the call that can be verified against the transcript, e.g. 'customer requested refund', 'agent confirmed 5-7 day processing', 'caller threatened legal action']
 }}
 """
 
@@ -189,6 +190,7 @@ class AnalysisAgent:
             ctx.hallucination_evidence = result.get("hallucination_evidence")
             ctx.outcome = result.get("outcome")
             ctx.escalation_signal = result.get("escalation_signal")
+            ctx.raw_analysis = result
             ctx.mark_stage("analysis")
 
             logger.info(f"[AnalysisAgent] done — intent={ctx.intent}, outcome={ctx.outcome}")

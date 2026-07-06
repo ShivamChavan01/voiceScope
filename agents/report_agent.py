@@ -38,6 +38,7 @@ class ReportAgent:
     async def run(self, ctx: PipelineContext) -> PipelineContext:
         logger.info(f"[ReportAgent] run_id={ctx.run_id}")
 
+        raw = getattr(ctx, "raw_analysis", {}) or {}
         analysis_data = {
             "intent": ctx.intent,
             "sentiment_arc": ctx.sentiment_arc,
@@ -45,6 +46,7 @@ class ReportAgent:
             "hallucination_evidence": ctx.hallucination_evidence,
             "outcome": ctx.outcome,
             "escalation_signal": ctx.escalation_signal,
+            "findings": raw.get("findings", []),
             "language": ctx.language_detected,
             "audio_duration_seconds": ctx.audio_duration_seconds,
         }

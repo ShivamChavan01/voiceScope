@@ -50,6 +50,7 @@ class TranscriptionAgent:
         headers = {
             "Authorization": f"Token {api_key}",
             "Content-Type": "audio/mpeg",
+            "Accept-Encoding": "identity",
         }
 
         try:
