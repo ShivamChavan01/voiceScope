@@ -32,12 +32,6 @@ pytest tests/ -v --cov=.
 3. Register in `llm_providers/registry.py`
 4. Add tests in `tests/test_providers.py`
 
-## Adding a Plugin Agent
-
-1. Create your agent class inheriting `BaseAgent`
-2. Decorate with `@AgentRegistry.register`
-3. Set `PLUGIN_AGENTS=your.module.path`
-
 ## Pull Requests
 
 1. Fork the repo

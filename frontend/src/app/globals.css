@@ -128,6 +128,10 @@
 .harness-rows { position: relative; }
 .harness-row { display: flex; gap: 2px; height: 14px; }
 .harness-row + .harness-row { margin-top: 4px; }
+.harness-labels { display: flex; gap: 2px; margin-top: 4px; }
+.harness-label { font-size: 9px; color: var(--muted-foreground); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; transition: color 120ms ease-out; cursor: default; }
+.harness-label.hl { color: var(--foreground); }
+.mini-harness { width: 120px; flex-shrink: 0; }
 .seg { height: 100%; border-radius: 2px; transition: opacity 120ms ease-out, transform 120ms ease-out; transform-origin: center; cursor: pointer; outline: none; min-width: 4px; position: relative; }
 .seg:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .seg.row-weight { background: var(--muted-foreground); opacity: 0.3; }
@@ -156,6 +160,9 @@
 .expand-score.warning { color: var(--warning); }
 .expand-score.fail { color: var(--destructive); }
 .expand-score.na { color: var(--muted-foreground); opacity: 0.5; }
+.expand-weight { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); width: 32px; text-align: right; flex-shrink: 0; }
+.expand-status-badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
+.expand-status-badge.badge-na { background: rgba(255,255,255,0.04); color: var(--muted-foreground); }
 .harness-caption { margin-top: 14px; font-size: 12px; color: var(--secondary-foreground); }
 .harness-caption .flagged { color: var(--warning); font-family: var(--font-mono); font-weight: 500; }
 .harness-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--muted-foreground); cursor: pointer; }
@@ -172,6 +179,11 @@ tr:last-child td { border-bottom: none; }
 tr { transition: background 120ms ease-out; cursor: pointer; }
 tbody tr:hover { background: var(--card); }
 .table-scroll { overflow-x: auto; }
+
+/* ── Hallucination Dot ────────────────────────────────────────── */
+.hallucination-dot { font-size: 10px; line-height: 1; }
+.hallucination-dot.detected { color: var(--destructive); }
+.hallucination-dot.clean { color: var(--success); }
 
 /* ── Text utilities ────────────────────────────────────────────── */
 .mono { font-family: var(--font-mono); font-size: 12px; }

@@ -1,19 +1,13 @@
 """
-VoiceScope Validation Harness — 13-layer validation for LLM outputs.
+VoiceScope Validation Harness — 7-layer validation for LLM outputs.
 
 Layer 1: Schema Validation (Pydantic)
 Layer 2: Citation Verification
-Layer 3: Cross-Check
-Layer 4: Fact Extraction & Verification
-Layer 5: Sentiment Consistency Check
-Layer 6: Outcome Evidence Check
-Layer 7: Escalation Signal Verification
-Layer 8: LLM Response Time Monitoring
-Layer 9: Token Usage Tracking
-Layer 10: Duplicate Detection
-Layer 11: Audio Quality Pre-Check
-Layer 12: Confidence Calibration
-Layer 13: Feedback Loop
+Layer 3: Fact Extraction & Verification
+Layer 4: Sentiment Consistency Check
+Layer 5: Outcome Evidence Check
+Layer 6: Escalation Signal Verification
+Layer 7: Duplicate Detection
 """
 
 import time
@@ -106,7 +100,7 @@ class HarnessResult(BaseModel):
 
 
 class ValidationHarness:
-    """13-layer validation harness for LLM outputs."""
+    """7-layer validation harness for LLM outputs."""
 
     def __init__(self):
         self._seen_hashes: dict[str, float] = {}

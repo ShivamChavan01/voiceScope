@@ -6,7 +6,7 @@ VoiceScope is a voice AI observability tool that sits behind another AI. It's no
 
 **3 screens:**
 1. **Overview** — health metrics, truth score trend, active alerts, recent runs
-2. **Runs** — list of analyzed calls, click into a run for full report + 13-layer harness breakdown + transcript
+2. **Runs** — list of analyzed calls, click into a run for full report + 7-layer harness breakdown + transcript
 3. **Settings** — providers/API keys, guardrails, alert rules, extraction schemas, QA cohorts (all tabs on one page)
 
 ---

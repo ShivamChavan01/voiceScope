@@ -3,13 +3,13 @@
 import React from "react";
 
 const HARNESS_LAYERS = [
-  { id: "schema", name: "Schema Validation", weight: 0.30 },
-  { id: "citations", name: "Citation Verification", weight: 0.15 },
-  { id: "facts", name: "Fact Extraction", weight: 0.15 },
-  { id: "sentiment_consistency", name: "Sentiment Consistency", weight: 0.10 },
-  { id: "outcome_evidence", name: "Outcome Evidence", weight: 0.10 },
-  { id: "escalation", name: "Escalation Detection", weight: 0.05 },
-  { id: "duplicate", name: "Duplicate Detection", weight: 0.05 },
+  { id: "schema", name: "Schema", weight: 0.30 },
+  { id: "citations", name: "Citations", weight: 0.15 },
+  { id: "facts", name: "Facts", weight: 0.15 },
+  { id: "sentiment_consistency", name: "Sentiment", weight: 0.10 },
+  { id: "outcome_evidence", name: "Outcome", weight: 0.10 },
+  { id: "escalation", name: "Escalation", weight: 0.05 },
+  { id: "duplicate", name: "Duplicate", weight: 0.05 },
   { id: "cross_check", name: "Cross-Check", weight: 0.10 },
 ];
 
@@ -23,14 +23,22 @@ function getStatus(score: number): "pass" | "warning" | "fail" | "na" {
   return "fail";
 }
 
+function statusLabel(status: string) {
+  if (status === "pass") return "Pass";
+  if (status === "warning") return "Warn";
+  if (status === "fail") return "Fail";
+  return "N/A";
+}
+
 interface HarnessBarProps {
   scores: number[];
   runId?: string;
   runLabel?: string;
   onOpenRun?: (id: string) => void;
+  mini?: boolean;
 }
 
-export function HarnessBar({ scores, runId, runLabel, onOpenRun }: HarnessBarProps) {
+export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: HarnessBarProps) {
   const rowsRef = React.useRef<HTMLDivElement>(null);
   const [hl, setHl] = React.useState<number | null>(null);
   const [touchMode, setTouchMode] = React.useState(false);
@@ -62,6 +70,24 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun }: HarnessBarPro
       rowsRef.current.querySelectorAll<HTMLElement>(".seg").forEach((s) => s.classList.remove("hl"));
     }
   };
+
+  if (mini) {
+    return (
+      <div className="mini-harness" ref={rowsRef}>
+        <div className="harness-row" style={{ height: 8 }}>
+          {layers.map((l, i) => (
+            <div
+              key={i}
+              className="seg"
+              data-status={l.status}
+              style={{ width: `${l.weight * 100}%` }}
+              aria-label={`${l.name}: ${l.score}`}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="harness-rows" ref={rowsRef}>
@@ -112,23 +138,43 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun }: HarnessBarPro
           />
         ))}
       </div>
+      {/* Labels row */}
+      <div className="harness-labels">
+        {layers.map((l, i) => (
+          <span
+            key={`l${i}`}
+            className={`harness-label ${hl === i ? "hl" : ""}`}
+            style={{ width: `${l.weight * 100}%` }}
+            onMouseEnter={() => !touchMode && setHighlight(i)}
+            onMouseLeave={() => !touchMode && clearHighlight()}
+          >
+            {l.name}
+          </span>
+        ))}
+      </div>
 
       {/* Expand panel */}
       {hl !== null && (
         <div className="harness-expand show">
           <div className="expand-header">
+            <span>Layer</span>
             <span>Weight</span>
-            <span>Bars</span>
+            <span style={{ width: 100, textAlign: "center" }}>Bars</span>
             <span>Score</span>
+            <span>Status</span>
           </div>
           {layers.map((l, i) => (
             <div key={i} className="expand-layer">
               <span className="expand-name">{l.name}</span>
+              <span className="expand-weight">{(l.weight * 100).toFixed(0)}%</span>
               <div className="expand-bars">
                 <div className="expand-bar weight" style={{ width: `${l.weight * 100}%` }} />
                 <div className="expand-bar" data-status={l.status} style={{ width: `${l.weight * 100}%` }} />
               </div>
-              <span className={`expand-score ${l.status}`}>{l.status === "na" ? "N/A" : l.score.toFixed(2)}</span>
+              <span className={`expand-score ${l.status}`}>{l.status === "na" ? "N/A" : `${l.score}`}</span>
+              <span className={`expand-status-badge badge badge-${l.status === "pass" ? "pass" : l.status === "warning" ? "flag" : l.status === "fail" ? "fail" : "na"}`}>
+                {statusLabel(l.status)}
+              </span>
             </div>
           ))}
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

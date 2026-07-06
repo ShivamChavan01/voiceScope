@@ -2,7 +2,7 @@
 
 ## Overview
 
-VoiceScope is an open-source voice AI observability platform built with FastAPI. It analyzes voice AI calls through a 3-stage pipeline (transcription → analysis → report) with a 13-layer validation harness that detects hallucinations, verifies facts, and tracks quality.
+VoiceScope is an open-source voice AI observability platform built with FastAPI. It analyzes voice AI calls through a 3-stage pipeline (transcription → analysis → report) with a 7-layer validation harness that detects hallucinations, verifies facts, and tracks quality.
 
 **Stack:** Python 3.12, FastAPI, SQLite, ChromaDB, OpenAI Whisper, 5 LLM providers
 
@@ -20,19 +20,18 @@ voicescope/
 ├── core/
 │   ├── pipeline.py                  # 3-stage pipeline orchestrator
 │   ├── context.py                   # Shared PipelineContext dataclass
-│   ├── harness.py                   # 13-layer validation harness (303 lines)
+│   ├── harness.py                   # 7-layer validation harness (302 lines)
 │   ├── citations.py                 # Layer 2: Citation verification
-│   ├── crosscheck.py                # Layer 3: Cross-check with alternate prompts
-│   ├── facts.py                     # Layer 4: Fact extraction & verification
-│   ├── sentiment_check.py           # Layer 5: Sentiment consistency check
-│   ├── outcome_check.py             # Layers 6-7: Outcome evidence + escalation
-│   ├── audio_quality.py             # Layer 11: Audio quality pre-check
-│   ├── calibration.py               # Layers 12-13: Confidence calibration + feedback
+│   ├── facts.py                     # Layer 3: Fact extraction & verification
+│   ├── sentiment_check.py           # Layer 4: Sentiment consistency check
+│   ├── outcome_check.py             # Layers 5-6: Outcome evidence + escalation
+│   ├── audio_quality.py             # Audio quality pre-check (runs but not scored)
+│   ├── calibration.py               # Confidence calibration (long-term project)
 │   ├── optimizer.py                 # Auto-tune harness layer weights
 │   ├── benchmark.py                 # Run labeled test data through harness
 │   ├── self_improve.py              # Self-improvement loop orchestrator
 │   ├── prompt_tracker.py            # Track prompt performance
-│   ├── feedback.py                  # Layer 13: User feedback submission
+│   ├── feedback.py                  # User feedback submission
 │   ├── knowledge_base.py            # ChromaDB-backed policy KB for RAG
 │   ├── batch.py                     # Async batch processor
 │   ├── assertions.py                # Assertion engine for test harness
@@ -40,13 +39,10 @@ voicescope/
 │   ├── qa.py                        # QA cohort system
 │   └── extractions.py               # Custom extraction schema system
 ├── agents/
-│   ├── base.py                      # Abstract BaseAgent class
-│   ├── transcription_agent.py       # Agent 1: Audio → Text (Whisper)
-│   ├── analysis_agent.py            # Agent 2: LLM-powered analysis (271 lines)
+│   ├── transcription_agent.py       # Agent 1: Audio → Text (Deepgram/Gemini/Whisper)
+│   ├── analysis_agent.py            # Agent 2: LLM-powered analysis
 │   ├── report_agent.py              # Agent 3: Report generation + ChromaDB store
-│   ├── eval_agent.py                # LLM-as-judge evaluation
-│   ├── flow_agent.py                # Conversation flow extraction
-│   └── registry.py                  # Plugin agent registry
+│   └── speaker_agent.py             # Agent 4: Speaker classification (Agent/Customer)
 ├── storage/
 │   ├── chroma_store.py              # ChromaDB vector store (RAG)
 │   ├── cost_store.py                # SQLite cost tracking
@@ -68,7 +64,7 @@ voicescope/
 │   ├── security.py                  # SSRF protection, key hashing, path validation
 │   ├── guardrails.py                # Content guardrails, PII redaction
 │   ├── resilience.py                # Circuit breaker + retry decorator
-│   └── exceptions.py                # Custom exception hierarchy
+│   └── exceptions.py                # Custom exceptions (deprecated — kept for compat)
 ├── sdk/
 │   └── voicescope/
 │       ├── client.py                # Python SDK client (async + sync)
@@ -150,12 +146,20 @@ Audio Input (file or webhook)
 └─────────────────────────────────────────────────────┘
     │
     ▼
-┌─────────────────────────────────────────────────────┐
-│  Validation Harness (13 Layers)                      │
-│  → truth_score (weighted average)                   │
-│  → confidence level                                 │
-│  → layer_scores dict                                │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Stage 3: ReportAgent                                       │
+│  - LLM generates: executive summary, quality_score,        │
+│    key_findings, recommendations                            │
+│  - Stores transcript in ChromaDB for future RAG             │
+│  → ctx.report (final output)                                │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  SpeakerAgent (optional)                                    │
+│  - Classifies Agent vs Customer                             │
+│  → ctx.transcript_speakers                                  │
+└─────────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────┐
@@ -170,25 +174,21 @@ Audio Input (file or webhook)
 
 ---
 
-## 13-Layer Validation Harness
+## 7-Layer Validation Harness
 
 | Layer | Module | What It Does | Score Weight |
 |-------|--------|-------------|--------------|
 | 1 | `harness.py` | Schema validation — Pydantic model check, enum values, field types | 0.30 |
 | 2 | `citations.py` | Citation verification — fuzzy match findings against transcript (0.6 threshold) | 0.15 |
-| 3 | `crosscheck.py` | Cross-check — re-runs analysis with different prompt, compares results (opt-in) | 0.10 |
-| 4 | `facts.py` | Fact extraction — pulls numbers, dates, promises, actions; verifies against analysis | 0.15 |
-| 5 | `sentiment_check.py` | Sentiment consistency — word-list cue matching (35 neg, 25 pos, 15 neutral) | 0.10 |
-| 6 | `outcome_check.py` | Outcome evidence — checks if resolved/unresolved/escalated has transcript markers | 0.10 |
-| 7 | `outcome_check.py` | Escalation verification — checks if escalation_signal=True has evidence | 0.05 |
-| 8 | `harness.py` | Response time — flags LLM responses >10s | — |
-| 9 | `harness.py` | Token tracking — flags >10000 total tokens | — |
-| 10 | `harness.py` | Duplicate detection — MD5 hash with 5-minute window | 0.05 |
-| 11 | `audio_quality.py` | Audio quality — size, duration, format, silence detection | — |
-| 12 | `calibration.py` | Confidence calibration — tracks truth_score vs confidence correlation | — |
-| 13 | `feedback.py` | Feedback loop — accepts correct/incorrect user feedback | — |
+| 3 | `facts.py` | Fact extraction — pulls numbers, dates, promises, actions; verifies against analysis | 0.15 |
+| 4 | `sentiment_check.py` | Sentiment consistency — word-list cue matching (35 neg, 25 pos, 15 neutral) | 0.10 |
+| 5 | `outcome_check.py` | Outcome evidence — checks if resolved/unresolved/escalated has transcript markers | 0.10 |
+| 6 | `outcome_check.py` | Escalation verification — checks if escalation_signal=True has evidence | 0.05 |
+| 7 | `harness.py` | Duplicate detection — MD5 hash with 5-minute window | 0.05 |
 
-**Truth Score** = weighted average: schema(0.30) + citations(0.15) + facts(0.15) + sentiment(0.10) + outcome(0.10) + cross_check(0.10) + escalation(0.05) + duplicate(0.05)
+**Truth Score** = weighted average: schema(0.30) + citations(0.15) + facts(0.15) + sentiment(0.10) + outcome(0.10) + escalation(0.05) + duplicate(0.05)
+
+*Additional metrics tracked but not scored: response time, token usage, audio quality, confidence calibration.*
 
 ---
 
@@ -300,32 +300,11 @@ Audio Input (file or webhook)
 - **Output:** executive_summary, quality_score, key_findings, recommendations
 - **Side effect:** Stores transcript in ChromaDB for future RAG
 
-### Optional/Plugin Agents
+### Optional Agents
 
-#### 4. EvalAgent (`agents/eval_agent.py`)
-- LLM-as-judge: scores analysis quality (1-5), confidence, completeness
-
-#### 5. FlowAgent (`agents/flow_agent.py`)
-- Extracts: speakers, turns, interruptions, talk-time ratio, longest monologue
-
-#### 6. Plugin System (`agents/registry.py`)
-- `@AgentRegistry.register` decorator
-- `PLUGIN_AGENTS` env var for dynamic module loading
-- `AgentRegistry.run_all()` runs all registered agents
-
-### Base Agent Interface
-```python
-class BaseAgent(ABC):
-    name: str
-    description: str
-    
-    @abstractmethod
-    async def run(ctx: PipelineContext, **kwargs) -> PipelineContext:
-        ...
-    
-    def validate_input(ctx: PipelineContext) -> bool:
-        ...
-```
+#### 4. SpeakerAgent (`agents/speaker_agent.py`)
+- Classifies speakers as Agent or Customer using LLM
+- Extracts speaker roles and talk-time ratio
 
 ---
 
@@ -336,6 +315,7 @@ class BaseAgent(ABC):
 | OpenAI | `OpenAIProvider` | `gpt-4o` | `OPENAI_API_KEY` |
 | Anthropic | `AnthropicProvider` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
 | Gemini | `GeminiProvider` | `gemini-1.5-pro` | `GOOGLE_API_KEY` |
+| Groq | `GroqProvider` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
 | Mistral | `MistralProvider` | `mistral-large-latest` | `MISTRAL_API_KEY` |
 | Ollama | `OllamaProvider` | `llama3.1` | `OLLAMA_BASE_URL` |
 
@@ -349,6 +329,7 @@ class BaseAgent(ABC):
 | claude-3.5-haiku | $0.80 | $4.00 |
 | gemini-1.5-pro | $1.25 | $5.00 |
 | gemini-1.5-flash | $0.075 | $0.30 |
+| llama-3.3-70b (Groq) | $0.59 | $0.79 |
 | mistral-large | $2.00 | $6.00 |
 | Ollama (local) | Free | Free |
 
@@ -504,7 +485,6 @@ All parsers normalize to `WebhookEvent` model.
 | `CALIBRATION_DB_PATH` | `./calibration.json` | Calibration data |
 | `OPTIMIZER_DB_PATH` | `./optimizer.json` | Optimizer data |
 | `PROMPT_TRACKER_DB_PATH` | `./prompt_tracker.json` | Prompt tracking data |
-| `PLUGIN_AGENTS` | — | Comma-separated module paths for plugin agents |
 
 ---
 
@@ -514,7 +494,7 @@ All parsers normalize to `WebhookEvent` model.
 |--------|-----------------|
 | `utils/logger.py` | Loguru structured logging with correlation IDs. Console (INFO) + daily rotating file (DEBUG, JSON, 7-day retention). |
 | `utils/tracing.py` | `RequestContext` (run_id, correlation_id, stage_timings) in ContextVar. Stage timing (start/end/duration_ms). |
-| `utils/security.py` | SSRF protection (HTTPS-only, private IP block with DNS resolution). API key hashing (SHA-256). Plugin path validation. Log input sanitization. |
+| `utils/security.py` | SSRF protection (HTTPS-only, private IP block with DNS resolution). API key hashing (SHA-256). Log input sanitization. |
 | `utils/guardrails.py` | Content guardrails: harmful content detection (self-harm, violence, harassment, medical/financial advice). PII redaction (email, phone, SSN, credit card, IP). |
 | `utils/resilience.py` | `CircuitBreaker` (closed → open → half-open). `@with_retry` decorator (exponential backoff). |
 | `utils/exceptions.py` | `VoiceScopeError` → `TranscriptionError`, `AnalysisError`, `ReportError`, `ProviderError` → `RateLimitError`, `CircuitBreakerOpenError`. |

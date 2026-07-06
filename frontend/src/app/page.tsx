@@ -78,7 +78,7 @@ export default function OverviewPage() {
     });
   }, []);
 
-  const truthScore = metrics?.avg_quality_score ?? 0;
+  const latestTruthScore = runs[0]?.truth_score ?? null;
   const totalCalls = metrics?.total_calls ?? 0;
 
   if (loading) {
@@ -105,8 +105,8 @@ export default function OverviewPage() {
       <div className="hero-row">
         <div className="hero-cell">
           <div className="hero-cell-label">Truth Score</div>
-          <div className="hero-cell-value accent">{truthScore.toFixed(2)}</div>
-          <div className="hero-cell-sub">last 24h avg · {totalCalls} calls</div>
+          <div className="hero-cell-value accent">{latestTruthScore != null ? `${(latestTruthScore * 100).toFixed(1)}%` : "—"}</div>
+          <div className="hero-cell-sub">latest run · {totalCalls} calls</div>
           <TrendChart points={historyScores} />
         </div>
         <div className="hero-cell">

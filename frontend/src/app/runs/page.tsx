@@ -194,32 +194,44 @@ export default function RunsPage() {
               <tr>
                 <th>Run ID</th>
                 <th>Intent</th>
-                <th>Sentiment</th>
-                <th>Duration</th>
+                <th>Time</th>
+                <th>Hallucination</th>
                 <th>Score</th>
+                <th>Harness</th>
+                <th>Duration</th>
                 <th>Status</th>
-                <th>Provider</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>Loading...</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>No runs found</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>No runs found</td></tr>
               ) : (
                 filtered.map((run) => (
                   <tr key={run.run_id} onClick={() => openRun(run)}>
                     <td><span className="mono text-accent">{run.run_id.slice(0, 12)}</span></td>
                     <td><span className="text-secondary">{run.intent || "—"}</span></td>
-                    <td><span className="text-secondary">{run.sentiment || "—"}</span></td>
+                    <td><span className="mono text-muted">{relativeTime(run.created_at)}</span></td>
+                    <td>
+                      <span className={`hallucination-dot ${run.hallucination_detected ? "detected" : "clean"}`}>
+                        {run.hallucination_detected ? "●" : "●"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`mono ${scoreColor(run.truth_score)}`}>
+                        {run.truth_score != null ? `${(run.truth_score * 100).toFixed(0)}%` : "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <HarnessBar scores={harnessScoresForRun(run)} mini />
+                    </td>
                     <td><span className="mono text-secondary">{formatDuration(run.duration_seconds)}</span></td>
-                    <td><span className={`mono ${scoreColor(run.truth_score)}`}>{run.truth_score != null ? run.truth_score.toFixed(2) : "—"}</span></td>
                     <td>
                       <span className={`badge ${run.status === "completed" ? "badge-pass" : run.status === "failed" ? "badge-fail" : "badge-flag"}`}>
                         {run.status}
                       </span>
                     </td>
-                    <td><span className="mono text-muted">{run.provider || "—"}</span></td>
                   </tr>
                 ))
               )}
@@ -261,7 +273,7 @@ export default function RunsPage() {
               <div className="detail-grid">
                 <div className="detail-cell">
                   <div className="detail-label">Score</div>
-                  <div className="detail-value text-accent">{selectedRun.truth_score != null ? selectedRun.truth_score.toFixed(2) : "—"}</div>
+                  <div className="detail-value text-accent">{selectedRun.truth_score != null ? `${(selectedRun.truth_score * 100).toFixed(1)}%` : "—"}</div>
                 </div>
                 <div className="detail-cell">
                   <div className="detail-label">Duration</div>
@@ -285,15 +297,15 @@ export default function RunsPage() {
               <div className="harness-layers">
                 {HARNESS_NAMES.map((name, i) => {
                   const score = harnessScoresForRun(selectedRun)[i] || 0;
-                  const status = score >= 80 ? "pass" : score >= 50 ? "warning" : "fail";
-                  const color = status === "pass" ? "var(--success)" : status === "warning" ? "var(--warning)" : "var(--destructive)";
+                  const status = score >= 80 ? "pass" : score >= 50 ? "warning" : score === 0 ? "na" : "fail";
+                  const color = status === "pass" ? "var(--success)" : status === "warning" ? "var(--warning)" : status === "na" ? "var(--muted-foreground)" : "var(--destructive)";
                   return (
                     <div key={i} className="harness-layer">
                       <span className="harness-layer-name">{name}</span>
                       <div className="harness-layer-bar">
                         <div className="harness-layer-fill" style={{ width: `${score}%`, background: color }} />
                       </div>
-                      <span className={`harness-layer-score text-${status === "pass" ? "success" : status === "warning" ? "warning" : "danger"}`}>{score}</span>
+                      <span className={`harness-layer-score text-${status === "pass" ? "success" : status === "warning" ? "warning" : status === "na" ? "muted" : "danger"}`}>{score === 0 ? "N/A" : score}</span>
                     </div>
                   );
                 })}
