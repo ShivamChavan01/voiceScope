@@ -22,7 +22,6 @@ router = APIRouter()
 
 @lru_cache(maxsize=1)
 def get_pipeline():
-    from core.harness import ValidationHarness
     p = VoiceScopePipeline()
     p.harness = get_validation_harness()
     return p

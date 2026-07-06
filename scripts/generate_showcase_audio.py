@@ -24,7 +24,7 @@ def next_voice():
     return a, c
 
 
-async def generate_conversation(filename: str, turns: list[tuple[str, str]], voices: tuple[str, str] = None):
+async def generate_conversation(filename: str, turns: list[tuple[str, str]], voices: tuple[str, str] | None = None):
     agent_v, customer_v = voices or next_voice()
     chunks = []
     for speaker, text in turns:
