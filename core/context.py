@@ -19,6 +19,7 @@ class PipelineContext(BaseModel):
     hallucination_evidence: Optional[str] = None
     outcome: Optional[str] = None
     escalation_signal: Optional[bool] = None
+    raw_analysis: Optional[dict] = None
 
     word_count: Optional[int] = None
     chunk_count: Optional[int] = None
