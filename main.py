@@ -75,7 +75,7 @@ app.include_router(router, prefix="/api/v1")
 async def root():
     return {
         "service": "VoiceScope",
-        "version": "2.0.0",
+        "version": "2.3.0",
         "docs": "/docs" if not IS_PRODUCTION else "disabled",
         "health": "/api/v1/health",
         "analyze": "POST /api/v1/analyze",
