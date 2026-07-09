@@ -78,7 +78,10 @@ export default function OverviewPage() {
     });
   }, []);
 
-  const latestTruthScore = runs[0]?.truth_score ?? null;
+  const latestRun = runs[0] ?? null;
+  const latestTruthScore = latestRun?.truth_score ?? null;
+  const latestDegraded = latestRun && (latestRun.hallucination_detected || latestRun.escalation_signal);
+  const displayScore = latestTruthScore != null ? (latestDegraded ? Math.min(latestTruthScore, 0.60) : latestTruthScore) : null;
   const totalCalls = metrics?.total_calls ?? 0;
 
   if (loading) {
@@ -105,8 +108,18 @@ export default function OverviewPage() {
       <div className="hero-row">
         <div className="hero-cell">
           <div className="hero-cell-label">Truth Score</div>
-          <div className="hero-cell-value accent">{latestTruthScore != null ? `${(latestTruthScore * 100).toFixed(1)}%` : "—"}</div>
-          <div className="hero-cell-sub">latest run · {totalCalls} calls</div>
+          <div className="hero-cell-value accent">
+            {displayScore != null ? `${(displayScore * 100).toFixed(1)}%` : "—"}
+            {latestDegraded && (
+              <span className="badge badge-fail" style={{ marginLeft: 8, fontSize: 10, verticalAlign: "middle" }}>
+                {latestRun.hallucination_detected ? "HALLUCINATION" : "ESCALATED"}
+              </span>
+            )}
+          </div>
+          <div className="hero-cell-sub">
+            latest run · {totalCalls} calls
+            {latestDegraded && <span style={{ color: "var(--warning)", marginLeft: 4 }}>· score capped</span>}
+          </div>
           <TrendChart points={historyScores} />
         </div>
         <div className="hero-cell">
@@ -176,8 +189,8 @@ export default function OverviewPage() {
                     <td><span className="text-secondary">{run.sentiment || "—"}</span></td>
                     <td><span className="mono text-secondary">{formatDuration(run.duration_seconds)}</span></td>
                     <td>
-                      <span className={`mono ${run.truth_score != null ? scoreColor(run.truth_score) : "text-muted"}`}>
-                        {run.truth_score != null ? run.truth_score.toFixed(2) : "—"}
+                      <span className={`mono ${run.truth_score != null ? (run.hallucination_detected || run.escalation_signal ? "text-danger" : scoreColor(run.truth_score)) : "text-muted"}`}>
+                        {run.truth_score != null ? `${(Math.min(run.truth_score, (run.hallucination_detected || run.escalation_signal) ? 0.60 : 1) * 100).toFixed(0)}%` : "—"}
                       </span>
                     </td>
                     <td>

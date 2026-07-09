@@ -219,8 +219,8 @@ export default function RunsPage() {
                       </span>
                     </td>
                     <td>
-                      <span className={`mono ${scoreColor(run.truth_score)}`}>
-                        {run.truth_score != null ? `${(run.truth_score * 100).toFixed(0)}%` : "—"}
+                      <span className={`mono ${run.truth_score != null ? (run.hallucination_detected || run.escalation_signal ? "text-danger" : scoreColor(run.truth_score)) : "text-muted"}`}>
+                        {run.truth_score != null ? `${(Math.min(run.truth_score, (run.hallucination_detected || run.escalation_signal) ? 0.60 : 1) * 100).toFixed(0)}%` : "—"}
                       </span>
                     </td>
                     <td>
@@ -273,7 +273,14 @@ export default function RunsPage() {
               <div className="detail-grid">
                 <div className="detail-cell">
                   <div className="detail-label">Score</div>
-                  <div className="detail-value text-accent">{selectedRun.truth_score != null ? `${(selectedRun.truth_score * 100).toFixed(1)}%` : "—"}</div>
+                  <div className="detail-value" style={{ color: selectedRun.hallucination_detected || selectedRun.escalation_signal ? "var(--destructive)" : "var(--primary)" }}>
+                    {selectedRun.truth_score != null ? `${(Math.min(selectedRun.truth_score, (selectedRun.hallucination_detected || selectedRun.escalation_signal) ? 0.60 : 1) * 100).toFixed(1)}%` : "—"}
+                    {(selectedRun.hallucination_detected || selectedRun.escalation_signal) && (
+                      <span className="badge badge-fail" style={{ marginLeft: 8, fontSize: 10 }}>
+                        {selectedRun.hallucination_detected ? "HALLUCINATION" : "ESCALATED"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="detail-cell">
                   <div className="detail-label">Duration</div>
@@ -315,6 +322,14 @@ export default function RunsPage() {
 
           {drawerTab === "transcript" && selectedRun && (
             <div>
+              {selectedRun.hallucination_detected ? (
+                <div className="transcript-hallucination-banner">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={14} height={14}>
+                    <path d="M8 2L1.5 13h13L8 2zM8 7v3M8 12h.01" />
+                  </svg>
+                  <span>Hallucination detected — review flagged claims in the Harness tab</span>
+                </div>
+              ) : null}
               {selectedRun.transcript_speakers && selectedRun.transcript_speakers.length > 1 ? (
                 <div className="transcript-speakers">
                   {selectedRun.transcript_speakers.map((seg, i) => (

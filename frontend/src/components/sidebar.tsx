@@ -31,15 +31,13 @@ export function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            title={item.label}
             className={cn(
-              "grid h-9 w-10 place-items-center rounded-md transition-colors",
-              isActive
-                ? "bg-secondary text-foreground"
-                : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+              "sidebar-nav-item",
+              isActive && "sidebar-nav-active"
             )}
           >
             <item.icon className="h-4 w-4" />
+            <span className="sidebar-nav-label">{item.label}</span>
           </Link>
         );
       })}
@@ -49,8 +47,7 @@ export function Sidebar() {
 
       {/* Bottom */}
       <button
-        title="User"
-        className="grid h-9 w-10 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors"
+        className="sidebar-nav-item"
       >
         <User className="h-4 w-4" />
       </button>

@@ -107,6 +107,10 @@
 
 /* ── Prototype Layout ─────────────────────────────────────────── */
 .app { display: grid; grid-template-columns: 56px 1fr; height: 100vh; }
+.sidebar-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; width: 100%; border-radius: var(--radius); transition: background 120ms ease-out; color: var(--muted-foreground); text-decoration: none; border: none; background: transparent; cursor: pointer; font-family: var(--font-sans); }
+.sidebar-nav-item:hover { background: var(--secondary); color: var(--secondary-foreground); }
+.sidebar-nav-active { background: var(--secondary); color: var(--foreground); }
+.sidebar-nav-label { font-size: 9px; font-weight: 500; letter-spacing: 0.02em; line-height: 1; }
 .main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .topbar { height: 44px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; background: var(--background); }
 .topbar-title { font-size: 13px; font-weight: 500; color: var(--foreground); }
@@ -179,6 +183,9 @@ tr:last-child td { border-bottom: none; }
 tr { transition: background 120ms ease-out; cursor: pointer; }
 tbody tr:hover { background: var(--card); }
 .table-scroll { overflow-x: auto; }
+@media (max-width: 900px) {
+  .col-responsive { display: none; }
+}
 
 /* ── Hallucination Dot ────────────────────────────────────────── */
 .hallucination-dot { font-size: 10px; line-height: 1; }
@@ -237,7 +244,7 @@ select.filter-input { appearance: none; background-image: url("data:image/svg+xm
 /* ── Drawer ────────────────────────────────────────────────────── */
 .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; opacity: 0; transition: opacity 150ms ease-out; pointer-events: none; }
 .drawer-overlay.open { opacity: 1; pointer-events: auto; }
-.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 520px; max-width: 90vw; background: var(--popover); border-left: 1px solid var(--border); z-index: 101; transform: translateX(100%); transition: transform 200ms ease-out; display: flex; flex-direction: column; overflow: hidden; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 85vw; background: var(--popover); border-left: 1px solid var(--border); z-index: 101; transform: translateX(100%); transition: transform 200ms ease-out; display: flex; flex-direction: column; overflow: hidden; }
 .drawer.open { transform: translateX(0); }
 .drawer-header { height: 48px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
 .drawer-title { font-size: 13px; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -269,6 +276,7 @@ select.filter-input { appearance: none; background-image: url("data:image/svg+xm
 .harness-layer:hover .harness-layer-score { font-size: 13px; }
 
 /* ── Transcript ────────────────────────────────────────────────── */
+.transcript-hallucination-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(192,80,77,0.08); border: 1px solid rgba(192,80,77,0.2); border-radius: var(--radius); margin-bottom: 16px; font-size: 12px; color: var(--destructive); }
 .transcript-speakers { display: flex; flex-direction: column; gap: 12px; }
 .transcript-turn { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .transcript-turn:last-child { border-bottom: none; }
