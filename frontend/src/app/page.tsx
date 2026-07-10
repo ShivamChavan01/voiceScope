@@ -87,7 +87,7 @@ export default function OverviewPage() {
 
   const latestRun = runs[0] ?? null;
   const latestTruthScore = latestRun?.truth_score ?? null;
-  const latestDegraded = latestRun && (latestRun.hallucination_detected || latestRun.escalation_signal);
+  const latestDegraded = !!latestRun && (!!latestRun.hallucination_detected || !!latestRun.escalation_signal);
   const displayScore = latestTruthScore != null ? (latestDegraded ? Math.min(latestTruthScore, 0.60) : latestTruthScore) : null;
   const totalCalls = metrics?.total_calls ?? 0;
 

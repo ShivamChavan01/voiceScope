@@ -345,13 +345,13 @@ export default function RunsPage() {
               <div className="detail-grid">
                 <div className="detail-cell">
                   <div className="detail-label">Score</div>
-                  <div className="detail-value" style={{ color: selectedRun.hallucination_detected || selectedRun.escalation_signal ? "var(--destructive)" : "var(--primary)" }}>
+                  <div className="detail-value" style={{ color: (selectedRun.hallucination_detected || selectedRun.escalation_signal) ? "var(--destructive)" : "var(--primary)" }}>
                     {selectedRun.truth_score != null ? `${(Math.min(selectedRun.truth_score, (selectedRun.hallucination_detected || selectedRun.escalation_signal) ? 0.60 : 1) * 100).toFixed(1)}%` : "—"}
-                    {(selectedRun.hallucination_detected || selectedRun.escalation_signal) && (
+                    {!!selectedRun.hallucination_detected || !!selectedRun.escalation_signal ? (
                       <span className="badge badge-fail" style={{ marginLeft: 8, fontSize: 10 }}>
                         {selectedRun.hallucination_detected ? "HALLUCINATION" : "ESCALATED"}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 <div className="detail-cell">

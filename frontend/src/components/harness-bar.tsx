@@ -3,12 +3,12 @@
 import React from "react";
 
 const HARNESS_LAYERS = [
-  { id: "schema", name: "Schema", weight: 0.30 },
-  { id: "citations", name: "Citations", weight: 0.15 },
-  { id: "facts", name: "Facts", weight: 0.15 },
-  { id: "sentiment_consistency", name: "Sentiment", weight: 0.10 },
-  { id: "outcome_evidence", name: "Outcome", weight: 0.10 },
-  { id: "escalation", name: "Escalation", weight: 0.05 },
+  { id: "schema", name: "Schema", weight: 0.33 },
+  { id: "citations", name: "Citations", weight: 0.17 },
+  { id: "facts", name: "Facts", weight: 0.17 },
+  { id: "sentiment_consistency", name: "Sentiment", weight: 0.11 },
+  { id: "outcome_evidence", name: "Outcome", weight: 0.11 },
+  { id: "escalation", name: "Escalation", weight: 0.06 },
   { id: "duplicate", name: "Duplicate", weight: 0.05 },
 ];
 
