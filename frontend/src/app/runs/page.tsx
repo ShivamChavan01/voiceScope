@@ -492,8 +492,15 @@ export default function RunsPage() {
                       <div className="detail-value">{selectedRun.sentiment || "—"}</div>
                     </div>
                     <div className="detail-cell">
-                      <div className="detail-label">Outcome</div>
-                      <div className="detail-value">{selectedRun.outcome || "—"}</div>
+                      <div className="detail-label">Call Resolution</div>
+                      <div className="detail-value">
+                        {selectedRun.outcome || "—"}
+                        {selectedRun.hallucination_detected && selectedRun.outcome === "resolved" && (
+                          <span style={{ display: "block", fontSize: 11, color: "var(--destructive)", marginTop: 4, fontFamily: "var(--font-sans)" }}>
+                            Agent resolved the issue but made unsupported claims during the call
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="detail-cell">
                       <div className="detail-label">Duration</div>
