@@ -106,6 +106,8 @@
 ::-webkit-scrollbar-thumb { background: #232328; border-radius: 2px; }
 
 /* ── Prototype Layout ─────────────────────────────────────────── */
+.skip-link { position: absolute; top: -100%; left: 16px; z-index: 200; padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); font-size: 13px; font-weight: 500; border-radius: var(--radius); text-decoration: none; transition: top 150ms ease-out; }
+.skip-link:focus { top: 8px; }
 .app { display: grid; grid-template-columns: 56px 1fr; height: 100vh; }
 .sidebar-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; width: 100%; border-radius: var(--radius); transition: background 120ms ease-out; color: var(--muted-foreground); text-decoration: none; border: none; background: transparent; cursor: pointer; font-family: var(--font-sans); }
 .sidebar-nav-item:hover { background: var(--secondary); color: var(--secondary-foreground); }
@@ -116,7 +118,8 @@
 .topbar-title { font-size: 13px; font-weight: 500; color: var(--foreground); }
 .topbar-spacer { flex: 1; }
 .topbar-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary-foreground); font-family: var(--font-mono); }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); transition: background 300ms ease-out; }
+.status-dot-error { background: var(--destructive); }
 .content { flex: 1; overflow: visible; padding: 24px 24px 40px; position: relative; }
 .content-scroll { overflow-y: auto; height: 100%; }
 

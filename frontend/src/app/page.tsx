@@ -16,7 +16,7 @@ import {
 
 function AlertIcon({ color }: { color: string }) {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={16} height={16} style={{ flexShrink: 0 }}>
+    <svg viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={16} height={16} style={{ flexShrink: 0 }} aria-hidden="true">
       <path d="M8 2L1.5 13h13L8 2zM8 7v3M8 12h.01" />
     </svg>
   );
@@ -46,6 +46,14 @@ function formatDuration(seconds: number | null) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+function harnessScoresForRun(run: Run): number[] {
+  if (!run.layer_scores) return Array(HARNESS_KEYS.length).fill(0);
+  return HARNESS_KEYS.map((k) => {
+    const v = run.layer_scores?.[k];
+    return v != null ? Math.round(v * 100) : 0;
+  });
+}
+
 export default function OverviewPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [incidents, setIncidents] = useState<AlertIncident[]>([]);
@@ -65,7 +73,6 @@ export default function OverviewPage() {
       setIncidents(inc);
       setMetrics(met);
       setHistoryScores(hist.scores);
-      // Use latest run's layer_scores for the harness bar
       if (runsRes.runs.length > 0) {
         const latest = runsRes.runs[0];
         getRun(latest.run_id).then((detail) => {
@@ -167,11 +174,11 @@ export default function OverviewPage() {
               <tr>
                 <th>Run ID</th>
                 <th>Intent</th>
-                <th>Sentiment</th>
-                <th>Duration</th>
+                <th>Hallucination</th>
                 <th>Score</th>
+                <th>Harness</th>
+                <th>Duration</th>
                 <th>Status</th>
-                <th>Provider</th>
               </tr>
             </thead>
             <tbody>
@@ -183,22 +190,33 @@ export default function OverviewPage() {
                 </tr>
               ) : (
                 runs.map((run) => (
-                  <tr key={run.run_id}>
+                  <tr key={run.run_id} onClick={() => window.location.href = "/runs"} style={{ cursor: "pointer" }}>
                     <td><span className="mono text-accent">{run.run_id.slice(0, 12)}</span></td>
                     <td><span className="text-secondary">{run.intent || "—"}</span></td>
-                    <td><span className="text-secondary">{run.sentiment || "—"}</span></td>
-                    <td><span className="mono text-secondary">{formatDuration(run.duration_seconds)}</span></td>
                     <td>
-                      <span className={`mono ${run.truth_score != null ? (run.hallucination_detected || run.escalation_signal ? "text-danger" : scoreColor(run.truth_score)) : "text-muted"}`}>
-                        {run.truth_score != null ? `${(Math.min(run.truth_score, (run.hallucination_detected || run.escalation_signal) ? 0.60 : 1) * 100).toFixed(0)}%` : "—"}
+                      <span
+                        className={`hallucination-dot ${run.hallucination_detected ? "detected" : "clean"}`}
+                        role="img"
+                        aria-label={run.hallucination_detected ? "Hallucination detected" : "No hallucination"}
+                        title={run.hallucination_detected ? "Hallucination detected" : "No hallucination"}
+                      >
+                        {run.hallucination_detected ? "●" : "●"}
                       </span>
                     </td>
+                    <td>
+                      <span className={`mono ${run.truth_score != null ? (run.hallucination_detected || run.escalation_signal ? "text-danger" : scoreColor(run.truth_score)) : "text-muted"}`}>
+                        {run.truth_score != null ? `${(Math.min(run.truth_score, (run.hallucination_detected || run.escalation_signal) ? 0.60 : 1) * 100).toFixed(1)}%` : "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <HarnessBar scores={harnessScoresForRun(run)} mini />
+                    </td>
+                    <td><span className="mono text-secondary">{formatDuration(run.duration_seconds)}</span></td>
                     <td>
                       <span className={`badge ${run.status === "completed" ? "badge-pass" : run.status === "failed" ? "badge-fail" : "badge-flag"}`}>
                         {run.status}
                       </span>
                     </td>
-                    <td><span className="mono text-muted">{run.provider || "—"}</span></td>
                   </tr>
                 ))
               )}

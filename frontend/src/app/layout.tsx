@@ -31,12 +31,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="h-full bg-background text-foreground" suppressHydrationWarning>
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <div className="app">
           <Sidebar />
           <div className="main">
             <Topbar />
             <div className="content">
-              <div className="content-scroll">{children}</div>
+              <div className="content-scroll" id="main-content" tabIndex={-1}>{children}</div>
             </div>
           </div>
         </div>

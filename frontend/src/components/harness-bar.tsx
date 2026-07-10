@@ -10,7 +10,6 @@ const HARNESS_LAYERS = [
   { id: "outcome_evidence", name: "Outcome", weight: 0.10 },
   { id: "escalation", name: "Escalation", weight: 0.05 },
   { id: "duplicate", name: "Duplicate", weight: 0.05 },
-  { id: "cross_check", name: "Cross-Check", weight: 0.10 },
 ];
 
 export const HARNESS_NAMES = HARNESS_LAYERS.map((l) => l.name);
