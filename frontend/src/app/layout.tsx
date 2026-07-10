@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
-import { GeistPixelSquare } from "geist/font/pixel";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
@@ -19,7 +18,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistPixelSquare.variable} ${GeistMono.variable} dark h-full`}
+      className={`${GeistSans.variable} ${GeistMono.variable} dark h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="h-full bg-background text-foreground" suppressHydrationWarning>

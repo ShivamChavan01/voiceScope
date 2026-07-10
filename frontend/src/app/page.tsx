@@ -186,7 +186,7 @@ export default function OverviewPage() {
       {costs && (costs.overall.total_input ?? 0) > 0 && (
         <div className="hero-cell" style={{ padding: "16px 20px", marginBottom: 20 }}>
           <div className="hero-cell-label">Token Usage</div>
-          <div style={{ display: "flex", gap: 32, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Input Tokens</div>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--primary)" }}>
