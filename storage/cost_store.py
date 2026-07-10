@@ -53,10 +53,10 @@ class CostStore:
             overall = dict(cursor.fetchone())
 
             cursor.execute(
-                "SELECT provider, SUM(cost_usd) as cost, COUNT(*) as calls FROM cost_logs GROUP BY provider"
+                "SELECT provider, SUM(cost_usd) as cost, COUNT(*) as calls, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens FROM cost_logs GROUP BY provider"
             )
             by_provider = {
-                row["provider"]: {"cost": row["cost"], "calls": row["calls"]}
+                row["provider"]: {"cost": row["cost"], "calls": row["calls"], "input_tokens": row["input_tokens"] or 0, "output_tokens": row["output_tokens"] or 0}
                 for row in cursor.fetchall()
             }
 

@@ -164,7 +164,7 @@ export interface CostSummary {
     total_output: number | null;
     total_calls: number | null;
   };
-  by_provider: Record<string, { cost: number; calls: number }>;
+  by_provider: Record<string, { cost: number; calls: number; input_tokens: number; output_tokens: number }>;
   by_model: Record<string, { cost: number; calls: number }>;
 }
 

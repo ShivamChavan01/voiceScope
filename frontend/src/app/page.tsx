@@ -184,48 +184,26 @@ export default function OverviewPage() {
 
       {/* Token Usage Breakdown */}
       {costs && (costs.overall.total_input ?? 0) > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-          {/* Token Split */}
-          <div className="hero-cell" style={{ padding: "16px 20px" }}>
-            <div className="hero-cell-label">Token Usage</div>
-            <div style={{ display: "flex", gap: 24, marginTop: 12 }}>
-              <div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Input Tokens</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--primary)" }}>
-                  {costs.overall.total_input != null ? costs.overall.total_input.toLocaleString() : "0"}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Output Tokens</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
-                  {costs.overall.total_output != null ? costs.overall.total_output.toLocaleString() : "0"}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Total</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600 }}>
-                  {costs.overall.total_input != null ? ((costs.overall.total_input + (costs.overall.total_output ?? 0))).toLocaleString() : "0"}
-                </div>
+        <div className="hero-cell" style={{ padding: "16px 20px", marginBottom: 20 }}>
+          <div className="hero-cell-label">Token Usage</div>
+          <div style={{ display: "flex", gap: 32, marginTop: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Input Tokens</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--primary)" }}>
+                {costs.overall.total_input != null ? costs.overall.total_input.toLocaleString() : "0"}
               </div>
             </div>
-          </div>
-
-          {/* Cost by Provider */}
-          <div className="hero-cell" style={{ padding: "16px 20px" }}>
-            <div className="hero-cell-label">Cost by Provider</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-              {Object.entries(costs.by_provider).map(([provider, data]) => (
-                <div key={provider} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 12, color: "var(--secondary-foreground)", minWidth: 80, textTransform: "capitalize" }}>{provider}</span>
-                  <div style={{ flex: 1, height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ width: `${Math.min((data.cost / Math.max(costs.overall.total_cost ?? 1, 0.0001)) * 100, 100)}%`, height: "100%", background: "var(--primary)", borderRadius: 3 }} />
-                  </div>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 60, textAlign: "right" }}>${data.cost.toFixed(4)}</span>
-                </div>
-              ))}
-              {Object.keys(costs.by_provider).length === 0 && (
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No cost data yet</span>
-              )}
+            <div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Output Tokens</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
+                {costs.overall.total_output != null ? costs.overall.total_output.toLocaleString() : "0"}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Total</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600 }}>
+                {costs.overall.total_input != null ? ((costs.overall.total_input + (costs.overall.total_output ?? 0))).toLocaleString() : "0"}
+              </div>
             </div>
           </div>
         </div>
@@ -288,23 +266,44 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Provider Breakdown */}
+          {/* Provider Usage */}
           <div className="hero-cell" style={{ padding: "16px 20px" }}>
             <div className="hero-cell-label">Provider Usage</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-              {Object.entries(providerBreakdown).map(([provider, count]) => {
-                const pct = Math.round((count / runs.length) * 100);
-                return (
-                  <div key={provider} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 12, color: "var(--secondary-foreground)", minWidth: 70, textTransform: "capitalize" }}>{provider}</span>
-                    <div style={{ flex: 1, height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: "var(--primary)", borderRadius: 3, transition: "width 300ms ease-out" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+              {costs && Object.keys(costs.by_provider).length > 0 ? (
+                Object.entries(costs.by_provider).map(([provider, data]) => {
+                  const pct = Math.round((data.calls / Math.max(costs.overall.total_calls ?? 1, 1)) * 100);
+                  const tokens = (data.input_tokens ?? 0) + (data.output_tokens ?? 0);
+                  return (
+                    <div key={provider} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 12, color: "var(--secondary-foreground)", minWidth: 70, textTransform: "capitalize" }}>{provider}</span>
+                        <div style={{ flex: 1, height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${pct}%`, height: "100%", background: "var(--primary)", borderRadius: 3, transition: "width 300ms ease-out" }} />
+                        </div>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 50, textAlign: "right" }}>{data.calls} calls</span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 70, textAlign: "right" }}>{tokens.toLocaleString()} tok</span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: data.cost > 0 ? "var(--warning)" : "var(--muted-foreground)", minWidth: 60, textAlign: "right" }}>
+                          {data.cost > 0 ? `$${data.cost.toFixed(4)}` : "free"}
+                        </span>
+                      </div>
                     </div>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 32, textAlign: "right" }}>{count}</span>
-                  </div>
-                );
-              })}
-              {Object.keys(providerBreakdown).length === 0 && (
+                  );
+                })
+              ) : Object.keys(providerBreakdown).length > 0 ? (
+                Object.entries(providerBreakdown).map(([provider, count]) => {
+                  const pct = Math.round((count / runs.length) * 100);
+                  return (
+                    <div key={provider} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 12, color: "var(--secondary-foreground)", minWidth: 70, textTransform: "capitalize" }}>{provider}</span>
+                      <div style={{ flex: 1, height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: "var(--primary)", borderRadius: 3, transition: "width 300ms ease-out" }} />
+                      </div>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 50, textAlign: "right" }}>{count} calls</span>
+                    </div>
+                  );
+                })
+              ) : (
                 <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No data yet</span>
               )}
             </div>
