@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { HarnessBar, HARNESS_KEYS } from "@/components/harness-bar";
 import { TrendChart } from "@/components/trend-chart";
 import {
@@ -58,6 +58,18 @@ function harnessScoresForRun(run: Run): number[] {
   });
 }
 
+function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="hero-cell" style={{ padding: "16px 20px" }}>
+      <div className="hero-cell-label">{label}</div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 28, fontWeight: 700, color: color || "var(--foreground)", letterSpacing: "-0.03em", lineHeight: 1.2 }}>
+        {value}
+      </div>
+      {sub && <div className="hero-cell-sub" style={{ marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [incidents, setIncidents] = useState<AlertIncident[]>([]);
@@ -93,7 +105,25 @@ export default function OverviewPage() {
   const latestTruthScore = latestRun?.truth_score ?? null;
   const latestDegraded = !!latestRun && (!!latestRun.hallucination_detected || !!latestRun.escalation_signal);
   const displayScore = latestTruthScore != null ? (latestDegraded ? Math.min(latestTruthScore, 0.60) : latestTruthScore) : null;
-  const totalCalls = metrics?.total_calls ?? 0;
+  const totalCalls = metrics?.total_calls ?? runs.length;
+
+  const sentimentBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    runs.forEach((r) => {
+      const s = r.sentiment || "unknown";
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return counts;
+  }, [runs]);
+
+  const providerBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    runs.forEach((r) => {
+      const p = r.provider || "unknown";
+      counts[p] = (counts[p] || 0) + 1;
+    });
+    return counts;
+  }, [runs]);
 
   if (loading) {
     return (
@@ -118,6 +148,33 @@ export default function OverviewPage() {
       <div className="page-header">
         <h1 className="page-title">Overview</h1>
         <p className="page-subtitle">Monitor voice AI call quality across all your agents</p>
+      </div>
+
+      {/* Stats Row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <StatCard
+          label="Total Calls"
+          value={String(totalCalls)}
+          sub={`${historyScores.length} analyzed`}
+        />
+        <StatCard
+          label="Hallucination Rate"
+          value={metrics ? `${(metrics.hallucination_rate * 100).toFixed(0)}%` : runs.length > 0 ? `${((runs.filter((r) => r.hallucination_detected).length / runs.length) * 100).toFixed(0)}%` : "—"}
+          sub={metrics ? `${Math.round(metrics.hallucination_rate * totalCalls)} flagged` : `${runs.filter((r) => r.hallucination_detected).length} flagged`}
+          color="var(--destructive)"
+        />
+        <StatCard
+          label="Escalation Rate"
+          value={metrics ? `${(metrics.escalation_rate * 100).toFixed(0)}%` : runs.length > 0 ? `${((runs.filter((r) => r.escalation_signal).length / runs.length) * 100).toFixed(0)}%` : "—"}
+          sub={metrics ? `${Math.round(metrics.escalation_rate * totalCalls)} escalated` : `${runs.filter((r) => r.escalation_signal).length} escalated`}
+          color="var(--warning)"
+        />
+        <StatCard
+          label="Avg Quality"
+          value={metrics?.avg_quality_score != null ? `${metrics.avg_quality_score.toFixed(0)}` : runs.length > 0 ? `${(runs.reduce((a, r) => a + (r.truth_score ?? 0), 0) / runs.length * 100).toFixed(0)}%` : "—"}
+          sub={metrics?.avg_cost_usd != null ? `$${metrics.avg_cost_usd.toFixed(4)}/call` : "$0/call"}
+          color="var(--primary)"
+        />
       </div>
 
       {/* Hero Row */}
@@ -148,6 +205,58 @@ export default function OverviewPage() {
           <HarnessBar scores={harnessScores.length > 0 ? harnessScores : Array(HARNESS_KEYS.length).fill(0)} />
         </div>
       </div>
+
+      {/* Sentiment + Provider Row */}
+      {runs.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+          {/* Sentiment Distribution */}
+          <div className="hero-cell" style={{ padding: "16px 20px" }}>
+            <div className="hero-cell-label">Sentiment Distribution</div>
+            <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
+              {Object.entries(sentimentBreakdown).map(([sentiment, count]) => {
+                const colors: Record<string, string> = { positive: "var(--success)", neutral: "var(--muted-foreground)", negative: "var(--destructive)" };
+                const pct = Math.round((count / runs.length) * 100);
+                return (
+                  <div key={sentiment} style={{ flex: 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: "var(--secondary-foreground)", textTransform: "capitalize" }}>{sentiment}</span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: colors[sentiment] || "var(--muted-foreground)" }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: colors[sentiment] || "var(--muted-foreground)", borderRadius: 3, transition: "width 300ms ease-out" }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {Object.keys(sentimentBreakdown).length === 0 && (
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No data yet</span>
+              )}
+            </div>
+          </div>
+
+          {/* Provider Breakdown */}
+          <div className="hero-cell" style={{ padding: "16px 20px" }}>
+            <div className="hero-cell-label">Provider Usage</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+              {Object.entries(providerBreakdown).map(([provider, count]) => {
+                const pct = Math.round((count / runs.length) * 100);
+                return (
+                  <div key={provider} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 12, color: "var(--secondary-foreground)", minWidth: 70, textTransform: "capitalize" }}>{provider}</span>
+                    <div style={{ flex: 1, height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: "var(--primary)", borderRadius: 3, transition: "width 300ms ease-out" }} />
+                    </div>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 32, textAlign: "right" }}>{count}</span>
+                  </div>
+                );
+              })}
+              {Object.keys(providerBreakdown).length === 0 && (
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No data yet</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active Incidents */}
       <div className="section-header">
