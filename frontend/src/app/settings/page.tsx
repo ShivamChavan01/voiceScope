@@ -432,19 +432,97 @@ function CohortsTab() {
   );
 }
 
+function IntegrationsTab() {
+  const [copied, setCopied] = useState(false);
+  const backendUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const webhookUrl = `${backendUrl}/api/v1/webhooks/call-completed`;
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div>
+      <div className="settings-group">
+        <div className="settings-group-title">Bolna AI</div>
+        <div className="settings-group-subtitle">
+          VoiceScope auto-parses Bolna webhooks. No code changes needed — just set the webhook URL in your Bolna agent.
+        </div>
+
+        <div className="f-panel">
+          <div className="f-label">Webhook URL (copy this)</div>
+          <div className="f-row" style={{ marginBottom: 16 }}>
+            <input className="f-input" data-mono readOnly value={webhookUrl} style={{ flex: 1 }} />
+            <button className="btn btn-primary" onClick={copyUrl} style={{ minWidth: 80 }}>
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+
+          <div className="f-label" style={{ marginBottom: 8 }}>Setup Steps</div>
+          <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--secondary-foreground)", lineHeight: 1.8 }}>
+            <li>Go to <span className="mono" style={{ color: "var(--primary)" }}>bolna.ai</span> → Dashboard → Your Agent</li>
+            <li>Click the <strong>Tools</strong> tab or <strong>Settings</strong></li>
+            <li>Paste the Webhook URL above into the <strong>Webhook URL</strong> field</li>
+            <li>Save — Bolna will POST call data here after every call</li>
+          </ol>
+        </div>
+
+        <div className="f-panel" style={{ marginTop: 12 }}>
+          <div className="f-label" style={{ marginBottom: 8 }}>What VoiceScope receives</div>
+          <div style={{ fontSize: 12, color: "var(--secondary-foreground)", lineHeight: 1.6 }}>
+            After each Bolna call, VoiceScope automatically extracts: transcript, sentiment, intent, hallucination detection, escalation signals, and a truth score. All data appears in the <strong>Runs</strong> tab.
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-title">Other Platforms</div>
+        <div className="settings-group-subtitle">
+          VoiceScope also supports Vapi, Retell, Bland, Synthflow, and Air.ai out of the box. Generic webhooks work too.
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Platform</th><th>Webhook Event</th><th>Status</th></tr></thead>
+            <tbody>
+              {[
+                { name: "Bolna", event: "call.completed", status: "Supported" },
+                { name: "Vapi", event: "end-of-call-report", status: "Supported" },
+                { name: "Retell", event: "call_analyzed", status: "Supported" },
+                { name: "Bland", event: "call_ended", status: "Supported" },
+                { name: "Synthflow", event: "call finished", status: "Supported" },
+                { name: "Air.ai", event: "POST_CALL_DATA", status: "Supported" },
+                { name: "Generic", event: "Any JSON payload", status: "Supported" },
+              ].map((p) => (
+                <tr key={p.name}>
+                  <td className="text-primary">{p.name}</td>
+                  <td className="mono text-secondary">{p.event}</td>
+                  <td><span className="badge badge-pass">{p.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const [tab, setTab] = useState("providers");
+  const [tab, setTab] = useState("integrations");
 
   return (
     <>
       <div className="settings-tabs">
-        {(["providers", "guardrails", "alerts", "schemas", "cohorts"] as const).map((t) => (
+        {(["integrations", "providers", "guardrails", "alerts", "schemas", "cohorts"] as const).map((t) => (
           <button key={t} className={`settings-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
+      {tab === "integrations" && <IntegrationsTab />}
       {tab === "providers" && <ProvidersTab />}
       {tab === "guardrails" && <GuardrailsTab />}
       {tab === "alerts" && <AlertsTab />}

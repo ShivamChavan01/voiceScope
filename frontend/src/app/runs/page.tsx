@@ -12,8 +12,8 @@ import {
 
 function UploadIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={20} height={20} style={{ marginBottom: 8, opacity: 0.5 }} aria-hidden="true">
-      <path d="M8 10V3M5 5l3-3 3 3M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={20} height={20} aria-hidden="true">
+      <path d="M12 16V4M8 8l4-4 4 4M4 14v3a1 1 0 001 1h14a1 1 0 001-1v-3" />
     </svg>
   );
 }
@@ -190,8 +190,11 @@ export default function RunsPage() {
           style={{ display: "none" }}
           onChange={handleFileSelect}
         />
-        <UploadIcon />
-        <div>{uploading ? "Analyzing..." : "Drop audio file or click to analyze"}</div>
+        <div className="upload-area-icon">
+          <UploadIcon />
+        </div>
+        <div className="upload-area-text">{uploading ? "Analyzing..." : "Drop audio file or click to analyze"}</div>
+        <div className="upload-area-sub">WAV, MP3, M4A — up to 100 MB</div>
       </div>
 
       {/* Filters */}

@@ -124,13 +124,18 @@ export default function OverviewPage() {
             )}
           </div>
           <div className="hero-cell-sub">
-            latest run · {totalCalls} calls
+            latest run · {totalCalls} calls analyzed
             {latestDegraded && <span style={{ color: "var(--warning)", marginLeft: 4 }}>· score capped</span>}
           </div>
           <TrendChart points={historyScores} />
         </div>
-        <div className="hero-cell">
-          <div className="hero-cell-label">Harness Integrity</div>
+        <div className="hero-cell" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div className="hero-cell-label">Harness Integrity</div>
+            <div style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 16 }}>
+              7 validation layers scoring 0–100%
+            </div>
+          </div>
           <HarnessBar scores={harnessScores.length > 0 ? harnessScores : Array(HARNESS_KEYS.length).fill(0)} />
         </div>
       </div>
