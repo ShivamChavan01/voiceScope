@@ -92,6 +92,26 @@ async def _log_run(result: dict, harness_result=None):
         else:
             harness_obj = harness_result
     await get_monitoring_store().log_run(result, harness_obj)
+    await _create_incidents_for_run(result)
+
+
+async def _create_incidents_for_run(result: dict):
+    """Auto-create incidents when a run has a hallucination or escalation signal."""
+    run_id = result.get("run_id", "")
+    analysis = result.get("analysis") or {}
+    hallucinated = bool(analysis.get("hallucination_detected") or result.get("hallucination_detected"))
+    escalated = bool(analysis.get("escalation_signal") or result.get("escalation_signal"))
+    store = get_monitoring_store()
+    if hallucinated:
+        await store.create_run_incident(
+            run_id, "hallucination",
+            f"Hallucination detected in run {run_id}: agent made claims not supported by the transcript.",
+        )
+    if escalated:
+        await store.create_run_incident(
+            run_id, "escalation",
+            f"Escalation signal in run {run_id}: customer frustration or unresolved issue detected.",
+        )
 
 
 ALLOWED_AUDIO_TYPES = {

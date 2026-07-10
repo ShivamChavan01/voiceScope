@@ -14,6 +14,34 @@ class MonitoringStore:
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
+            # Migration: allow NULL rule_id on alert_incidents (auto-created run incidents)
+            try:
+                cols = conn.execute("PRAGMA table_info(alert_incidents)").fetchall()
+                rule_col = next((c for c in cols if c[1] == "rule_id"), None)
+                if rule_col and rule_col[3] == 1:  # notnull=1 means constrained
+                    conn.execute("ALTER TABLE alert_incidents RENAME TO alert_incidents_old")
+                    conn.execute("""
+                        CREATE TABLE alert_incidents (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            rule_id INTEGER,
+                            metric_value REAL,
+                            message TEXT,
+                            status TEXT DEFAULT 'active',
+                            triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            resolved_at TIMESTAMP,
+                            FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+                        )
+                    """)
+                    conn.execute("""
+                        INSERT INTO alert_incidents (id, rule_id, metric_value, message, status, triggered_at, resolved_at)
+                        SELECT id, rule_id, metric_value, message, status, triggered_at, resolved_at
+                        FROM alert_incidents_old
+                    """)
+                    conn.execute("DROP TABLE alert_incidents_old")
+                    conn.commit()
+            except sqlite3.OperationalError:
+                pass  # table doesn't exist yet, will be created below
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS runs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +103,7 @@ class MonitoringStore:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS alert_incidents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    rule_id INTEGER NOT NULL,
+                    rule_id INTEGER,
                     metric_value REAL,
                     message TEXT,
                     status TEXT DEFAULT 'active',
@@ -506,9 +534,20 @@ class MonitoringStore:
             rows = conn.execute(
                 """SELECT i.*, r.name as rule_name, r.metric
                    FROM alert_incidents i
-                   JOIN alert_rules r ON i.rule_id = r.id
+                   LEFT JOIN alert_rules r ON i.rule_id = r.id
                    ORDER BY i.triggered_at DESC
                    LIMIT ?""",
                 (limit,),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    async def create_run_incident(self, run_id: str, kind: str, message: str) -> None:
+        """Auto-create an incident when a run has a hallucination or escalation signal."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """INSERT INTO alert_incidents (rule_id, metric_value, message)
+                   VALUES (NULL, ?, ?)""",
+                (kind, message),
+            )
+            conn.commit()
+            logger.warning(f"[MonitoringStore] INCIDENT: {message} (run={run_id})")
