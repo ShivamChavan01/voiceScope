@@ -9,9 +9,11 @@ import {
   getIncidents,
   getMetrics,
   getRunHistory,
+  getCosts,
   type Run,
   type AlertIncident,
   type MetricsSummary,
+  type CostSummary,
 } from "@/lib/api";
 
 function AlertIcon({ color }: { color: string }) {
@@ -76,6 +78,7 @@ export default function OverviewPage() {
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [historyScores, setHistoryScores] = useState<number[]>([]);
   const [harnessScores, setHarnessScores] = useState<number[]>([]);
+  const [costs, setCosts] = useState<CostSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,11 +87,13 @@ export default function OverviewPage() {
       getIncidents(10).catch(() => []),
       getMetrics(1440).catch(() => null),
       getRunHistory(12).catch(() => ({ scores: [], count: 0 })),
-    ]).then(([runsRes, inc, met, hist]) => {
+      getCosts().catch(() => null),
+    ]).then(([runsRes, inc, met, hist, cost]) => {
       setRuns(runsRes.runs);
       setIncidents(inc);
       setMetrics(met);
       setHistoryScores(hist.scores);
+      setCosts(cost);
       if (runsRes.runs.length > 0) {
         const latest = runsRes.runs[0];
         getRun(latest.run_id).then((detail) => {
@@ -170,12 +175,61 @@ export default function OverviewPage() {
           color="var(--warning)"
         />
         <StatCard
-          label="Avg Quality"
-          value={metrics?.avg_quality_score != null ? `${metrics.avg_quality_score.toFixed(0)}` : runs.length > 0 ? `${(runs.reduce((a, r) => a + (r.truth_score ?? 0), 0) / runs.length * 100).toFixed(0)}%` : "—"}
-          sub={metrics?.avg_cost_usd != null ? `$${metrics.avg_cost_usd.toFixed(4)}/call` : "$0/call"}
+          label="Total Cost"
+          value={costs?.overall?.total_cost != null ? `$${costs.overall.total_cost.toFixed(4)}` : "$0.00"}
+          sub={costs?.overall?.total_input != null ? `${((costs.overall.total_input + (costs.overall.total_output ?? 0)) / 1000).toFixed(1)}K tokens` : "0 tokens"}
           color="var(--primary)"
         />
       </div>
+
+      {/* Token Usage Breakdown */}
+      {costs && (costs.overall.total_input ?? 0) > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+          {/* Token Split */}
+          <div className="hero-cell" style={{ padding: "16px 20px" }}>
+            <div className="hero-cell-label">Token Usage</div>
+            <div style={{ display: "flex", gap: 24, marginTop: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Input Tokens</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--primary)" }}>
+                  {costs.overall.total_input != null ? costs.overall.total_input.toLocaleString() : "0"}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Output Tokens</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
+                  {costs.overall.total_output != null ? costs.overall.total_output.toLocaleString() : "0"}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Total</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600 }}>
+                  {costs.overall.total_input != null ? ((costs.overall.total_input + (costs.overall.total_output ?? 0))).toLocaleString() : "0"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cost by Provider */}
+          <div className="hero-cell" style={{ padding: "16px 20px" }}>
+            <div className="hero-cell-label">Cost by Provider</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+              {Object.entries(costs.by_provider).map(([provider, data]) => (
+                <div key={provider} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: "var(--secondary-foreground)", minWidth: 80, textTransform: "capitalize" }}>{provider}</span>
+                  <div style={{ flex: 1, height: 6, background: "#232328", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min((data.cost / Math.max(costs.overall.total_cost ?? 1, 0.0001)) * 100, 100)}%`, height: "100%", background: "var(--primary)", borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", minWidth: 60, textAlign: "right" }}>${data.cost.toFixed(4)}</span>
+                </div>
+              ))}
+              {Object.keys(costs.by_provider).length === 0 && (
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No cost data yet</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero Row */}
       <div className="hero-row">

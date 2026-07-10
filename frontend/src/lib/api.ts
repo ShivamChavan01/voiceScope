@@ -157,6 +157,21 @@ export async function analyzeAudio(file: File): Promise<Run> {
 
 // ── Monitoring ─────────────────────────────────────────────────────────
 
+export interface CostSummary {
+  overall: {
+    total_cost: number | null;
+    total_input: number | null;
+    total_output: number | null;
+    total_calls: number | null;
+  };
+  by_provider: Record<string, { cost: number; calls: number }>;
+  by_model: Record<string, { cost: number; calls: number }>;
+}
+
+export async function getCosts(): Promise<CostSummary> {
+  return fetchJson<CostSummary>("/api/v1/costs");
+}
+
 export async function getMetrics(
   windowMinutes: number = 60
 ): Promise<MetricsSummary> {
