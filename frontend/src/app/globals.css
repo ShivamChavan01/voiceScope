@@ -121,6 +121,9 @@
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); transition: background 300ms ease-out; box-shadow: 0 0 6px rgba(58,158,111,0.4); }
 .status-dot-error { background: var(--destructive); box-shadow: 0 0 6px rgba(192,80,77,0.4); }
 .content { flex: 1; overflow: visible; padding: 28px 32px 48px; position: relative; width: 100%; max-width: 1800px; margin: 0 auto; }
+.page-header { margin-bottom: 24px; }
+.page-title { font-size: 24px; font-weight: 700; color: var(--foreground); letter-spacing: -0.02em; line-height: 1.2; }
+.page-subtitle { font-size: 13px; color: var(--muted-foreground); margin-top: 4px; }
 .content-scroll { overflow-y: auto; height: 100%; }
 
 /* ── Hero Row ─────────────────────────────────────────────────── */

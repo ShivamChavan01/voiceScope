@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   getAlerts,
   createAlertRule,
@@ -296,9 +296,11 @@ function SchemasTab() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/purity -- display-only relative time, frozen at mount
+  const nowTs = useMemo(() => Date.now(), []);
   const relativeTime = (dateStr: string) => {
     if (!dateStr) return "—";
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = nowTs - new Date(dateStr).getTime();
     const days = Math.floor(diff / 86400000);
     if (days < 1) return "today";
     if (days === 1) return "1d ago";
@@ -514,6 +516,11 @@ export default function SettingsPage() {
 
   return (
     <>
+      <div className="page-header">
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Configure providers, guardrails, alerts, and integrations</p>
+      </div>
+
       <div className="settings-tabs">
         {(["integrations", "providers", "guardrails", "alerts", "schemas", "cohorts"] as const).map((t) => (
           <button key={t} className={`settings-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>

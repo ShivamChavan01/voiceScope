@@ -111,6 +111,11 @@ export default function OverviewPage() {
 
   return (
     <>
+      <div className="page-header">
+        <h1 className="page-title">Overview</h1>
+        <p className="page-subtitle">Monitor voice AI call quality across all your agents</p>
+      </div>
+
       {/* Hero Row */}
       <div className="hero-row">
         <div className="hero-cell">

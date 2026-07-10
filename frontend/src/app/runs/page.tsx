@@ -55,7 +55,6 @@ function formatDuration(seconds: number | null) {
 
 export default function RunsPage() {
   const [runs, setRuns] = useState<Run[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -75,18 +74,32 @@ export default function RunsPage() {
       if (statusFilter) params.status = statusFilter;
       const res = await getRuns(params);
       setRuns(res.runs);
-      setTotal(res.total);
     } catch {
       setRuns([]);
-      setTotal(0);
     } finally {
       setLoading(false);
     }
   }, [search, statusFilter]);
 
   useEffect(() => {
-    fetchRuns();
-  }, [fetchRuns]);
+    let active = true;
+    void (async () => {
+      try {
+        const params: Record<string, string | number> = { limit: 50 };
+        if (search) params.search = search;
+        if (statusFilter) params.status = statusFilter;
+        const res = await getRuns(params);
+        if (active) setRuns(res.runs);
+      } catch {
+        if (active) setRuns([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [search, statusFilter]);
 
   // Escape key closes drawer
   useEffect(() => {
@@ -147,7 +160,6 @@ export default function RunsPage() {
     try {
       await deleteRun(runId);
       setRuns((prev) => prev.filter((r) => r.run_id !== runId));
-      setTotal((prev) => prev - 1);
     } catch (err) {
       console.error("Delete failed:", err);
     } finally {
@@ -172,6 +184,11 @@ export default function RunsPage() {
 
   return (
     <>
+      <div className="page-header">
+        <h1 className="page-title">Runs</h1>
+        <p className="page-subtitle">Analyze audio files and review call transcripts</p>
+      </div>
+
       {/* Upload */}
       <div
         className="upload-area"
