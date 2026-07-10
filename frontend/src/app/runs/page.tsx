@@ -273,13 +273,8 @@ export default function RunsPage() {
                     <td><span className="text-secondary">{run.intent || "—"}</span></td>
                     <td><span className="mono text-muted">{relativeTime(run.created_at)}</span></td>
                     <td>
-                      <span
-                        className={`hallucination-dot ${run.hallucination_detected ? "detected" : "clean"}`}
-                        role="img"
-                        aria-label={run.hallucination_detected ? "Hallucination detected" : "No hallucination"}
-                        title={run.hallucination_detected ? "Hallucination detected" : "No hallucination"}
-                      >
-                        {run.hallucination_detected ? "●" : "●"}
+                      <span className={`badge ${run.hallucination_detected ? "badge-fail" : "badge-pass"}`}>
+                        {run.hallucination_detected ? "Detected" : "Clean"}
                       </span>
                     </td>
                     <td>
