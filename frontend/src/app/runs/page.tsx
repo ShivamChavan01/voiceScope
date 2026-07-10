@@ -424,6 +424,44 @@ export default function RunsPage() {
             <div id="drawer-panel-report" role="tabpanel">
               {selectedRun.intent ? (
                 <>
+                  {/* Quality Verdict */}
+                  <div className="report-verdict">
+                    {selectedRun.hallucination_detected ? (
+                      <div className="verdict-box verdict-bad">
+                        <div className="verdict-icon">⚠</div>
+                        <div>
+                          <div className="verdict-title">Hallucination Detected</div>
+                          <div className="verdict-sub">The AI agent made claims not supported by the transcript</div>
+                        </div>
+                      </div>
+                    ) : selectedRun.escalation_signal ? (
+                      <div className="verdict-box verdict-warn">
+                        <div className="verdict-icon">↑</div>
+                        <div>
+                          <div className="verdict-title">Escalation Required</div>
+                          <div className="verdict-sub">The customer asked to speak with a human agent</div>
+                        </div>
+                      </div>
+                    ) : selectedRun.truth_score != null && selectedRun.truth_score >= 0.8 ? (
+                      <div className="verdict-box verdict-good">
+                        <div className="verdict-icon">✓</div>
+                        <div>
+                          <div className="verdict-title">Clean Call</div>
+                          <div className="verdict-sub">No issues detected — agent followed policy</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="verdict-box verdict-ok">
+                        <div className="verdict-icon">~</div>
+                        <div>
+                          <div className="verdict-title">Minor Issues</div>
+                          <div className="verdict-sub">Some areas need review but no critical problems</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Call Summary */}
                   <div className="detail-grid">
                     <div className="detail-cell">
                       <div className="detail-label">Intent</div>
@@ -438,39 +476,80 @@ export default function RunsPage() {
                       <div className="detail-value">{selectedRun.outcome || "—"}</div>
                     </div>
                     <div className="detail-cell">
-                      <div className="detail-label">Hallucination</div>
-                      <div className="detail-value" style={{ color: selectedRun.hallucination_detected ? "var(--destructive)" : "var(--success)" }}>
-                        {selectedRun.hallucination_detected ? "Detected" : "None"}
-                      </div>
-                    </div>
-                    <div className="detail-cell">
-                      <div className="detail-label">Escalation</div>
-                      <div className="detail-value" style={{ color: selectedRun.escalation_signal ? "var(--warning)" : "var(--success)" }}>
-                        {selectedRun.escalation_signal ? "Yes" : "No"}
-                      </div>
-                    </div>
-                    <div className="detail-cell">
-                      <div className="detail-label">Model</div>
-                      <div className="detail-value">{selectedRun.model || "—"}</div>
+                      <div className="detail-label">Duration</div>
+                      <div className="detail-value">{formatDuration(selectedRun.duration_seconds)}</div>
                     </div>
                   </div>
 
-                  {/* Key Findings */}
-                  {selectedRun.layer_scores && (
-                    <div style={{ marginTop: 16 }}>
-                      <div className="section-title" style={{ marginBottom: 8 }}>Layer Scores</div>
-                      <div className="detail-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-                        {Object.entries(selectedRun.layer_scores).map(([key, val]) => (
-                          <div className="detail-cell" key={key}>
-                            <div className="detail-label">{key.replace(/_/g, " ")}</div>
-                            <div className="detail-value" style={{ color: val >= 0.8 ? "var(--success)" : val >= 0.5 ? "var(--warning)" : val === 0 ? "var(--muted-foreground)" : "var(--destructive)" }}>
-                              {val === 0 ? "N/A" : `${(val * 100).toFixed(0)}%`}
+                  {/* Issues Found */}
+                  {(() => {
+                    const issues: { label: string; detail: string; severity: "bad" | "warn" | "info" }[] = [];
+                    const ls = selectedRun.layer_scores || {};
+
+                    if (selectedRun.hallucination_detected) {
+                      issues.push({ label: "Hallucination", detail: "Agent made claims not found in the transcript or knowledge base", severity: "bad" });
+                    }
+                    if (selectedRun.escalation_signal) {
+                      issues.push({ label: "Escalation needed", detail: "Customer requested a human agent or supervisor", severity: "warn" });
+                    }
+                    if (ls.citations != null && ls.citations < 0.7) {
+                      issues.push({ label: "Weak citations", detail: `Only ${Math.round(ls.citations * 100)}% of agent claims were backed by transcript evidence`, severity: "warn" });
+                    }
+                    if (ls.facts != null && ls.facts < 0.7) {
+                      issues.push({ label: "Fact mismatch", detail: `Agent stated facts that contradict the transcript (${Math.round(ls.facts * 100)}% accuracy)`, severity: "bad" });
+                    }
+                    if (ls.sentiment_consistency != null && ls.sentiment_consistency < 0.6) {
+                      issues.push({ label: "Sentiment flip", detail: "Agent tone shifted abruptly (e.g. positive to negative)", severity: "warn" });
+                    }
+                    if (ls.outcome_evidence != null && ls.outcome_evidence === 0) {
+                      issues.push({ label: "No outcome evidence", detail: "Call outcome recorded but transcript doesn't support it", severity: "info" });
+                    }
+                    if (selectedRun.outcome === "escalated" && !selectedRun.escalation_signal) {
+                      issues.push({ label: "Unexpected escalation", detail: "Call was escalated but no escalation signal was detected in transcript", severity: "info" });
+                    }
+
+                    if (issues.length === 0) return null;
+
+                    return (
+                      <div style={{ marginTop: 16 }}>
+                        <div className="section-title" style={{ marginBottom: 8 }}>Issues Found ({issues.length})</div>
+                        <div className="report-issues">
+                          {issues.map((issue, i) => (
+                            <div key={i} className={`report-issue report-issue-${issue.severity}`}>
+                              <div className="report-issue-label">{issue.label}</div>
+                              <div className="report-issue-detail">{issue.detail}</div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  {/* What went well */}
+                  {(() => {
+                    const good: string[] = [];
+                    const ls = selectedRun.layer_scores || {};
+
+                    if (ls.schema != null && ls.schema >= 0.9) good.push("Response schema valid");
+                    if (ls.citations != null && ls.citations >= 0.8) good.push("Claims backed by evidence");
+                    if (ls.facts != null && ls.facts >= 0.8) good.push("Facts accurate");
+                    if (ls.sentiment_consistency != null && ls.sentiment_consistency >= 0.8) good.push("Consistent tone");
+                    if (!selectedRun.hallucination_detected) good.push("No hallucinations");
+                    if (!selectedRun.escalation_signal) good.push("No escalation needed");
+
+                    if (good.length === 0) return null;
+
+                    return (
+                      <div style={{ marginTop: 16 }}>
+                        <div className="section-title" style={{ marginBottom: 8 }}>Passed Checks</div>
+                        <div className="report-passed">
+                          {good.map((item, i) => (
+                            <span key={i} className="badge badge-pass" style={{ margin: "0 4px 4px 0" }}>{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="empty-state">No report data available</div>
