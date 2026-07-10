@@ -3,13 +3,13 @@
 import React from "react";
 
 const HARNESS_LAYERS = [
-  { id: "schema", name: "Schema", weight: 0.33 },
-  { id: "citations", name: "Citations", weight: 0.17 },
-  { id: "facts", name: "Facts", weight: 0.17 },
-  { id: "sentiment_consistency", name: "Sentiment", weight: 0.11 },
-  { id: "outcome_evidence", name: "Outcome", weight: 0.11 },
-  { id: "escalation", name: "Escalation", weight: 0.06 },
-  { id: "duplicate", name: "Duplicate", weight: 0.05 },
+  { id: "schema", name: "Schema", label: "Schema", weight: 0.33 },
+  { id: "citations", name: "Citations", label: "Citations", weight: 0.17 },
+  { id: "facts", name: "Facts", label: "Facts", weight: 0.17 },
+  { id: "sentiment_consistency", name: "Sentiment", label: "Sent.", weight: 0.11 },
+  { id: "outcome_evidence", name: "Outcome", label: "Outcome", weight: 0.11 },
+  { id: "escalation", name: "Escalation", label: "Escal", weight: 0.06 },
+  { id: "duplicate", name: "Duplicate", label: "Dup", weight: 0.05 },
 ];
 
 export const HARNESS_NAMES = HARNESS_LAYERS.map((l) => l.name);
@@ -147,7 +147,7 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
             onMouseEnter={() => !touchMode && setHighlight(i)}
             onMouseLeave={() => !touchMode && clearHighlight()}
           >
-            {l.name}
+            {l.label}
           </span>
         ))}
       </div>

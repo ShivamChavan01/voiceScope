@@ -39,6 +39,10 @@ function relativeTime(dateStr: string) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function cleanIncidentMessage(msg: string) {
+  return msg.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (m) => m.slice(0, 8));
+}
+
 function formatDuration(seconds: number | null) {
   if (!seconds) return "—";
   const m = Math.floor(seconds / 60);
@@ -159,7 +163,7 @@ export default function OverviewPage() {
             <div className="alert-row" key={inc.id}>
               <AlertIcon color={inc.status === "active" ? "var(--destructive)" : "var(--warning)"} />
               <div style={{ flex: 1 }}>
-                <span className="alert-text">{inc.message}</span>
+                <span className="alert-text">{cleanIncidentMessage(inc.message)}</span>
                 <div className="alert-time" style={{ marginTop: 2 }}>
                   {inc.rule_name} · {relativeTime(inc.triggered_at)}
                 </div>

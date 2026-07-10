@@ -102,15 +102,16 @@ async def _create_incidents_for_run(result: dict):
     hallucinated = bool(analysis.get("hallucination_detected") or result.get("hallucination_detected"))
     escalated = bool(analysis.get("escalation_signal") or result.get("escalation_signal"))
     store = get_monitoring_store()
+    short_id = run_id[:8] if run_id else "unknown"
     if hallucinated:
         await store.create_run_incident(
             run_id, "hallucination",
-            f"Hallucination detected in run {run_id}: agent made claims not supported by the transcript.",
+            f"Hallucination detected in run {short_id} — agent made claims not supported by the transcript.",
         )
     if escalated:
         await store.create_run_incident(
             run_id, "escalation",
-            f"Escalation signal in run {run_id}: customer frustration or unresolved issue detected.",
+            f"Escalation signal in run {short_id} — customer frustration or unresolved issue detected.",
         )
 
 
