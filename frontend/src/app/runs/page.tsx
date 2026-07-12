@@ -5,10 +5,12 @@ import { HarnessBar, HARNESS_NAMES, HARNESS_KEYS } from "@/components/harness-ba
 import {
   getRuns,
   getRun,
-  analyzeAudio,
+  analyzeAudioStream,
   deleteRun,
   type Run,
+  type StreamEvent,
 } from "@/lib/api";
+import { UploadProgress } from "@/components/upload-progress";
 
 function UploadIcon() {
   return (
@@ -47,7 +49,7 @@ function relativeTime(dateStr: string) {
 }
 
 function formatDuration(seconds: number | null) {
-  if (!seconds) return "—";
+  if (seconds == null) return "—";
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
@@ -63,6 +65,8 @@ export default function RunsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([]);
+  const [streamError, setStreamError] = useState<string | undefined>();
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLTableRowElement | null>(null);
@@ -120,11 +124,20 @@ export default function RunsPage() {
 
   const handleUpload = async (file: File) => {
     setUploading(true);
+    setStreamEvents([]);
+    setStreamError(undefined);
     try {
-      await analyzeAudio(file);
-      await fetchRuns();
+      for await (const event of analyzeAudioStream(file)) {
+        setStreamEvents((prev) => [...prev, event]);
+        if (event.event === "complete") {
+          await fetchRuns();
+        }
+        if (event.event === "error") {
+          setStreamError(event.detail || "Analysis failed");
+        }
+      }
     } catch (err) {
-      console.error("Analysis failed:", err);
+      setStreamError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
       setUploading(false);
     }
@@ -214,6 +227,8 @@ export default function RunsPage() {
         <div className="upload-area-sub">WAV, MP3, M4A — up to 100 MB</div>
       </div>
 
+      <UploadProgress events={streamEvents} error={streamError} />
+
       {/* Filters */}
       <div className="filter-row">
         <div className="f-row" style={{ position: "relative" }}>
@@ -258,7 +273,14 @@ export default function RunsPage() {
               {loading ? (
                 <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>Loading...</td></tr>
               ) : runs.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>No runs found</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 24px" }}>
+                  <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 8 }}>
+                    No calls yet. Drop an audio file above to analyze your first call.
+                  </div>
+                  <div style={{ color: "var(--muted-foreground)", fontSize: 12, opacity: 0.7 }}>
+                    WAV, MP3, M4A supported — results stream in real time
+                  </div>
+                </td></tr>
               ) : (
                 runs.map((run) => (
                   <tr

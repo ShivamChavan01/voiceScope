@@ -48,6 +48,8 @@ export function Sidebar() {
       {/* Bottom */}
       <button
         className="sidebar-nav-item"
+        type="button"
+        aria-label="Account"
       >
         <User className="h-4 w-4" />
       </button>

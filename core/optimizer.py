@@ -42,7 +42,8 @@ class CalibrationOptimizer:
     }
 
     def __init__(self, db_path: str = ""):
-        self.db_path = db_path or os.getenv("OPTIMIZER_DB_PATH", "./optimizer.json")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = db_path or os.getenv("OPTIMIZER_DB_PATH", str(Path(data_dir) / "optimizer.json"))
         self._history: list[dict] = []
         self._load()
 

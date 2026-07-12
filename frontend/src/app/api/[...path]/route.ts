@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+const API_KEY = process.env.API_KEY || "";
+
+const ALLOWED_RESPONSE_HEADERS = new Set([
+  "content-type",
+  "content-length",
+  "cache-control",
+]);
 
 async function proxyRequest(
   request: NextRequest,
   path: string[]
 ) {
-  // path segments include 'v1' from the URL, e.g. /api/v1/runs -> ['v1', 'runs']
   const targetPath = `/api/${path.join("/")}`;
   const targetUrl = new URL(targetPath, BACKEND_URL);
 
-  // Forward query params
   request.nextUrl.searchParams.forEach((value, key) => {
     targetUrl.searchParams.set(key, value);
   });
@@ -25,19 +29,58 @@ async function proxyRequest(
     headers,
   };
 
-  // Forward body for non-GET/HEAD requests
   if (request.method !== "GET" && request.method !== "HEAD") {
     init.body = await request.arrayBuffer();
   }
 
   try {
     const res = await fetch(targetUrl.toString(), init);
+    const contentType = res.headers.get("content-type") || "";
+
+    if (contentType.includes("text/event-stream")) {
+      const stream = new ReadableStream({
+        async start(controller) {
+          const reader = res.body?.getReader();
+          if (!reader) {
+            controller.close();
+            return;
+          }
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            controller.error(err);
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new NextResponse(stream, {
+        status: res.status,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
+    }
+
     const body = await res.arrayBuffer();
+    const responseHeaders: Record<string, string> = {};
+    res.headers.forEach((value, key) => {
+      if (ALLOWED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+        responseHeaders[key] = value;
+      }
+    });
 
     return new NextResponse(body, {
       status: res.status,
       statusText: res.statusText,
-      headers: Object.fromEntries(res.headers.entries()),
+      headers: responseHeaders,
     });
   } catch (error) {
     return NextResponse.json(

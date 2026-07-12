@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, Field
 from utils.logger import logger
@@ -28,7 +29,8 @@ class QAStore:
     """QA cohort system — sampling, weighted scoring, resolution criteria."""
 
     def __init__(self):
-        self.db_path = os.getenv("QA_DB_PATH", "./qa.db")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = os.getenv("QA_DB_PATH", str(Path(data_dir) / "qa.db"))
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_db()

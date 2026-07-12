@@ -42,7 +42,7 @@ class OpenAIProvider(LLMProvider):
         output_tokens = usage.completion_tokens if usage else 0
 
         return CompletionResult(
-            content=response.choices[0].message.content,
+            content=response.choices[0].message.content or "",
             model=model,
             provider=self.name,
             input_tokens=input_tokens,

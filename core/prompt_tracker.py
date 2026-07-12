@@ -32,7 +32,8 @@ class PromptTracker:
     """Track prompt performance and suggest improvements."""
 
     def __init__(self, db_path: str = ""):
-        self.db_path = db_path or os.getenv("PROMPT_TRACKER_DB_PATH", "./prompt_tracker.json")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = db_path or os.getenv("PROMPT_TRACKER_DB_PATH", str(Path(data_dir) / "prompt_tracker.json"))
         self._records: list[PromptRecord] = []
         self._patterns: list[FailurePattern] = []
         self._load()

@@ -32,7 +32,8 @@ class ConfidenceCalibrator:
     """Track calibration between harness confidence and actual accuracy."""
 
     def __init__(self, db_path: str = ""):
-        self.db_path = db_path or os.getenv("CALIBRATION_DB_PATH", "./calibration.json")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = db_path or os.getenv("CALIBRATION_DB_PATH", str(Path(data_dir) / "calibration.json"))
         self._entries: list[CalibrationEntry] = []
         self._load()
 

@@ -242,6 +242,19 @@ tbody tr:hover { background: rgba(255,255,255,0.02); }
 .upload-area-text { font-size: 13px; font-weight: 500; color: var(--secondary-foreground); margin-bottom: 4px; }
 .upload-area-sub { font-size: 12px; color: var(--muted-foreground); }
 
+/* ── Upload Progress ──────────────────────────────────────────── */
+.upload-progress { display: flex; gap: 16px; padding: 14px 18px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; align-items: center; }
+.upload-stage { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted-foreground); transition: color 150ms ease-out; }
+.upload-stage.active { color: var(--primary); }
+.upload-stage.done { color: var(--success); }
+.upload-stage.error { color: var(--destructive); }
+.upload-stage-icon { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,0.04); transition: background 150ms ease-out, transform 150ms ease-out; }
+.upload-stage.active .upload-stage-icon { background: rgba(79,195,247,0.12); animation: pulse 1.5s ease-in-out infinite; }
+.upload-stage.done .upload-stage-icon { background: rgba(58,158,111,0.12); }
+.upload-stage.error .upload-stage-icon { background: rgba(192,80,77,0.12); }
+.upload-stage-label { font-weight: 500; font-family: var(--font-sans); }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+
 /* ── Filter Row ────────────────────────────────────────────────── */
 .filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .filter-input { height: 32px; padding: 0 10px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--foreground); font-size: 12px; font-family: var(--font-sans); outline: none; transition: border-color 150ms ease-out; min-width: 140px; }

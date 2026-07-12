@@ -38,7 +38,6 @@ interface HarnessBarProps {
 }
 
 export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: HarnessBarProps) {
-  const rowsRef = React.useRef<HTMLDivElement>(null);
   const [hl, setHl] = React.useState<number | null>(null);
   const [touchMode, setTouchMode] = React.useState(false);
 
@@ -50,29 +49,12 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
   const flagged = layers.filter((l) => l.status !== "pass" && l.status !== "na").length;
   const active = layers.filter((l) => l.status !== "na").length;
 
-  const setHighlight = (idx: number) => {
-    setHl(idx);
-    if (rowsRef.current) {
-      rowsRef.current.classList.add("has-highlight");
-      const segs = rowsRef.current.querySelectorAll<HTMLElement>(".seg");
-      segs.forEach((s, i) => {
-        const si = Math.floor(i / HARNESS_LAYERS.length);
-        s.classList.toggle("hl", si === idx);
-      });
-    }
-  };
-
-  const clearHighlight = () => {
-    setHl(null);
-    if (rowsRef.current) {
-      rowsRef.current.classList.remove("has-highlight");
-      rowsRef.current.querySelectorAll<HTMLElement>(".seg").forEach((s) => s.classList.remove("hl"));
-    }
-  };
+  const setHighlight = (idx: number) => setHl(idx);
+  const clearHighlight = () => setHl(null);
 
   if (mini) {
     return (
-      <div className="mini-harness" ref={rowsRef}>
+      <div className="mini-harness">
         <div className="harness-row" style={{ height: 8 }}>
           {layers.map((l, i) => (
             <div
@@ -89,13 +71,13 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
   }
 
   return (
-    <div className="harness-rows" ref={rowsRef}>
+    <div className={`harness-rows ${hl !== null ? "has-highlight" : ""}`}>
       {/* Weight row */}
       <div className="harness-row">
         {layers.map((l, i) => (
           <div
             key={`w${i}`}
-            className="seg row-weight"
+            className={`seg row-weight ${hl === i ? "hl" : ""}`}
             style={{ width: `${l.weight * 100}%` }}
             role="button"
             tabIndex={0}
@@ -118,7 +100,7 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
         {layers.map((l, i) => (
           <div
             key={`s${i}`}
-            className="seg"
+            className={`seg ${hl === i ? "hl" : ""}`}
             data-status={l.status}
             style={{ width: `${l.weight * 100}%` }}
             role="button"
@@ -181,10 +163,14 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
               {HARNESS_LAYERS.length} layers · <span>{active}</span> active · <span className="flagged">{flagged}</span> flagged
             </span>
             {runId && onOpenRun && (
-              <span className="harness-link" onClick={() => onOpenRun(runId)}>
+              <button
+                className="harness-link"
+                type="button"
+                onClick={() => onOpenRun(runId)}
+              >
                 <span className="rid">{runId}</span>
                 <span>{runLabel || ""}</span>
-              </span>
+              </button>
             )}
           </div>
         </div>

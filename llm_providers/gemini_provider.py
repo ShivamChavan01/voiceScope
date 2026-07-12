@@ -40,7 +40,7 @@ class GeminiProvider(LLMProvider):
         output_tokens = response.usage_metadata.candidates_token_count or 0
 
         return CompletionResult(
-            content=response.text,
+            content=response.text or "",
             model=model,
             provider=self.name,
             input_tokens=input_tokens,

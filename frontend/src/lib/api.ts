@@ -144,6 +144,14 @@ export async function getRunHistory(
   return fetchJson(`/api/v1/runs/history?limit=${limit}`);
 }
 
+export interface StreamEvent {
+  event: "started" | "stage_complete" | "complete" | "error";
+  run_id?: string;
+  stage?: string;
+  result?: Run;
+  detail?: string;
+}
+
 export async function analyzeAudio(file: File): Promise<Run> {
   const formData = new FormData();
   formData.append("file", file);
@@ -153,6 +161,65 @@ export async function analyzeAudio(file: File): Promise<Run> {
   });
   if (!res.ok) throw new Error(`Analysis failed: ${res.statusText}`);
   return res.json();
+}
+
+export async function* analyzeAudioStream(
+  file: File
+): AsyncGenerator<StreamEvent> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/analyze/stream`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Analysis failed: ${res.status} ${res.statusText}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            yield data as StreamEvent;
+          } catch {
+            // skip malformed JSON lines
+          }
+        }
+      }
+    }
+
+    if (buffer.startsWith("data: ")) {
+      try {
+        const data = JSON.parse(buffer.slice(6));
+        yield data as StreamEvent;
+      } catch {
+        // skip
+      }
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // ── Monitoring ─────────────────────────────────────────────────────────

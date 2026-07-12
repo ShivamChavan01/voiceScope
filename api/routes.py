@@ -332,9 +332,13 @@ async def webhook_call_completed(request: Request):
 
     try:
         async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as http_client:
+            head_resp = await http_client.head(event.recording_url)
+            content_length = int(head_resp.headers.get("content-length", 0))
+            if content_length > 25 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
             resp = await http_client.get(event.recording_url)
             resp.raise_for_status()
-            audio_bytes = resp.content
+            audio_bytes = resp.content[:25 * 1024 * 1024]
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=402, detail=f"Failed to download recording: HTTP {e.response.status_code}"

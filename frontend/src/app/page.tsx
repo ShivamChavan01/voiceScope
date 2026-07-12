@@ -46,7 +46,7 @@ function cleanIncidentMessage(msg: string) {
 }
 
 function formatDuration(seconds: number | null) {
-  if (!seconds) return "—";
+  if (seconds == null) return "—";
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
@@ -360,8 +360,13 @@ export default function OverviewPage() {
             <tbody>
               {runs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>
-                    No runs yet. Analyze an audio file to get started.
+                  <td colSpan={7} style={{ textAlign: "center", padding: "48px 24px" }}>
+                    <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 16 }}>
+                      No calls analyzed yet. Upload your first audio file to see insights here.
+                    </div>
+                    <a href="/runs" className="btn btn-primary">
+                      Analyze a call →
+                    </a>
                   </td>
                 </tr>
               ) : (

@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+from pathlib import Path
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 from utils.logger import logger
@@ -24,7 +25,8 @@ class ExtractionStore:
     """Custom extraction schemas for post-call analysis."""
 
     def __init__(self):
-        self.db_path = os.getenv("EXTRACTIONS_DB_PATH", "./extractions.db")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = os.getenv("EXTRACTIONS_DB_PATH", str(Path(data_dir) / "extractions.db"))
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_db()

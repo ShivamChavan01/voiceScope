@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+from pathlib import Path
 from typing import Optional
 from utils.logger import logger
 
@@ -9,7 +10,8 @@ class MonitoringStore:
     """Monitoring & alerting store. Tracks metrics and fires threshold-based alerts."""
 
     def __init__(self):
-        self.db_path = os.getenv("MONITORING_DB_PATH", "./monitoring.db")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = os.getenv("MONITORING_DB_PATH", str(Path(data_dir) / "monitoring.db"))
         self._init_db()
 
     def _init_db(self):

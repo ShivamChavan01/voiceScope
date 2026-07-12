@@ -5,3 +5,6 @@ builder = "dockerfile"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
+
+[[volumes]]
+mountPath = "/app/data"

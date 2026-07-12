@@ -17,7 +17,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._last_cleanup = time.time()
 
     async def dispatch(self, request: Request, call_next):
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = self._get_client_ip(request)
         now = time.time()
 
         if now - self._last_cleanup > CLEANUP_INTERVAL:
@@ -43,6 +43,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             del self.requests[k]
 
         if len(self.requests) > MAX_TRACKED_IPS:
-            sorted_keys = sorted(self.requests, key=lambda k: max(self.requests[k]))
+            sorted_keys = sorted(self.requests, key=lambda k: self.requests[k][-1] if self.requests[k] else 0)
             for k in sorted_keys[: len(self.requests) - MAX_TRACKED_IPS]:
                 del self.requests[k]
+
+    def _get_client_ip(self, request: Request) -> str:
+        if request.client:
+            return request.client.host
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip.strip()
+        return "unknown"

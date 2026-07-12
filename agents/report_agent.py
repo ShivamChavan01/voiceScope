@@ -95,6 +95,12 @@ class ReportAgent:
 
         except Exception as e:
             ctx.add_error("report", str(e))
+            ctx.report = {
+                "run_id": ctx.run_id,
+                "error": str(e),
+                "quality_score": None,
+                "report": {"executive_summary": "Report generation failed", "key_findings": [], "recommendations": []},
+            }
             logger.error(f"[ReportAgent] failed — {e}")
 
         return ctx

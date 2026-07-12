@@ -12,6 +12,7 @@ Layer 7: Duplicate Detection
 
 import time
 import hashlib
+import json
 from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 from enum import Enum
@@ -170,7 +171,7 @@ class ValidationHarness:
                 )
 
         # Layer 10: Duplicate Detection
-        content_hash = hashlib.md5(str(raw_output).encode()).hexdigest()
+        content_hash = hashlib.sha256(json.dumps(raw_output, sort_keys=True, default=str).encode()).hexdigest()
         result.duplicate_hash = content_hash
         if content_hash in self._seen_hashes:
             time_diff = time.time() - self._seen_hashes[content_hash]
@@ -182,6 +183,12 @@ class ValidationHarness:
         else:
             layer_scores["duplicate"] = 1.0
         self._seen_hashes[content_hash] = time.time()
+
+        # Evict old hashes (keep last 1000)
+        if len(self._seen_hashes) > 1000:
+            oldest = sorted(self._seen_hashes, key=self._seen_hashes.get)[:500]
+            for k in oldest:
+                del self._seen_hashes[k]
 
         # Compute truth score
         result.layer_scores = layer_scores

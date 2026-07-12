@@ -33,8 +33,8 @@ class ProviderRegistry:
         return provider
 
     @classmethod
-    def get_circuit_breaker(cls, name: str) -> CircuitBreaker:
-        return cls._circuit_breakers.get(name, CircuitBreaker())
+    def get_circuit_breaker(cls, name: str) -> Optional[CircuitBreaker]:
+        return cls._circuit_breakers.get(name)
 
     @classmethod
     def list_providers(cls) -> list[str]:

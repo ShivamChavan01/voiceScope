@@ -12,7 +12,8 @@ class ChromaStore:
     """
 
     def __init__(self):
-        persist_dir = os.getenv("CHROMA_PERSIST_DIR", "/tmp/chroma_db")
+        data_dir = os.environ.get("DATA_DIR", "/tmp")
+        persist_dir = os.getenv("CHROMA_PERSIST_DIR", os.path.join(data_dir, "chroma_db"))
         try:
             self.client = chromadb.PersistentClient(path=persist_dir)
             self.collection = self.client.get_or_create_collection(

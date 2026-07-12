@@ -1,11 +1,13 @@
 import sqlite3
 import os
+from pathlib import Path
 from utils.logger import logger
 
 
 class CostStore:
     def __init__(self):
-        self.db_path = os.getenv("COST_DB_PATH", "./costs.db")
+        data_dir = os.environ.get("DATA_DIR", ".")
+        self.db_path = os.getenv("COST_DB_PATH", str(Path(data_dir) / "costs.db"))
         self._init_db()
 
     def _init_db(self):

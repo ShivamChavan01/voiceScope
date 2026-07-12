@@ -10,6 +10,7 @@ class OllamaProvider(LLMProvider):
 
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.client = httpx.AsyncClient(timeout=120.0, base_url=self.base_url)
 
     async def complete(
         self,
@@ -20,18 +21,17 @@ class OllamaProvider(LLMProvider):
     ) -> CompletionResult:
         model = model or self.default_model
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{self.base_url}/api/chat",
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": False,
-                    "options": {"temperature": temperature},
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        response = await self.client.post(
+            "/api/chat",
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "options": {"temperature": temperature},
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
 
         content = data.get("message", {}).get("content", "")
         prompt_tokens = data.get("prompt_eval_count", 0)
