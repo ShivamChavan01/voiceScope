@@ -9,8 +9,12 @@ services:
       - .env
     environment:
       - DATA_DIR=/app/data
+      - DATABASE_URL=postgresql://voicescope:voicescope@postgres:5432/voicescope
     volumes:
       - voicescope_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
@@ -18,5 +22,23 @@ services:
       timeout: 10s
       retries: 3
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voicescope
+      POSTGRES_PASSWORD: voicescope
+      POSTGRES_DB: voicescope
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voicescope"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   voicescope_data:
+  pg_data:

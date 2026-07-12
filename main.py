@@ -2,11 +2,13 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 from api.routes import router
 from middleware.auth import APIKeyAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 from utils.tracing import RequestContext, set_request_context
-from utils.logger import set_correlation_id
+from utils.logger import set_correlation_id, logger
+from storage.db import get_pool, init_schema, close_pool
 import uuid
 import os
 
@@ -15,12 +17,23 @@ load_dotenv()
 
 IS_PRODUCTION = os.getenv("APP_ENV") == "production"
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if os.environ.get("DATABASE_URL"):
+        await init_schema()
+        logger.info("[Startup] PostgreSQL connected")
+    yield
+    await close_pool()
+
+
 app = FastAPI(
     title="VoiceScope",
     description="Open source observability API for voice AI agents. Multi-provider LLM support, plugin system, and comprehensive analytics.",
     version="2.3.0",
     docs_url="/docs" if not IS_PRODUCTION else None,
     redoc_url="/redoc" if not IS_PRODUCTION else None,
+    lifespan=lifespan,
 )
 
 ALLOWED_ORIGINS = [
