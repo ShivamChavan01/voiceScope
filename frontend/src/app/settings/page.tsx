@@ -67,27 +67,30 @@ function MultiSelect({ label, selected, onToggle }: { label: string; selected: s
 }
 
 function ProvidersTab() {
-  const [stt, setStt] = useState(["Deepgram"]);
-  const [llm, setLlm] = useState(["OpenAI"]);
-  const [embed, setEmbed] = useState(["OpenAI"]);
-
-  const toggle = (setter: React.Dispatch<React.SetStateAction<string[]>>, list: string[], p: string) => {
-    setter(list.includes(p) ? list.filter((x) => x !== p) : [...list, p]);
+  const providers = {
+    "Speech-to-Text": ["Deepgram", "Gemini", "Whisper"],
+    "LLM": ["OpenAI", "Anthropic", "Gemini", "Groq", "Ollama", "Mistral"],
+    "Embeddings": ["OpenAI", "Gemini"],
   };
 
   return (
     <div>
       <div className="settings-group" style={{ marginBottom: 16, padding: 12, borderRadius: 6, background: "var(--muted)", border: "1px solid var(--border)" }}>
         <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
-          API keys are configured in your <code style={{ color: "var(--primary)" }}>.env</code> file on the server. See <code style={{ color: "var(--primary)" }}>.env.example</code> for all available options.
+          API keys are configured in your <code style={{ color: "var(--primary)" }}>.env</code> file on the server. See <code style={{ color: "var(--primary)" }}>.env.example</code> for all available options. Set <code style={{ color: "var(--primary)" }}>LLM_PROVIDER</code> and <code style={{ color: "var(--primary)" }}>STT_PROVIDER</code> to choose which providers to use.
         </span>
       </div>
 
-      <MultiSelect label="Speech-to-Text" selected={stt} onToggle={(p) => toggle(setStt, stt, p)} />
-
-      <MultiSelect label="LLM" selected={llm} onToggle={(p) => toggle(setLlm, llm, p)} />
-
-      <MultiSelect label="Embeddings" selected={embed} onToggle={(p) => toggle(setEmbed, embed, p)} />
+      {Object.entries(providers).map(([category, list]) => (
+        <div key={category} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 6 }}>{category}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {list.map((p) => (
+              <span key={p} style={{ padding: "4px 10px", borderRadius: 4, background: "var(--muted)", border: "1px solid var(--border)", fontSize: 12, color: "var(--foreground)" }}>{p}</span>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
