@@ -3,11 +3,11 @@ VoiceScope Validation Harness — 7-layer validation for LLM outputs.
 
 Layer 1: Schema Validation (Pydantic)
 Layer 2: Citation Verification
-Layer 3: Fact Extraction & Verification
-Layer 4: Sentiment Consistency Check
-Layer 5: Outcome Evidence Check
-Layer 6: Escalation Signal Verification
-Layer 7: Duplicate Detection
+Layer 3: Cross-Check (internal consistency)
+Layer 4: Fact Extraction & Verification
+Layer 5: Sentiment Consistency Check
+Layer 6: Outcome Evidence Check
+Layer 7: Escalation Signal Verification
 """
 
 import time
@@ -128,6 +128,13 @@ class ValidationHarness:
                 result.validation_errors.extend(
                     [f"unmatched finding: {f}" for f in cite_result.unmatched]
                 )
+
+        # Layer 3: Cross-Check (internal consistency of analysis fields)
+        from core.cross_check import CrossChecker
+        cross_result = CrossChecker().check(raw_output)
+        layer_scores["cross_check"] = cross_result.score
+        if not cross_result.consistent:
+            result.validation_errors.extend(cross_result.inconsistencies)
 
         # Layer 4: Fact Extraction & Verification (if transcript available)
         if transcript:
@@ -271,8 +278,9 @@ class ValidationHarness:
         if not layer_scores:
             return 0.0
         weights = {
-            "schema": 0.30,
+            "schema": 0.25,
             "citations": 0.15,
+            "cross_check": 0.10,
             "facts": 0.15,
             "sentiment_consistency": 0.10,
             "outcome_evidence": 0.10,

@@ -384,7 +384,7 @@ class MonitoringStore:
             for f in ("layer_scores", "transcript_speakers"):
                 if d.get(f):
                     try: d[f] = json.loads(d[f])
-                    except: d[f] = None
+                    except (json.JSONDecodeError, TypeError): d[f] = None
             runs.append(d)
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
 
