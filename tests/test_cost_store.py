@@ -1,12 +1,15 @@
 import pytest
 import os
+from unittest.mock import patch
 from storage.cost_store import CostStore
 
 
 @pytest.fixture
 def cost_store(tmp_path):
-    os.environ["COST_DB_PATH"] = str(tmp_path / "test_costs.db")
-    return CostStore()
+    with patch.dict(os.environ, {"DATABASE_URL": "", "COST_DB_PATH": str(tmp_path / "test_costs.db")}):
+        store = CostStore()
+        store._pg_pool = None
+        yield store
 
 
 class TestCostStore:

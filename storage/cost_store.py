@@ -66,11 +66,22 @@ class CostStore:
 
     # ── SQLite fallback ───────────────────────────────────────────
 
-    async def _log_cost_sqlite(self, run_id, provider, model, input_tokens, output_tokens, cost_usd):
+    def _sqlite_conn(self):
         import sqlite3
         data_dir = os.environ.get("DATA_DIR", ".")
         db_path = os.getenv("COST_DB_PATH", str(Path(data_dir) / "costs.db"))
-        with sqlite3.connect(db_path) as conn:
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS cost_logs ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, provider TEXT, "
+            "model TEXT, input_tokens INTEGER DEFAULT 0, output_tokens INTEGER DEFAULT 0, "
+            "cost_usd REAL DEFAULT 0.0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
+        conn.commit()
+        return conn
+
+    async def _log_cost_sqlite(self, run_id, provider, model, input_tokens, output_tokens, cost_usd):
+        with self._sqlite_conn() as conn:
             conn.execute(
                 "INSERT INTO cost_logs (run_id, provider, model, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?, ?, ?)",
                 (run_id, provider, model, input_tokens, output_tokens, cost_usd),
@@ -79,9 +90,7 @@ class CostStore:
 
     async def _get_summary_sqlite(self) -> dict:
         import sqlite3
-        data_dir = os.environ.get("DATA_DIR", ".")
-        db_path = os.getenv("COST_DB_PATH", str(Path(data_dir) / "costs.db"))
-        with sqlite3.connect(db_path) as conn:
+        with self._sqlite_conn() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
