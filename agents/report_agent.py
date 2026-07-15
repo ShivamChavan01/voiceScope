@@ -52,7 +52,8 @@ class ReportAgent:
         }
 
         try:
-            response = await self.provider.complete(
+            response = await ProviderRegistry.call(
+                name=self.provider.name,
                 prompt=REPORT_PROMPT.format(analysis_data=json.dumps(analysis_data, indent=2)),
                 temperature=0.2,
                 response_format={"type": "json_object"},

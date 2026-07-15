@@ -175,7 +175,8 @@ class AnalysisAgent:
         )
 
         try:
-            response = await self.provider.complete(
+            response = await ProviderRegistry.call(
+                name=self.provider.name,
                 prompt=prompt, temperature=0.1, response_format={"type": "json_object"}
             )
 
@@ -232,7 +233,8 @@ class AnalysisAgent:
 
     async def _summarize_chunk(self, chunk: str) -> str:
         prompt = SUMMARIZATION_PROMPT.format(chunk=chunk)
-        response = await self.provider.complete(
+        response = await ProviderRegistry.call(
+            name=self.provider.name,
             prompt=prompt, temperature=0.0, response_format={"type": "json_object"}
         )
         result = json.loads(response.content)
@@ -243,7 +245,8 @@ class AnalysisAgent:
 
     async def _extract_claims(self, transcript: str) -> list[str]:
         prompt = CLAIMS_PROMPT.format(transcript=transcript)
-        response = await self.provider.complete(
+        response = await ProviderRegistry.call(
+            name=self.provider.name,
             prompt=prompt, temperature=0.0, response_format={"type": "json_object"}
         )
         result = json.loads(response.content)

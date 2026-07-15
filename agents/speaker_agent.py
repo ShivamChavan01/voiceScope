@@ -60,7 +60,8 @@ class SpeakerAgent:
         prompt = SPEAKER_PROMPT.format(segments=segments_str)
 
         try:
-            response = await self.provider.complete(
+            response = await ProviderRegistry.call(
+                name=self.provider.name,
                 prompt=prompt,
                 temperature=0.0,
                 response_format={"type": "json_object"},

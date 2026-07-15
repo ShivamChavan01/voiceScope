@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ShivamChavan01/voicescope/actions/workflows/ci.yml/badge.svg)](https://github.com/ShivamChavan01/voicescope/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-267-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-276-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > Voice AI agents hallucinate. They promise refunds that don't exist, cite policies that aren't real, and escalate when they shouldn't. Nobody catches it. VoiceScope does.
@@ -149,7 +149,7 @@ Full 33-endpoint reference in [BACKEND.md](BACKEND.md).
 
 This isn't a notebook demo. It's built like production software:
 
-- **267 tests** — unit, integration, and end-to-end
+- **276 tests** — unit, integration, and end-to-end
 - **Security audit** — SQL injection fixed (4 locations), SSRF blocked, auth middleware, rate limiting
 - **Connection pooling** — `asyncio.Lock` around pool creation, stale cache removed
 - **Error isolation** — DB logging failures don't kill API responses
@@ -171,6 +171,15 @@ voicescope/
 ├── cli.py           CLI entry point
 └── main.py          FastAPI app
 ```
+
+## Demo Limitations
+
+These are known limitations of the current demo. For a production deployment, address each accordingly:
+
+- **In-memory rate limiting** — Rate limit state is per-process and lost on restart. Use Redis or PostgreSQL-backed rate limiting for distributed deployments.
+- **In-memory batch storage** — Batch job state is stored in a Python dict and lost on restart. Persist to a database for production use.
+- **Extraction heuristics** — Custom field extraction uses keyword matching and regex, not LLM inference. Suitable for structured fields; replace with LLM calls for nuanced extraction.
+- **Settings UI** — Provider selection in the frontend is for reference only. Configure API keys in `.env` on the server.
 
 ## Deploy
 

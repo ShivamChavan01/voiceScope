@@ -5,6 +5,11 @@ from typing import Callable, Any
 from utils.logger import logger
 
 
+class CircuitBreakerOpenError(Exception):
+    """Raised when a circuit breaker is open and rejecting calls."""
+    pass
+
+
 class CircuitBreaker:
     def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 30.0):
         self.failure_threshold = failure_threshold

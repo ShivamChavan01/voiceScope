@@ -196,7 +196,11 @@ class TestAnalysisAgent:
             "findings": ["customer requested cancel"],
         })
         agent.provider = AsyncMock()
+        agent.provider.name = "openai"
         agent.provider.complete = AsyncMock(return_value=mock_response)
+
+        from llm_providers.registry import ProviderRegistry
+        ProviderRegistry._instances["openai"] = agent.provider
 
         ctx = PipelineContext()
         ctx.raw_transcript = "Agent: How can I help?\nCustomer: I want to cancel."
@@ -259,7 +263,11 @@ class TestReportAgent:
         mock_response.output_tokens = 50
 
         agent.provider = AsyncMock()
+        agent.provider.name = "openai"
         agent.provider.complete = AsyncMock(return_value=mock_response)
+
+        from llm_providers.registry import ProviderRegistry
+        ProviderRegistry._instances["openai"] = agent.provider
 
         ctx = PipelineContext()
         ctx.intent = "cancel subscription"

@@ -66,25 +66,6 @@ function MultiSelect({ label, selected, onToggle }: { label: string; selected: s
   );
 }
 
-function ProviderKeyRow({ name }: { name: string }) {
-  const [show, setShow] = useState(false);
-  const [val, setVal] = useState("");
-  return (
-    <div className="settings-row">
-      <span className="settings-row-label" style={{ color: "var(--primary)" }}>{name}</span>
-      <div style={{ position: "relative", minWidth: 200 }}>
-        <input className="f-input" data-mono type={show ? "text" : "password"} value={val} onChange={(e) => setVal(e.target.value)} placeholder={`Enter ${name} API key`} style={{ paddingRight: 32 }} />
-        <button onClick={() => setShow(!show)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--muted-foreground)", display: "grid", placeItems: "center" }} title={show ? "Hide" : "Show"}>
-          {show
-            ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" /><circle cx="7" cy="7" r="2" /></svg>
-            : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1.5 1.5l11 11M5.5 5.5a2 2 0 002.8 2.8M1 7s2.5-4 6-4a5.8 5.8 0 012.5.6M13 7s-1.2 2-3.5 3" /></svg>
-          }
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function ProvidersTab() {
   const [stt, setStt] = useState(["Deepgram"]);
   const [llm, setLlm] = useState(["OpenAI"]);
@@ -96,14 +77,17 @@ function ProvidersTab() {
 
   return (
     <div>
+      <div className="settings-group" style={{ marginBottom: 16, padding: 12, borderRadius: 6, background: "var(--muted)", border: "1px solid var(--border)" }}>
+        <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
+          API keys are configured in your <code style={{ color: "var(--primary)" }}>.env</code> file on the server. See <code style={{ color: "var(--primary)" }}>.env.example</code> for all available options.
+        </span>
+      </div>
+
       <MultiSelect label="Speech-to-Text" selected={stt} onToggle={(p) => toggle(setStt, stt, p)} />
-      {stt.map((p) => <ProviderKeyRow key={p} name={p} />)}
 
       <MultiSelect label="LLM" selected={llm} onToggle={(p) => toggle(setLlm, llm, p)} />
-      {llm.map((p) => <ProviderKeyRow key={p} name={p} />)}
 
       <MultiSelect label="Embeddings" selected={embed} onToggle={(p) => toggle(setEmbed, embed, p)} />
-      {embed.map((p) => <ProviderKeyRow key={p} name={p} />)}
     </div>
   );
 }

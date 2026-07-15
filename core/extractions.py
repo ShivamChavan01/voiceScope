@@ -81,7 +81,7 @@ class ExtractionStore:
         return bool(cursor.rowcount > 0)
 
     async def run_extractions(self, schema_id: int, run_id: str, transcript: str, metadata: Optional[dict] = None) -> dict:
-        """Run extraction fields against a transcript using the LLM.
+        """Run extraction fields against a transcript using heuristic matching.
         Returns extracted values for each field.
         """
         schema = self._conn.execute(
@@ -92,14 +92,14 @@ class ExtractionStore:
 
         fields = json.loads(schema["fields_json"])
 
-        # Build extraction results using simple heuristics + LLM prompt construction
+        # Build extraction results using simple heuristic matching
         results = {}
         for field in fields:
             name = field["name"]
             field_type = field["field_type"]
             prompt = field.get("prompt", field["description"])
 
-            # Simple heuristic extraction (in production, this would call the LLM)
+            # Simple heuristic extraction
             results[name] = {
                 "type": field_type,
                 "value": self._extract_field(field_type, field, transcript),
@@ -122,7 +122,7 @@ class ExtractionStore:
         }
 
     def _extract_field(self, field_type: str, field: dict, transcript: str) -> Any:
-        """Simple heuristic extraction. In production, this calls the LLM."""
+        """Simple heuristic extraction based on keyword matching and regex."""
         transcript_lower = transcript.lower()
 
         if field_type == "boolean":
