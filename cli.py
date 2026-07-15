@@ -35,15 +35,13 @@ def _ensure_data_dir():
 
 
 def _print_banner():
-    print(
-        "\033[1;36m"
-        "  __      __        ______   ______   ___  ____ \n"
-        "  \\ \\    / /       / ___\\ \\ / /___ \\ / _ \\/ ___|\n"
-        "   \\ \\/\\/ / _____| |    \\ V /  __) | | | \\___ \\\n"
-        "    \\_/\\_/ |_____|\\____| |_| |____/|_| |_|\\___/\n"
-        "\033[0m"
-        "  \033[2mcatch hallucinations before your users do\033[0m\n"
-    )
+    print("\033[1;36m")
+    print("     __      __  ______   ______   ___  ____ ")
+    print(r"     \ \    / / / ___\ \ / /___ \ / _ \/ ___|")
+    print(r"      \ \/\/ / | |    \ V /  __) | | | \___ \ ")
+    print(r"       \_/\_/  |_|     |_| |____/|_| |_|\___/ ")
+    print("\033[0m")
+    print("  \033[2mcatch hallucinations before your users do\033[0m\n")
 
 
 def _format_report(result: dict) -> str:
