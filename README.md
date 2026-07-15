@@ -6,69 +6,99 @@
 
 **Voice AI agents hallucinate. Nobody catches it. VoiceScope does.**
 
-Upload a call recording, get a structured report with intent, sentiment, hallucination detection, outcome, and quality metrics. A 7-layer validation harness catches LLM errors before they reach your dashboard — deterministic rules, not another LLM call. Supports Deepgram, Gemini, Whisper (STT) and OpenAI, Anthropic, Gemini, Groq, Ollama (LLM).
+Analyze any voice AI call recording and get: intent, sentiment, hallucination detection, policy violations, quality score, and cost — in one command. A 7-layer validation harness catches LLM errors before they reach your dashboard.
 
-## Features
+## 30-Second Demo
 
-- **Multi-Provider LLM** — OpenAI, Anthropic, Google Gemini, Groq (free), Ollama (local), Mistral
-- **3-Stage Agentic Pipeline** — Transcription → Analysis → Report with speaker classification
-- **7-Layer Validation Harness** — Catches hallucinations via schema, citations, facts, sentiment, outcome, escalation, and duplicate checks
-- **Self-Improvement Loop** — Benchmarks itself, auto-tunes weights, tracks failures over time
-- **Monitoring & Alerting** — Threshold-based alerts on hallucination rate, escalation rate, quality score
-- **QA Cohort System** — Weighted scoring, resolution criteria, pass/fail tracking
-- **Custom Extractions** — User-defined post-call analysis schemas (text, boolean, number, category)
-- **Content Guardrails** — Harmful content detection + PII redaction
-- **Streaming SSE** — Real-time pipeline progress updates
-- **Batch Processing** — Analyze multiple files with webhook callbacks
-- **Cost Tracking** — Token usage and cost per call across providers
-- **Webhook Integration** — Auto-detects 7 voice AI platforms (Vapi, Retell, Bland.ai, Bolna, Synthflow, Air.ai, generic)
+```bash
+# Install
+pip install voicescope
 
-## Validation Harness
+# Set one API key (Groq free tier works)
+export GROQ_API_KEY=gsk_your_key_here
 
-Every LLM output passes through 7 validation layers before reaching your dashboard:
+# Analyze a call
+voicescope analyze call.mp3
+```
 
-| # | Layer | What It Catches | Weight |
-|---|-------|-----------------|--------|
-| 1 | Schema Validation | Wrong types, bad enums, missing fields | 0.30 |
-| 2 | Citation Verification | Findings not grounded in transcript | 0.15 |
-| 3 | Fact Extraction | Numbers, dates, promises contradict transcript | 0.15 |
-| 4 | Sentiment Consistency | "Angry" transcript labeled "positive" | 0.10 |
-| 5 | Outcome Evidence | "Resolved" with no resolution proof | 0.10 |
-| 6 | Escalation Verification | "Escalated" with no manager mention | 0.05 |
-| 7 | Duplicate Detection | Same analysis repeated within 5 min | 0.05 |
+Output:
+```
+  Truth Score: 0.92  [PASS]  Confidence: high
 
-**Truth Score** = weighted average of all layer scores (0.0–1.0). Every API response includes a `harness` field with `truth_score`, `confidence`, `layer_scores`, and `validation_errors`.
+  Transcript:
+  Agent: How can I help you today? Customer: I want to cancel my subscription...
 
-## Quick Start
+  Intent:      cancel subscription
+  Sentiment:   negative
+  Outcome:     resolved
+```
+
+## Quick Start (Full)
 
 ```bash
 git clone https://github.com/ShivamChavan01/voicescope && cd voicescope
-cp .env.example .env    # set your API keys
-pip install -r requirements.txt
-uvicorn main:app --reload
+pip install -e .
+voicescope init          # interactive setup
+voicescope serve         # start API server at localhost:8000
 ```
 
-Open http://localhost:8000/docs for the interactive API.
+Or with Docker:
+```bash
+docker compose up -d
+```
+
+## What It Does
+
+```
+Audio File ──→ Transcription ──→ Analysis ──→ Report ──→ Validation
+                (Deepgram)      (LLM+RAG)    (LLM)      (7 layers)
+                                    │
+                              Knowledge Base
+                              (your policies)
+```
+
+**The pipeline:**
+1. **Transcribe** — Deepgram Nova-2, Gemini, or Whisper with speaker diarization
+2. **Classify speakers** — LLM identifies agent vs customer
+3. **Analyze** — Intent, sentiment, hallucination detection, outcome, escalation
+4. **Ground in your policies** — RAG against your knowledge base (refund rules, compliance, etc.)
+5. **Generate report** — Quality score, findings, recommendations
+6. **Validate** — 7-layer harness catches LLM errors (wrong types, ungrounded claims, contradictions)
+
+## Validation Harness
+
+Every LLM output passes 7 deterministic checks before reaching your dashboard:
+
+| # | Layer | Catches | Weight |
+|---|-------|---------|--------|
+| 1 | Schema | Wrong types, bad enums, missing fields | 0.30 |
+| 2 | Citations | Findings not in the transcript | 0.15 |
+| 3 | Facts | Numbers/dates contradict transcript | 0.15 |
+| 4 | Sentiment | "Angry" transcript labeled "positive" | 0.10 |
+| 5 | Outcome | "Resolved" with no resolution evidence | 0.10 |
+| 6 | Escalation | "Escalated" with no manager mention | 0.05 |
+| 7 | Duplicate | Same analysis repeated within 5 min | 0.05 |
+
+**Truth Score** = weighted average (0.0–1.0). Every response includes `harness.truth_score`.
+
+## CLI Commands
+
+```bash
+voicescope analyze <file>       # Analyze a call recording
+voicescope analyze <file> --json # Output raw JSON
+voicescope serve                 # Start API server
+voicescope init                  # Interactive setup
+voicescope status                # Check dependencies & config
+```
 
 ## Configuration
 
-Set your LLM provider in `.env`:
-
 ```bash
-# Providers: openai, anthropic, gemini, groq, ollama, mistral
-LLM_PROVIDER=groq
-
-# API keys (only need the one you're using)
-GROQ_API_KEY=gsk_...           # Free tier: llama-3.3-70b-versatile
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=...
-
-# STT providers (auto-detected)
-DEEPGRAM_API_KEY=...           # Nova-2 with diarization ($200 free credits)
-
-# Auth (required — server returns 503 if not set)
-VALID_API_KEYS=your-key-1,your-key-2
+# .env (run voicescope init for interactive setup)
+LLM_PROVIDER=groq               # openai, anthropic, gemini, groq, ollama, mistral
+GROQ_API_KEY=gsk_...            # Free tier: llama-3.3-70b-versatile
+DEEPGRAM_API_KEY=...            # Nova-2 with diarization ($200 free credits)
+VALID_API_KEYS=your-key         # Required — server returns 503 if not set
 ```
 
 | Provider | Default Model | Cost |
@@ -79,54 +109,47 @@ VALID_API_KEYS=your-key-1,your-key-2
 | Gemini | `gemini-1.5-pro` | $1.25/$5.00 per 1M tokens |
 | Ollama | `llama3.1` | Free (local) |
 
-## How It Works
-
-```
-Audio File
-    │
-    ▼
-┌─────────────────────┐
-│  TranscriptionAgent │  ← Deepgram Nova-2 / Gemini / Whisper
-│  (audio → text)      │
-└─────────────────────┘
-    │
-    ▼
-┌─────────────────────┐
-│   AnalysisAgent     │  ← Configurable LLM + RAG (ChromaDB)
-│  intent / sentiment  │
-│  hallucination       │
-│  outcome / escalation│
-└─────────────────────┘
-    │
-    ▼
-┌─────────────────────┐
-│    ReportAgent      │  ← Configurable LLM structured output
-│  quality score       │
-│  findings + recs     │
-└─────────────────────┘
-    │
-    ▼
-┌─────────────────────┐
-│  Validation Harness │  ← 7-layer rule-based checks
-│  truth_score         │
-│  confidence + errors │
-└─────────────────────┘
-    │
-    ▼
-  Structured JSON Report
-```
-
 ## API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/analyze` | POST | Upload audio → full pipeline analysis |
-| `/api/v1/analyze/stream` | POST | SSE streaming analysis |
-| `/api/v1/runs` | GET | List analyzed calls with harness scores |
-| `/api/v1/webhooks/call-completed` | POST | Receive webhooks from voice AI platforms |
+| `/api/v1/analyze` | POST | Upload audio → full analysis |
+| `/api/v1/analyze/stream` | POST | SSE streaming with progress |
+| `/api/v1/runs` | GET | List analyzed calls |
+| `/api/v1/webhooks/call-completed` | POST | Auto-detect 7 voice AI platforms |
 | `/api/v1/harness/status` | GET | Validation harness state |
 
-See [BACKEND.md](BACKEND.md) for the full 33-endpoint API reference.
+See [BACKEND.md](BACKEND.md) for the full 33-endpoint reference.
+
+## Features
+
+- **Multi-Provider LLM** — OpenAI, Anthropic, Gemini, Groq, Ollama, Mistral
+- **3-Stage Pipeline** — Transcription → Analysis → Report with speaker classification
+- **Knowledge Base Grounding** — RAG against your policies for hallucination detection
+- **Monitoring & Alerting** — Threshold-based alerts on hallucination rate, quality score
+- **QA Cohorts** — Weighted scoring, resolution criteria, pass/fail tracking
+- **Custom Extractions** — User-defined post-call analysis schemas
+- **Content Guardrails** — Harmful content detection + PII redaction
+- **Streaming SSE** — Real-time pipeline progress
+- **Batch Processing** — Analyze multiple files with webhook callbacks
+- **Cost Tracking** — Token usage and cost per call across providers
+- **PostgreSQL + SQLite** — Production DB with local fallback
+
+## Architecture
+
+```
+voicescope/
+├── agents/              # Transcription, Speaker, Analysis, Report agents
+├── api/                 # FastAPI routes, SSE streaming, webhook handlers
+├── core/                # Pipeline, harness, knowledge base, batch processing
+├── llm_providers/       # OpenAI, Anthropic, Gemini, Groq, Ollama, Mistral
+├── stt_providers/       # Deepgram, Whisper, Gemini STT
+├── storage/             # PostgreSQL/SQLite stores, ChromaDB vector store
+├── middleware/          # Auth, rate limiting
+├── tests/               # 267 tests (unit, integration, e2e)
+├── cli.py               # CLI entry point
+└── main.py              # FastAPI app
+```
 
 ## Deploy
 
@@ -134,7 +157,7 @@ See [BACKEND.md](BACKEND.md) for the full 33-endpoint API reference.
 # Docker
 docker build -t voicescope . && docker run -p 8000:8000 --env-file .env voicescope
 
-# Docker Compose
+# Docker Compose (with PostgreSQL)
 docker compose up -d
 
 # Railway

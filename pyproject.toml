@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicescope"
-version = "2.3.0"
-description = "Open source observability API for voice AI agents"
+version = "2.4.0"
+description = "Voice AI observability — catch hallucinations before your users do"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
@@ -25,6 +25,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "asyncpg>=0.29.0",
 ]
+
+[project.scripts]
+voicescope = "cli:main"
 
 [project.optional-dependencies]
 dev = [
