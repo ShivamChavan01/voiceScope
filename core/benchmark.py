@@ -81,8 +81,7 @@ class HarnessBenchmark:
         test_id = case.get("id", "unknown")
         name = case.get("name", "")
 
-        # Build a mock analysis output (simulates what LLM would produce)
-        # In production, you'd actually run the LLM here
+        # Build analysis output from labeled ground-truth (not live LLM)
         mock_analysis = {
             "intent": expected.get("intent", ""),
             "sentiment_arc": expected.get("sentiment_arc", "neutral"),
@@ -112,7 +111,7 @@ class HarnessBenchmark:
             layer_scores=harness_result.layer_scores,
             sentiment_correct=sent_result.consistent,
             outcome_correct=out_result.has_evidence,
-            hallucination_correct=True,  # would need LLM to test this
+            hallucination_correct=True,  # harness validates structure, not content
             escalation_correct=esc_result.has_evidence or not expected.get("escalation_signal", False),
             citation_coverage=cite_result.coverage,
             fact_accuracy=fact_result.accuracy,
