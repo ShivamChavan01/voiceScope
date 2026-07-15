@@ -65,34 +65,43 @@ def get_extraction_store():
 
 async def _log_cost(result: dict):
     """Log LLM cost for a pipeline result."""
-    if result.get("provider", {}).get("name"):
-        p = result["provider"]
-        await get_cost_store().log_cost(
-            run_id=result["run_id"],
-            provider=p["name"],
-            model=p["model"],
-            input_tokens=p["input_tokens"],
-            output_tokens=p["output_tokens"],
-            cost_usd=p["cost_usd"],
-        )
+    try:
+        if result.get("provider", {}).get("name"):
+            p = result["provider"]
+            await get_cost_store().log_cost(
+                run_id=result["run_id"],
+                provider=p["name"],
+                model=p["model"],
+                input_tokens=p["input_tokens"],
+                output_tokens=p["output_tokens"],
+                cost_usd=p["cost_usd"],
+            )
+    except Exception:
+        logger.exception("[Routes] failed to log cost")
 
 
 async def _log_metrics(result: dict):
     """Log call metrics for monitoring."""
-    await get_monitoring_store().log_call(result)
+    try:
+        await get_monitoring_store().log_call(result)
+    except Exception:
+        logger.exception("[Routes] failed to log metrics")
 
 
 async def _log_run(result: dict, harness_result=None):
     """Log run metadata for the Runs page."""
-    harness_obj = None
-    if harness_result:
-        if isinstance(harness_result, dict):
-            from core.harness import HarnessResult
-            harness_obj = HarnessResult(**harness_result)
-        else:
-            harness_obj = harness_result
-    await get_monitoring_store().log_run(result, harness_obj)
-    await _create_incidents_for_run(result)
+    try:
+        harness_obj = None
+        if harness_result:
+            if isinstance(harness_result, dict):
+                from core.harness import HarnessResult
+                harness_obj = HarnessResult(**harness_result)
+            else:
+                harness_obj = harness_result
+        await get_monitoring_store().log_run(result, harness_obj)
+        await _create_incidents_for_run(result)
+    except Exception:
+        logger.exception("[Routes] failed to log run")
 
 
 async def _create_incidents_for_run(result: dict):

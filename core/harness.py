@@ -213,6 +213,7 @@ class ValidationHarness:
 
     def validate_pipeline(self, ctx) -> HarnessResult:
         """Run full harness on pipeline context. Returns aggregated result."""
+        ctx.report = ctx.report or {}
         analysis = ctx.report.get("analysis", {})
         transcript = getattr(ctx, "raw_transcript", "") or ""
 

@@ -110,7 +110,9 @@ CREATE TABLE IF NOT EXISTS alert_incidents (
 CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_run_id ON runs(run_id);
 CREATE INDEX IF NOT EXISTS idx_call_metrics_created_at ON call_metrics(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_metrics_run_id ON call_metrics(run_id);
 CREATE INDEX IF NOT EXISTS idx_cost_logs_created_at ON cost_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cost_logs_run_id ON cost_logs(run_id);
 CREATE INDEX IF NOT EXISTS idx_alert_incidents_triggered_at ON alert_incidents(triggered_at DESC);
 """
 
