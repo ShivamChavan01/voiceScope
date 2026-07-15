@@ -17,7 +17,7 @@ class AnthropicProvider(LLMProvider):
     default_model = "claude-sonnet-4-20250514"
 
     def __init__(self):
-        self.client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"), timeout=60.0)
 
     async def complete(
         self,

@@ -33,6 +33,9 @@ class MistralProvider(LLMProvider):
             temperature=temperature,
         )
 
+        if not response.choices:
+            raise ValueError("LLM returned no choices")
+
         content = response.choices[0].message.content or ""
         input_tokens = response.usage.prompt_tokens if response.usage else 0
         output_tokens = response.usage.completion_tokens if response.usage else 0

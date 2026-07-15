@@ -4,7 +4,7 @@ import httpx
 from datetime import datetime, timezone
 from core.pipeline import VoiceScopePipeline
 from utils.logger import logger
-from utils.security import validate_callback_url
+from utils.security import validate_callback_url_async
 from typing import Optional
 
 
@@ -26,7 +26,7 @@ class BatchProcessor:
             oldest = list(batches.keys())[0]
             del batches[oldest]
 
-        if callback_url and not validate_callback_url(callback_url):
+        if callback_url and not await validate_callback_url_async(callback_url):
             raise ValueError("Invalid callback_url: must be HTTPS and not target private IPs")
 
         batch_id = str(uuid.uuid4())

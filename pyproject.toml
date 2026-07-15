@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicescope"
@@ -23,6 +23,7 @@ dependencies = [
     "loguru>=0.7.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.9",
+    "asyncpg>=0.29.0",
 ]
 
 [project.optional-dependencies]

@@ -25,12 +25,14 @@ class ChromaStore:
             self.client = None
             self.collection = None
 
-    async def store(self, doc_id: str, text: str, metadata: dict = {}):
+    async def store(self, doc_id: str, text: str, metadata: dict = None):
         """Store a transcript for future RAG retrieval."""
         if not self.collection:
             return
+        if metadata is None:
+            metadata = {}
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 None,
                 partial(self.collection.upsert, ids=[doc_id], documents=[text], metadatas=[metadata]),
@@ -44,7 +46,7 @@ class ChromaStore:
         if not self.collection:
             return []
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             results = await loop.run_in_executor(
                 None, partial(self.collection.query, query_texts=[text], n_results=n_results)
             )

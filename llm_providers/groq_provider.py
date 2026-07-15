@@ -41,6 +41,9 @@ class GroqProvider(LLMProvider):
 
         response = await self.client.chat.completions.create(**kwargs)
 
+        if not response.choices:
+            raise ValueError("LLM returned no choices")
+
         choice = response.choices[0]
         usage = response.usage
 

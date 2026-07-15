@@ -1,5 +1,6 @@
 import os
 import json
+from contextlib import closing
 from pathlib import Path
 from typing import Optional
 from utils.logger import logger
@@ -9,13 +10,8 @@ from storage.db import get_pool
 class MonitoringStore:
     """Monitoring & alerting store. Tracks metrics and fires threshold-based alerts."""
 
-    def __init__(self):
-        self._pg_pool = None
-
     async def _get_pool(self):
-        if self._pg_pool is None:
-            self._pg_pool = await get_pool()
-        return self._pg_pool
+        return await get_pool()
 
     # ── Runs CRUD ─────────────────────────────────────────────────
 
@@ -247,21 +243,21 @@ class MonitoringStore:
         metric = rule["metric"]
         comparator = rule["comparator"]
         threshold = rule["threshold"]
-        window = rule.get("window_minutes", 60)
+        window = int(rule.get("window_minutes", 60))
 
         queries = {
-            "hallucination_rate": f"SELECT AVG(hallucination_detected) as val FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window} minutes'",
-            "escalation_rate": f"SELECT AVG(escalation_signal) as val FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window} minutes'",
-            "avg_quality_score": f"SELECT AVG(quality_score) as val FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window} minutes' AND quality_score IS NOT NULL",
-            "avg_cost": f"SELECT AVG(cost_usd) as val FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window} minutes'",
-            "total_calls": f"SELECT COUNT(*) as val FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window} minutes'",
-            "negative_sentiment_rate": f"SELECT AVG(CASE WHEN sentiment_arc LIKE '%negative%' OR sentiment_arc LIKE '%angry%' OR sentiment_arc LIKE '%frustrated%' THEN 1.0 ELSE 0.0 END) as val FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window} minutes'",
+            "hallucination_rate": "SELECT AVG(hallucination_detected) as val FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval",
+            "escalation_rate": "SELECT AVG(escalation_signal) as val FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval",
+            "avg_quality_score": "SELECT AVG(quality_score) as val FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval AND quality_score IS NOT NULL",
+            "avg_cost": "SELECT AVG(cost_usd) as val FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval",
+            "total_calls": "SELECT COUNT(*) as val FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval",
+            "negative_sentiment_rate": "SELECT AVG(CASE WHEN sentiment_arc LIKE '%negative%' OR sentiment_arc LIKE '%angry%' OR sentiment_arc LIKE '%frustrated%' THEN 1.0 ELSE 0.0 END) as val FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval",
         }
 
         if metric not in queries:
             return None
 
-        row = await conn.fetchrow(queries[metric])
+        row = await conn.fetchrow(queries[metric], str(window))
         if not row or row[0] is None:
             return None
 
@@ -305,19 +301,23 @@ class MonitoringStore:
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
 
     async def _get_metrics_pg(self, pool, window_minutes) -> dict:
+        window = int(window_minutes)
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                f"""SELECT COUNT(*) as total_calls, AVG(quality_score) as avg_quality, AVG(cost_usd) as avg_cost,
+                """SELECT COUNT(*) as total_calls, AVG(quality_score) as avg_quality, AVG(cost_usd) as avg_cost,
                     SUM(cost_usd) as total_cost, AVG(hallucination_detected) as hallucination_rate,
                     AVG(escalation_signal) as escalation_rate, AVG(duration_seconds) as avg_duration,
                     AVG(word_count) as avg_word_count
-                FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window_minutes} minutes'"""
+                FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval""",
+                str(window),
             )
             by_outcome = await conn.fetch(
-                f"SELECT outcome, COUNT(*) as count FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window_minutes} minutes' AND outcome IS NOT NULL GROUP BY outcome"
+                "SELECT outcome, COUNT(*) as count FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval AND outcome IS NOT NULL GROUP BY outcome",
+                str(window),
             )
             by_platform = await conn.fetch(
-                f"SELECT platform, COUNT(*) as count, AVG(quality_score) as avg_quality FROM call_metrics WHERE created_at >= NOW() - INTERVAL '{window_minutes} minutes' GROUP BY platform"
+                "SELECT platform, COUNT(*) as count, AVG(quality_score) as avg_quality FROM call_metrics WHERE created_at >= NOW() - ($1 || ' minutes')::interval GROUP BY platform",
+                str(window),
             )
 
         return {
@@ -341,7 +341,56 @@ class MonitoringStore:
         db_path = os.getenv("MONITORING_DB_PATH", str(Path(data_dir) / "monitoring.db"))
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT UNIQUE NOT NULL,
+                intent TEXT, sentiment TEXT, outcome TEXT,
+                hallucination_detected INTEGER DEFAULT 0,
+                escalation_signal INTEGER DEFAULT 0,
+                truth_score REAL, confidence TEXT, quality_score REAL,
+                cost_usd REAL DEFAULT 0.0, provider TEXT, model TEXT,
+                duration_seconds REAL, word_count INTEGER,
+                transcript_preview TEXT, transcript_speakers TEXT,
+                layer_scores TEXT, status TEXT DEFAULT 'completed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS call_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                platform TEXT, intent TEXT, sentiment_arc TEXT, outcome TEXT,
+                hallucination_detected INTEGER DEFAULT 0,
+                escalation_signal INTEGER DEFAULT 0,
+                quality_score REAL, cost_usd REAL DEFAULT 0.0,
+                duration_seconds REAL, word_count INTEGER,
+                provider TEXT, model TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS alert_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL, metric TEXT NOT NULL,
+                comparator TEXT NOT NULL, threshold REAL NOT NULL,
+                window_minutes INTEGER DEFAULT 60, enabled INTEGER DEFAULT 1,
+                notify_url TEXT, notify_email TEXT,
+                last_triggered TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS alert_incidents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER, metric_value REAL, message TEXT,
+                status TEXT DEFAULT 'active',
+                triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP
+            )
+        """)
+        conn.commit()
+        return closing(conn)
 
     async def _log_run_sqlite(self, result, analysis, provider_data, transcript_meta, truth_score, confidence, quality_score, status, layer_scores_json, transcript_speakers_json, transcript_preview):
         import sqlite3
@@ -396,7 +445,7 @@ class MonitoringStore:
         for f in ("layer_scores", "transcript_speakers"):
             if d.get(f):
                 try: d[f] = json.loads(d[f])
-                except: d[f] = None
+                except (json.JSONDecodeError, TypeError): d[f] = None
         return d
 
     async def _log_call_sqlite(self, result, analysis, provider_data, quality_score):
@@ -426,27 +475,30 @@ class MonitoringStore:
         return triggered
 
     async def _evaluate_rule_sqlite(self, conn, rule) -> Optional[float]:
-        metric, comparator, threshold, window = rule["metric"], rule["comparator"], rule["threshold"], rule.get("window_minutes", 60)
+        metric, comparator, threshold = rule["metric"], rule["comparator"], rule["threshold"]
+        window = int(rule.get("window_minutes", 60))
         queries = {
-            "hallucination_rate": f"SELECT AVG(hallucination_detected) as val FROM call_metrics WHERE created_at >= datetime('now', '-{window} minutes')",
-            "escalation_rate": f"SELECT AVG(escalation_signal) as val FROM call_metrics WHERE created_at >= datetime('now', '-{window} minutes')",
-            "avg_quality_score": f"SELECT AVG(quality_score) as val FROM call_metrics WHERE created_at >= datetime('now', '-{window} minutes') AND quality_score IS NOT NULL",
-            "avg_cost": f"SELECT AVG(cost_usd) as val FROM call_metrics WHERE created_at >= datetime('now', '-{window} minutes')",
-            "total_calls": f"SELECT COUNT(*) as val FROM call_metrics WHERE created_at >= datetime('now', '-{window} minutes')",
-            "negative_sentiment_rate": f"SELECT AVG(CASE WHEN sentiment_arc LIKE '%negative%' OR sentiment_arc LIKE '%angry%' OR sentiment_arc LIKE '%frustrated%' THEN 1.0 ELSE 0.0 END) as val FROM call_metrics WHERE created_at >= datetime('now', '-{window} minutes')",
+            "hallucination_rate": "SELECT AVG(hallucination_detected) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
+            "escalation_rate": "SELECT AVG(escalation_signal) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
+            "avg_quality_score": "SELECT AVG(quality_score) as val FROM call_metrics WHERE created_at >= datetime('now', ?) AND quality_score IS NOT NULL",
+            "avg_cost": "SELECT AVG(cost_usd) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
+            "total_calls": "SELECT COUNT(*) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
+            "negative_sentiment_rate": "SELECT AVG(CASE WHEN sentiment_arc LIKE '%negative%' OR sentiment_arc LIKE '%angry%' OR sentiment_arc LIKE '%frustrated%' THEN 1.0 ELSE 0.0 END) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
         }
         if metric not in queries: return None
-        row = conn.execute(queries[metric]).fetchone()
+        row = conn.execute(queries[metric], (f"-{window} minutes",)).fetchone()
         if not row or row[0] is None: return None
         val = float(row[0])
         ops = {"gt": val > threshold, "lt": val < threshold, "gte": val >= threshold, "lte": val <= threshold, "eq": val == threshold}
         return val if ops.get(comparator, False) else None
 
     async def _get_metrics_sqlite(self, window_minutes) -> dict:
+        window = int(window_minutes)
+        time_filter = f"-{window} minutes"
         with self._sqlite_conn() as conn:
-            row = conn.execute(f"SELECT COUNT(*) as total_calls, AVG(quality_score) as avg_quality, AVG(cost_usd) as avg_cost, SUM(cost_usd) as total_cost, AVG(hallucination_detected) as hallucination_rate, AVG(escalation_signal) as escalation_rate, AVG(duration_seconds) as avg_duration, AVG(word_count) as avg_word_count FROM call_metrics WHERE created_at >= datetime('now', '-{window_minutes} minutes')").fetchone()
-            by_outcome = conn.execute(f"SELECT outcome, COUNT(*) as count FROM call_metrics WHERE created_at >= datetime('now', '-{window_minutes} minutes') AND outcome IS NOT NULL GROUP BY outcome").fetchall()
-            by_platform = conn.execute(f"SELECT platform, COUNT(*) as count, AVG(quality_score) as avg_quality FROM call_metrics WHERE created_at >= datetime('now', '-{window_minutes} minutes') GROUP BY platform").fetchall()
+            row = conn.execute("SELECT COUNT(*) as total_calls, AVG(quality_score) as avg_quality, AVG(cost_usd) as avg_cost, SUM(cost_usd) as total_cost, AVG(hallucination_detected) as hallucination_rate, AVG(escalation_signal) as escalation_rate, AVG(duration_seconds) as avg_duration, AVG(word_count) as avg_word_count FROM call_metrics WHERE created_at >= datetime('now', ?)", (time_filter,)).fetchone()
+            by_outcome = conn.execute("SELECT outcome, COUNT(*) as count FROM call_metrics WHERE created_at >= datetime('now', ?) AND outcome IS NOT NULL GROUP BY outcome", (time_filter,)).fetchall()
+            by_platform = conn.execute("SELECT platform, COUNT(*) as count, AVG(quality_score) as avg_quality FROM call_metrics WHERE created_at >= datetime('now', ?) GROUP BY platform", (time_filter,)).fetchall()
         return {
             "window_minutes": window_minutes, "total_calls": row["total_calls"] if row else 0,
             "avg_quality_score": round(row["avg_quality"], 2) if row and row["avg_quality"] else None,

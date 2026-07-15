@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_KEY = process.env.API_KEY || "";
+
+const ALLOWED_PREFIXES = [
+  "/api/v1/runs",
+  "/api/v1/monitoring",
+  "/api/v1/analyze",
+  "/api/v1/extractions",
+  "/api/v1/qa",
+  "/api/v1/guardrails",
+  "/api/v1/health",
+  "/api/v1/costs",
+  "/api/v1/harness",
+  "/api/v1/loop",
+  "/api/v1/batch",
+  "/api/v1/webhooks",
+];
 
 const ALLOWED_RESPONSE_HEADERS = new Set([
   "content-type",
@@ -14,6 +29,9 @@ async function proxyRequest(
   path: string[]
 ) {
   const targetPath = `/api/${path.join("/")}`;
+  if (!ALLOWED_PREFIXES.some((p) => targetPath.startsWith(p))) {
+    return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
+  }
   const targetUrl = new URL(targetPath, BACKEND_URL);
 
   request.nextUrl.searchParams.forEach((value, key) => {

@@ -1,6 +1,10 @@
 import os
 
 os.environ["VALID_API_KEYS"] = "test-key"
+os.environ["DATABASE_URL"] = ""
+
+import middleware.auth
+middleware.auth._VALID_KEYS = frozenset(["test-key"])
 
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
@@ -121,6 +125,7 @@ def _mock_httpx_client(response=None):
         response = _mock_httpx_response()
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=response)
+    mock_client.head = AsyncMock(return_value=response)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     return mock_client

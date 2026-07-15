@@ -2,6 +2,10 @@ import os
 import pytest
 
 os.environ["VALID_API_KEYS"] = "test-key"
+os.environ["DATABASE_URL"] = ""
+
+import middleware.auth
+middleware.auth._VALID_KEYS = frozenset(["test-key"])
 
 from fastapi.testclient import TestClient
 from main import app

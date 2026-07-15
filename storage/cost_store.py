@@ -1,17 +1,13 @@
 import os
+from contextlib import closing
 from pathlib import Path
 from utils.logger import logger
 from storage.db import get_pool
 
 
 class CostStore:
-    def __init__(self):
-        self._pg_pool = None
-
     async def _get_pool(self):
-        if self._pg_pool is None:
-            self._pg_pool = await get_pool()
-        return self._pg_pool
+        return await get_pool()
 
     async def log_cost(
         self,
@@ -78,7 +74,7 @@ class CostStore:
             "cost_usd REAL DEFAULT 0.0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         )
         conn.commit()
-        return conn
+        return closing(conn)
 
     async def _log_cost_sqlite(self, run_id, provider, model, input_tokens, output_tokens, cost_usd):
         with self._sqlite_conn() as conn:

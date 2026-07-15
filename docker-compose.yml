@@ -9,7 +9,7 @@ services:
       - .env
     environment:
       - DATA_DIR=/app/data
-      - DATABASE_URL=postgresql://voicescope:voicescope@postgres:5432/voicescope
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-voicescope}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-voicescope}
     volumes:
       - voicescope_data:/app/data
     depends_on:
@@ -25,13 +25,11 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: voicescope
-      POSTGRES_PASSWORD: voicescope
-      POSTGRES_DB: voicescope
+      POSTGRES_USER: ${POSTGRES_USER:-voicescope}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-voicescope}
     volumes:
       - pg_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U voicescope"]

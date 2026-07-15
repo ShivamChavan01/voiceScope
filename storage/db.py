@@ -1,9 +1,18 @@
 import os
+import asyncio
 import asyncpg
 from typing import Optional
 from utils.logger import logger
 
 _pool: Optional[asyncpg.Pool] = None
+_pool_lock: Optional[asyncio.Lock] = None
+
+
+def _get_lock() -> asyncio.Lock:
+    global _pool_lock
+    if _pool_lock is None:
+        _pool_lock = asyncio.Lock()
+    return _pool_lock
 
 
 async def get_pool() -> Optional[asyncpg.Pool]:
@@ -11,14 +20,15 @@ async def get_pool() -> Optional[asyncpg.Pool]:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         return None
-    if _pool is None or _pool._closed:
-        _pool = await asyncpg.create_pool(
-            database_url,
-            min_size=2,
-            max_size=10,
-            command_timeout=30,
-        )
-        logger.info("[DB] PostgreSQL pool connected")
+    async with _get_lock():
+        if _pool is None or _pool._closed:
+            _pool = await asyncpg.create_pool(
+                database_url,
+                min_size=2,
+                max_size=10,
+                command_timeout=30,
+            )
+            logger.info("[DB] PostgreSQL pool connected")
     return _pool
 
 

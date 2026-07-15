@@ -2,6 +2,7 @@ import json
 from typing import AsyncGenerator
 from core.pipeline import VoiceScopePipeline
 from core.context import PipelineContext
+from utils.logger import logger
 
 
 async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[str, None]:
@@ -23,4 +24,5 @@ async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[s
 
         yield f"data: {json.dumps({'event': 'complete', 'result': ctx.report})}\n\n"
     except Exception as e:
-        yield f"data: {json.dumps({'event': 'error', 'detail': str(e)})}\n\n"
+        logger.exception("[SSE] stream_analysis failed")
+        yield f"data: {json.dumps({'event': 'error', 'detail': 'Analysis failed'})}\n\n"

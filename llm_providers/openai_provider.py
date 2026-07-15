@@ -17,7 +17,7 @@ class OpenAIProvider(LLMProvider):
     default_model = "gpt-4o"
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60.0)
 
     async def complete(
         self,
@@ -40,6 +40,9 @@ class OpenAIProvider(LLMProvider):
 
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
+
+        if not response.choices:
+            raise ValueError("LLM returned no choices")
 
         return CompletionResult(
             content=response.choices[0].message.content or "",
