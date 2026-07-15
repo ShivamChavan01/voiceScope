@@ -49,5 +49,5 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def _get_client_ip(self, request: Request) -> str:
         if request.client:
-            return request.client.host
+            return str(request.client.host)
         return "unknown"
