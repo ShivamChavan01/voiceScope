@@ -35,13 +35,46 @@ def _ensure_data_dir():
 
 
 def _print_banner():
-    print("\033[1;36m")
-    print("     __      __  ______   ______   ___  ____ ")
-    print(r"     \ \    / / / ___\ \ / /___ \ / _ \/ ___|")
-    print(r"      \ \/\/ / | |    \ V /  __) | | | \___ \ ")
-    print(r"       \_/\_/  |_|     |_| |____/|_| |_|\___/ ")
-    print("\033[0m")
-    print("  \033[2mcatch hallucinations before your users do\033[0m\n")
+    import time
+    RESET = "\033[0m"
+    lines = [
+        " __   _____ ___ ___ ___ ___  ___ ___  ___ ___ ",
+        " \\ \\ / / _ \\_ _/ __| __/ __|/ __/ _ \\| _ \\ __|",
+        "  \\ V / (_) | | (__| _|\\__ \\ (_| (_) |  _/ _| ",
+        "   \\_/ \\___/___\\___|___|___/\\___\\___/|_| |___|",
+    ]
+    palette = [223, 216, 209, 208, 202, 166, 202, 208, 209, 216]
+    N = len(lines)
+    WIDTH = max(len(l) for l in lines)
+
+    sys.stdout.write("\033[?25l")
+    try:
+        for col in range(1, WIDTH + 1):
+            frame = []
+            for i, line in enumerate(lines):
+                c = palette[i % len(palette)]
+                visible = line[:col]
+                frame.append(f"\033[38;5;{c}m{visible}{RESET}")
+            sys.stdout.write("\r" + "\n".join(frame))
+            sys.stdout.flush()
+            if col < WIDTH:
+                sys.stdout.write(f"\033[{N - 1}F")
+            time.sleep(0.004)
+
+        for f in range(1, 8):
+            time.sleep(0.03)
+            sys.stdout.write(f"\033[{N - 1}F\r")
+            out = []
+            for i, line in enumerate(lines):
+                c = palette[(i + f) % len(palette)]
+                out.append(f"\033[38;5;{c}m{line}{RESET}")
+            sys.stdout.write("\n".join(out))
+            sys.stdout.flush()
+
+        print()
+        print(f"\033[38;5;209mcatch hallucinations before your users do{RESET}\n")
+    finally:
+        sys.stdout.write("\033[?25h")
 
 
 def _format_report(result: dict) -> str:
