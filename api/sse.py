@@ -23,6 +23,6 @@ async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[s
         yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'report', 'run_id': ctx.run_id})}\n\n"
 
         yield f"data: {json.dumps({'event': 'complete', 'result': ctx.report})}\n\n"
-    except Exception as e:
+    except Exception:
         logger.exception("[SSE] stream_analysis failed")
         yield f"data: {json.dumps({'event': 'error', 'detail': 'Analysis failed'})}\n\n"

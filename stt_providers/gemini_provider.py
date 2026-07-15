@@ -36,7 +36,7 @@ class GeminiSTTProvider(STTProvider):
                     config=types.GenerateContentConfig(temperature=0.0),
                 )
 
-                transcript = response.text.strip()
+                transcript = (response.text or "").strip()
                 speakers = [{"speaker": 0, "text": transcript}]
                 logger.info(f"[STT:gemini] done — {len(transcript)} chars")
                 return TranscriptionResult(transcript=transcript, speakers=speakers)
@@ -49,3 +49,4 @@ class GeminiSTTProvider(STTProvider):
                     await asyncio.sleep(wait)
                     continue
                 raise
+        raise RuntimeError("Gemini transcription failed after all retries")

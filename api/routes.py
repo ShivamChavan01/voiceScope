@@ -355,7 +355,7 @@ async def webhook_call_completed(request: Request):
                 audio_bytes += chunk
                 if len(audio_bytes) > 25 * 1024 * 1024:
                     raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPStatusError:
         raise HTTPException(
             status_code=402, detail="Failed to download recording"
         )

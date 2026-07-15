@@ -193,7 +193,7 @@ class ValidationHarness:
 
         # Evict old hashes (keep last 1000)
         if len(self._seen_hashes) > 1000:
-            oldest = sorted(self._seen_hashes, key=self._seen_hashes.get)[:500]
+            oldest = sorted(self._seen_hashes, key=lambda k: self._seen_hashes.get(k, 0))[:500]
             for k in oldest:
                 del self._seen_hashes[k]
 

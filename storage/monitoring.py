@@ -94,7 +94,7 @@ class MonitoringStore:
         if pool:
             async with pool.acquire() as conn:
                 result = await conn.execute("DELETE FROM runs WHERE run_id = $1", run_id)
-                return result.endswith("1")
+                return bool(result.endswith("1"))
         return await self._delete_run_sqlite(run_id)
 
     async def get_runs(self, limit: int = 50, offset: int = 0, search: Optional[str] = None, status: Optional[str] = None) -> dict:
@@ -197,7 +197,7 @@ class MonitoringStore:
                     "INSERT INTO alert_rules (name, metric, comparator, threshold, window_minutes, notify_url, notify_email) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
                     name, metric, comparator, threshold, window_minutes, notify_url, notify_email,
                 )
-                return row["id"]
+                return int(row["id"])
         return await self._create_rule_sqlite(name, metric, comparator, threshold, window_minutes, notify_url, notify_email)
 
     async def list_rules(self) -> list[dict]:
@@ -213,7 +213,7 @@ class MonitoringStore:
         if pool:
             async with pool.acquire() as conn:
                 result = await conn.execute("DELETE FROM alert_rules WHERE id = $1", rule_id)
-                return result.endswith("1")
+                return bool(result.endswith("1"))
         return await self._delete_rule_sqlite(rule_id)
 
     async def list_incidents(self, limit: int = 50) -> list[dict]:
@@ -393,7 +393,6 @@ class MonitoringStore:
         return closing(conn)
 
     async def _log_run_sqlite(self, result, analysis, provider_data, transcript_meta, truth_score, confidence, quality_score, status, layer_scores_json, transcript_speakers_json, transcript_preview):
-        import sqlite3
         with self._sqlite_conn() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO runs (run_id, intent, sentiment, outcome, hallucination_detected,
@@ -413,7 +412,7 @@ class MonitoringStore:
         with self._sqlite_conn() as conn:
             cursor = conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
             conn.commit()
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount > 0)
 
     async def _get_runs_sqlite(self, limit, offset, search, status) -> dict:
         with self._sqlite_conn() as conn:
@@ -432,20 +431,25 @@ class MonitoringStore:
             d = dict(r)
             for f in ("layer_scores", "transcript_speakers"):
                 if d.get(f):
-                    try: d[f] = json.loads(d[f])
-                    except (json.JSONDecodeError, TypeError): d[f] = None
+                    try:
+                        d[f] = json.loads(d[f])
+                    except (json.JSONDecodeError, TypeError):
+                        d[f] = None
             runs.append(d)
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
 
     async def _get_run_sqlite(self, run_id) -> Optional[dict]:
         with self._sqlite_conn() as conn:
             row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-        if not row: return None
+        if not row:
+            return None
         d = dict(row)
         for f in ("layer_scores", "transcript_speakers"):
             if d.get(f):
-                try: d[f] = json.loads(d[f])
-                except (json.JSONDecodeError, TypeError): d[f] = None
+                try:
+                    d[f] = json.loads(d[f])
+                except (json.JSONDecodeError, TypeError):
+                    d[f] = None
         return d
 
     async def _log_call_sqlite(self, result, analysis, provider_data, quality_score):
@@ -485,9 +489,11 @@ class MonitoringStore:
             "total_calls": "SELECT COUNT(*) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
             "negative_sentiment_rate": "SELECT AVG(CASE WHEN sentiment_arc LIKE '%negative%' OR sentiment_arc LIKE '%angry%' OR sentiment_arc LIKE '%frustrated%' THEN 1.0 ELSE 0.0 END) as val FROM call_metrics WHERE created_at >= datetime('now', ?)",
         }
-        if metric not in queries: return None
+        if metric not in queries:
+            return None
         row = conn.execute(queries[metric], (f"-{window} minutes",)).fetchone()
-        if not row or row[0] is None: return None
+        if not row or row[0] is None:
+            return None
         val = float(row[0])
         ops = {"gt": val > threshold, "lt": val < threshold, "gte": val >= threshold, "lte": val <= threshold, "eq": val == threshold}
         return val if ops.get(comparator, False) else None
@@ -514,13 +520,13 @@ class MonitoringStore:
     async def _get_truth_history_sqlite(self, limit) -> list[float]:
         with self._sqlite_conn() as conn:
             rows = conn.execute("SELECT truth_score FROM runs WHERE truth_score IS NOT NULL ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
-        return [r[0] for r in reversed(rows)]
+        return [float(r[0]) for r in reversed(rows)]
 
     async def _create_rule_sqlite(self, name, metric, comparator, threshold, window_minutes, notify_url, notify_email) -> int:
         with self._sqlite_conn() as conn:
             cursor = conn.execute("INSERT INTO alert_rules (name, metric, comparator, threshold, window_minutes, notify_url, notify_email) VALUES (?,?,?,?,?,?,?)", (name, metric, comparator, threshold, window_minutes, notify_url, notify_email))
             conn.commit()
-            return cursor.lastrowid
+            return int(cursor.lastrowid)
 
     async def _list_rules_sqlite(self) -> list[dict]:
         with self._sqlite_conn() as conn:
@@ -530,7 +536,7 @@ class MonitoringStore:
         with self._sqlite_conn() as conn:
             cursor = conn.execute("DELETE FROM alert_rules WHERE id = ?", (rule_id,))
             conn.commit()
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount > 0)
 
     async def _list_incidents_sqlite(self, limit) -> list[dict]:
         with self._sqlite_conn() as conn:

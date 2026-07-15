@@ -224,7 +224,7 @@ class TestAnalysisAgent:
         assert len(turns) == 3
 
     def test_chunk_turns(self):
-        from agents.analysis_agent import _chunk_turns, _count_words
+        from agents.analysis_agent import _chunk_turns
 
         turns = ["Agent: " + "word " * 500, "Customer: " + "word " * 500]
         chunks = _chunk_turns(turns, max_words=600)

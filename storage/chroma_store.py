@@ -25,7 +25,7 @@ class ChromaStore:
             self.client = None
             self.collection = None
 
-    async def store(self, doc_id: str, text: str, metadata: dict = None):
+    async def store(self, doc_id: str, text: str, metadata: dict | None = None):
         """Store a transcript for future RAG retrieval."""
         if not self.collection:
             return

@@ -8,7 +8,7 @@ from middleware.auth import APIKeyAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 from utils.tracing import RequestContext, set_request_context
 from utils.logger import set_correlation_id, logger
-from storage.db import get_pool, init_schema, close_pool
+from storage.db import init_schema, close_pool
 import uuid
 import os
 

@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from stt_providers.registry import STTRegistry
-from stt_providers.base import TranscriptionResult
 
 
 class TestSTTRegistry:
@@ -136,7 +135,6 @@ class TestGeminiSTTProvider:
     @pytest.mark.asyncio
     async def test_transcribe_rate_limit_retries(self):
         from stt_providers.gemini_provider import GeminiSTTProvider
-        import asyncio
 
         mock_response = MagicMock()
         mock_response.text = "Success after retry"

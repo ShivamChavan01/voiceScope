@@ -1,19 +1,17 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from core.pipeline import VoiceScopePipeline
-from core.context import PipelineContext
-from core.harness import HarnessResult
 
 
 @pytest.fixture
 def pipeline():
     with patch("core.pipeline.ChromaStore"), \
          patch("core.pipeline.KnowledgeBase"), \
-         patch("core.pipeline.TranscriptionAgent") as MockTA, \
+         patch("core.pipeline.TranscriptionAgent"), \
          patch("core.pipeline.SpeakerAgent"), \
          patch("core.pipeline.AnalysisAgent"), \
          patch("core.pipeline.ReportAgent"), \
-         patch("core.pipeline.AudioQualityChecker") as MockAQC:
+         patch("core.pipeline.AudioQualityChecker"):
         p = VoiceScopePipeline()
 
         quality = MagicMock()
@@ -82,7 +80,7 @@ async def test_pipeline_transcription_failure():
          patch("core.pipeline.SpeakerAgent"), \
          patch("core.pipeline.AnalysisAgent"), \
          patch("core.pipeline.ReportAgent"), \
-         patch("core.pipeline.AudioQualityChecker") as MockAQC:
+         patch("core.pipeline.AudioQualityChecker"):
         p = VoiceScopePipeline()
 
         quality = MagicMock()

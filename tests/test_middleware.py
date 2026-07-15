@@ -1,13 +1,11 @@
 import os
 import time
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 os.environ["VALID_API_KEYS"] = "test-key-1,test-key-2"
 os.environ["DATABASE_URL"] = ""
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 from starlette.testclient import TestClient
 
 
@@ -52,12 +50,9 @@ class TestRateLimitMiddleware:
         middleware = RateLimitMiddleware(app)
         middleware.requests["test-ip"] = [time.time()] * 60
 
-        client = TestClient(app)
         with patch.object(middleware, "_get_client_ip", return_value="test-ip"):
             app.add_middleware(RateLimitMiddleware)
             # Direct test of the dispatch logic
-            from starlette.requests import Request
-            from starlette.responses import Response
 
             request = MagicMock()
             request.client.host = "test-ip"
@@ -182,7 +177,6 @@ class TestAuthMiddleware:
     def test_empty_valid_keys_returns_503(self):
         with patch.dict(os.environ, {"VALID_API_KEYS": ""}):
             from middleware.auth import APIKeyAuthMiddleware
-            import importlib
             import middleware.auth
             # Force re-evaluation of _VALID_KEYS
             old_keys = middleware.auth._VALID_KEYS

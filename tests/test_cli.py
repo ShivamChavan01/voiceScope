@@ -4,8 +4,7 @@ import pytest
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
 
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+from unittest.mock import patch
 
 
 class TestCLIHelp:

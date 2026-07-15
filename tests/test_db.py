@@ -94,7 +94,6 @@ class TestInitSchema:
 
     @pytest.mark.asyncio
     async def test_init_schema_with_pool(self):
-        from unittest.mock import MagicMock
         mock_pool = MagicMock()
         mock_pool._closed = False
         mock_conn = AsyncMock()

@@ -13,7 +13,6 @@ import sys
 import os
 import asyncio
 import json
-import signal
 from pathlib import Path
 
 # Bootstrap: set defaults before any imports
@@ -45,7 +44,7 @@ def _print_banner():
     ]
     palette = [223, 216, 209, 208, 202, 166, 202, 208, 209, 216]
     N = len(lines)
-    WIDTH = max(len(l) for l in lines)
+    WIDTH = max(len(line) for line in lines)
 
     sys.stdout.write("\033[?25l")
     try:
@@ -100,7 +99,7 @@ def _format_report(result: dict) -> str:
     transcript = result.get("raw_transcript", "")
     if transcript:
         preview = transcript[:300] + ("..." if len(transcript) > 300 else "")
-        lines.append(f"\n  Transcript:")
+        lines.append("\n  Transcript:")
         lines.append(f"  {preview}")
 
     # Analysis
@@ -122,7 +121,7 @@ def _format_report(result: dict) -> str:
     # Harness layer scores
     layer_scores = harness.get("layer_scores", {})
     if layer_scores:
-        lines.append(f"\n  Harness Layers:")
+        lines.append("\n  Harness Layers:")
         for layer, score in layer_scores.items():
             bar_len = int(score * 20)
             bar = "█" * bar_len + "░" * (20 - bar_len)
@@ -233,11 +232,11 @@ def _cmd_init():
 
     # Write
     env_path.write_text("\n".join(env_lines) + "\n")
-    print(f"\n  \033[92m✓ Config saved to .env\033[0m")
+    print("\n  \033[92m✓ Config saved to .env\033[0m")
     print(f"  \033[2mAPI key: {api_key}\033[0m")
-    print(f"\n  Next steps:")
-    print(f"    voicescope analyze test-audio/tadhack/day-21/3529f7fa-4f73-4660-86c4-95ffc0473043.mp3")
-    print(f"    voicescope serve")
+    print("\n  Next steps:")
+    print("    voicescope analyze test-audio/tadhack/day-21/3529f7fa-4f73-4660-86c4-95ffc0473043.mp3")
+    print("    voicescope serve")
 
 
 def _cmd_status():

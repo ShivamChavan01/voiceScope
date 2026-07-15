@@ -1,5 +1,3 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from core.cross_check import CrossChecker
 
 
