@@ -37,8 +37,9 @@ class OpenCodeGoProvider(LLMProvider):
         response_format: Optional[dict] = None,
     ) -> CompletionResult:
         model = model or os.getenv("LLM_MODEL", self.default_model)
+        assert model is not None
 
-        kwargs = {
+        kwargs: dict = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,

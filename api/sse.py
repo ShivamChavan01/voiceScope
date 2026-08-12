@@ -34,13 +34,15 @@ async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[s
         except Exception:
             logger.exception("[SSE] failed to log run")
         try:
+            provider_obj = report.get("provider")
+            provider_data = provider_obj if isinstance(provider_obj, dict) else {}
             await CostStore().log_cost(
                 run_id=ctx.run_id,
-                provider=report.get("provider", {}).get("name") if isinstance(report.get("provider"), dict) else None,
-                model=report.get("provider", {}).get("model") if isinstance(report.get("provider"), dict) else None,
-                input_tokens=report.get("provider", {}).get("input_tokens", 0) if isinstance(report.get("provider"), dict) else 0,
-                output_tokens=report.get("provider", {}).get("output_tokens", 0) if isinstance(report.get("provider"), dict) else 0,
-                cost_usd=report.get("provider", {}).get("cost_usd", 0.0) if isinstance(report.get("provider"), dict) else 0.0,
+                provider=str(provider_data.get("name") or "unknown"),
+                model=str(provider_data.get("model") or "unknown"),
+                input_tokens=int(provider_data.get("input_tokens", 0)),
+                output_tokens=int(provider_data.get("output_tokens", 0)),
+                cost_usd=float(provider_data.get("cost_usd", 0.0)),
             )
         except Exception:
             logger.exception("[SSE] failed to log cost")
