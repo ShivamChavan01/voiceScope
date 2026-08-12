@@ -65,17 +65,20 @@ Audio ──→ Transcribe ──→ Analyze ──→ Report ──→ Validate
 
 ## The Harness (This Is the Hard Part)
 
-Anyone can call an LLM and get a JSON response. The hard part is knowing when the LLM is wrong. VoiceScope's validation harness runs 7 deterministic checks on every output:
+Anyone can call an LLM and get a JSON response. The hard part is knowing when the LLM is wrong. VoiceScope's validation harness runs 8 deterministic checks on every output:
 
 | # | Layer | What It Catches | Weight |
 |---|-------|-----------------|--------|
-| 1 | **Schema** | Wrong types, bad enums, missing fields | 0.30 |
+| 1 | **Schema** | Wrong types, bad enums, missing fields | 0.25 |
 | 2 | **Citations** | Findings not grounded in the transcript | 0.15 |
-| 3 | **Facts** | Numbers, dates, promises that contradict the transcript | 0.15 |
-| 4 | **Sentiment** | "Angry" transcript labeled "positive" | 0.10 |
-| 5 | **Outcome** | "Resolved" with no resolution evidence | 0.10 |
-| 6 | **Escalation** | "Escalated" with no manager mention | 0.05 |
-| 7 | **Duplicate** | Same analysis repeated within 5 minutes | 0.05 |
+| 3 | **Cross-check** | Contradictory fields (e.g. "escalated" + "resolved") | 0.10 |
+| 4 | **Facts** | Numbers, dates, promises that contradict the transcript | 0.15 |
+| 5 | **Sentiment** | "Angry" transcript labeled "positive" | 0.10 |
+| 6 | **Outcome** | "Resolved" with no resolution evidence | 0.10 |
+| 7 | **Escalation** | Escalation markers that don't match the reported signal (both missed and false escalations) | 0.05 |
+| 8 | **Duplicate** | Same analysis repeated within 5 minutes | 0.05 |
+
+Weights are re-normalized over whichever layers actually run, so missing data (e.g. no transcript) never skews the score.
 
 Every API response includes a `harness` field with `truth_score` (0.0–1.0), `confidence`, `layer_scores`, and `validation_errors`. No black boxes.
 

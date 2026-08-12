@@ -4,7 +4,7 @@ import pytest
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestCLIHelp:
@@ -29,6 +29,31 @@ class TestCLIStatus:
     def test_status_runs(self):
         from cli import _cmd_status
         _cmd_status()
+
+
+class TestCLIBannerTTY:
+    def test_banner_skipped_when_not_tty(self):
+        from cli import _print_banner
+        with patch("cli.sys.stdout") as mock_stdout:
+            mock_stdout.isatty.return_value = False
+            mock_stdout.write = MagicMock()
+            _print_banner()
+            mock_stdout.write.assert_not_called()
+
+    def test_format_report_strips_ansi_when_not_tty(self):
+        from cli import _format_report
+        result = {
+            "harness": {"truth_score": 0.85, "confidence": "high", "layer_scores": {"schema": 0.9}},
+            "raw_transcript": "test",
+            "intent": "greeting",
+            "hallucination_detected": True,
+            "hallucination_evidence": "bad claim",
+            "errors": [],
+        }
+        with patch("cli.sys.stdout") as mock_stdout:
+            mock_stdout.isatty.return_value = False
+            output = _format_report(result)
+        assert "\033[" not in output
 
 
 class TestCLIFormatReport:

@@ -15,6 +15,7 @@ from utils.guardrails import guardrails
 from typing import Optional
 from functools import lru_cache
 import httpx
+import json
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -136,6 +137,7 @@ MAX_FILE_SIZE_MB = 25
 
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".webm", ".ogg"}
+MAX_WEBHOOK_BODY_BYTES = 2 * 1024 * 1024  # 2MB webhook payload cap
 
 
 def _validate_audio(file: UploadFile, audio_bytes: bytes):
@@ -308,7 +310,16 @@ async def run_harness():
 
 @router.post("/webhooks/call-completed")
 async def webhook_call_completed(request: Request):
-    body = await request.json()
+    raw_body = await request.body()
+    if len(raw_body) > MAX_WEBHOOK_BODY_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Webhook payload too large (max {MAX_WEBHOOK_BODY_BYTES} bytes)",
+        )
+    try:
+        body = json.loads(raw_body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Webhook payload is not valid JSON")
     event = detect_and_parse_webhook(body)
 
     logger.info(

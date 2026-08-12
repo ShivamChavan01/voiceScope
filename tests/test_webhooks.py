@@ -1,4 +1,5 @@
 import os
+import json
 
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
@@ -253,6 +254,26 @@ class TestWebhookSSRF:
             "recording_url": "https://localhost/secret.mp3",
         }
         response = client.post("/api/v1/webhooks/call-completed", json=payload, headers=HEADERS)
+        assert response.status_code == 400
+
+
+class TestWebhookBodyLimits:
+    def test_oversized_payload_rejected(self):
+        # 413 before any processing — no body-size-based memory DoS
+        payload = {"padding": "x" * (2 * 1024 * 1024 + 100)}
+        response = client.post(
+            "/api/v1/webhooks/call-completed",
+            content=json.dumps(payload),
+            headers={**HEADERS, "Content-Type": "application/json"},
+        )
+        assert response.status_code == 413
+
+    def test_malformed_json_rejected(self):
+        response = client.post(
+            "/api/v1/webhooks/call-completed",
+            content=b"{not valid json",
+            headers={**HEADERS, "Content-Type": "application/json"},
+        )
         assert response.status_code == 400
 
 

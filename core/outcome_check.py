@@ -86,3 +86,27 @@ class OutcomeCheck:
             evidence_found=found[:10],
             missing_evidence="" if found else "escalation_signal=True but no markers found",
         )
+
+    def check_missed_escalation(self, transcript: str, escalation_signal: bool) -> OutcomeCheckResult:
+        """False-negative guard: transcript shows escalation markers but the
+        LLM reported escalation_signal=False."""
+        if escalation_signal:
+            return OutcomeCheckResult(has_evidence=True, evidence_score=1.0)
+
+        transcript_lower = transcript.lower()
+        found = [m for m in self.ESCALATION_MARKERS if m in transcript_lower]
+
+        if not found:
+            return OutcomeCheckResult(has_evidence=True, evidence_score=1.0)
+
+        # Strong signal: multiple distinct escalation markers
+        score = max(0.0, 1.0 - len(found) * 0.25)
+        return OutcomeCheckResult(
+            has_evidence=False,
+            evidence_score=round(score, 4),
+            evidence_found=found[:10],
+            missing_evidence=(
+                "escalation_signal=False but transcript contains escalation markers: "
+                + ", ".join(sorted(set(found))[:5])
+            ),
+        )

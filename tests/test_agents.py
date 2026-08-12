@@ -213,6 +213,74 @@ class TestAnalysisAgent:
         assert ctx.outcome == "resolved"
         assert "analysis" in ctx.stages_completed
 
+    @pytest.mark.asyncio
+    async def test_rag_and_claims_run_in_parallel(self):
+        import asyncio
+
+        agent = self._make_agent()
+        mock_kb = MagicMock()
+        mock_kb.available = True
+        agent.kb = mock_kb
+
+        order = []
+        async def slow_rag(_transcript):
+            order.append("rag")
+            await asyncio.sleep(0.05)
+            return "rag context"
+
+        async def slow_claims(_transcript):
+            order.append("claims")
+            await asyncio.sleep(0.05)
+            return ["claim 1"]
+
+        agent._get_rag_context = AsyncMock(side_effect=slow_rag)
+        agent._extract_claims = AsyncMock(side_effect=slow_claims)
+        agent._get_kb_context = AsyncMock(return_value="policy text")
+        agent._summarize_chunk = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.content = json.dumps({
+            "intent": "help request",
+            "sentiment_arc": "neutral",
+            "hallucination_detected": False,
+            "hallucination_evidence": None,
+            "outcome": "unresolved",
+            "escalation_signal": False,
+            "findings": ["customer requested help"],
+        })
+        agent.provider = AsyncMock()
+        agent.provider.name = "openai"
+        agent.provider.complete = AsyncMock(return_value=mock_response)
+        from llm_providers.registry import ProviderRegistry
+        ProviderRegistry._instances["openai"] = agent.provider
+
+        ctx = PipelineContext()
+        ctx.raw_transcript = "Agent: How can I help?"
+
+        await agent.run(ctx)
+
+        # Both started before either completed → overlapped
+        assert order == ["rag", "claims"]
+        agent._get_rag_context.assert_awaited_once()
+        agent._extract_claims.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_chunk_summaries_preserve_order(self):
+        import asyncio
+
+        agent = self._make_agent()
+
+        async def slow_summary(chunk: str) -> str:
+            await asyncio.sleep(0.02)
+            return f"summary:{chunk[:5]}"
+
+        agent._summarize_chunk = slow_summary
+
+        chunks = ["chunk-one-aaaa", "chunk-two-bbbb", "chunk-three-cccc"]
+        result = await agent._summarize_chunks_parallel(chunks, max_concurrency=2)
+
+        assert result == ["summary:chunk", "summary:chunk", "summary:chunk"]
+
     def test_count_words(self):
         from agents.analysis_agent import _count_words
 

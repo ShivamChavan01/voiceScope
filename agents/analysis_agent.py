@@ -3,6 +3,7 @@ from core.context import PipelineContext
 from core.knowledge_base import KnowledgeBase
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
+import asyncio
 import json
 import re
 
@@ -11,7 +12,7 @@ CHUNK_WORD_LIMIT = 1000
 ANALYSIS_WORD_THRESHOLD = 4000
 
 _SPEAKER_PATTERN = re.compile(
-    r"^((?:Agent|Customer|User|Bot|Rep|Support|Caller|Agent|Representative|CSR)\s*:)",
+    r"^((?:Agent|Customer|User|Bot|Rep|Support|Caller|Representative|CSR)\s*:)",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -150,12 +151,19 @@ class AnalysisAgent:
         else:
             ctx.chunk_count = None
 
-        rag_context = await self._get_rag_context(ctx.raw_transcript)
+        # RAG query and claims extraction are independent — run in parallel.
+        kb_available = bool(self.kb and self.kb.available)
+        if kb_available:
+            rag_task = asyncio.create_task(self._get_rag_context(ctx.raw_transcript))
+            claims_task = asyncio.create_task(self._extract_claims(transcript_for_analysis))
+            rag_context, claims = await asyncio.gather(rag_task, claims_task)
+        else:
+            rag_context = await self._get_rag_context(ctx.raw_transcript)
+            claims = []
 
         kb_context = "No knowledge base available — performing transcript-only analysis."
-        if self.kb and self.kb.available:
+        if kb_available:
             try:
-                claims = await self._extract_claims(transcript_for_analysis)
                 if claims:
                     kb_context = await self._get_kb_context(claims)
                     logger.info(
@@ -217,15 +225,7 @@ class AnalysisAgent:
             f"(turns={len(turns)}, limit={CHUNK_WORD_LIMIT} words/chunk)"
         )
 
-        summaries: list[str] = []
-        for i, chunk in enumerate(chunks, 1):
-            try:
-                summary = await self._summarize_chunk(chunk)
-                summaries.append(summary)
-                logger.info(f"[AnalysisAgent] chunk {i}/{ctx.chunk_count} summarized")
-            except Exception as e:
-                logger.warning(f"[AnalysisAgent] chunk {i} summarization failed — {e}")
-                summaries.append(chunk)
+        summaries = await self._summarize_chunks_parallel(chunks)
 
         combined = "\n\n".join(summaries)
         ctx.word_count = _count_words(combined)
@@ -242,6 +242,28 @@ class AnalysisAgent:
             summary: str = result["summary"]
             return summary
         return str(result)
+
+    async def _summarize_chunks_parallel(
+        self, chunks: list[str], max_concurrency: int = 3
+    ) -> list[str]:
+        """Summarize chunks concurrently, capping in-flight LLM calls."""
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def _worker(chunk: str, idx: int) -> tuple[int, str]:
+            async with semaphore:
+                try:
+                    summary = await self._summarize_chunk(chunk)
+                    logger.info(f"[AnalysisAgent] chunk {idx}/{len(chunks)} summarized")
+                    return idx, summary
+                except Exception as e:
+                    logger.warning(f"[AnalysisAgent] chunk {idx} summarization failed — {e}")
+                    return idx, chunk
+
+        results = await asyncio.gather(
+            *(_worker(chunk, i) for i, chunk in enumerate(chunks, 1))
+        )
+        results.sort(key=lambda r: r[0])
+        return [summary for _, summary in results]
 
     async def _extract_claims(self, transcript: str) -> list[str]:
         prompt = CLAIMS_PROMPT.format(transcript=transcript)

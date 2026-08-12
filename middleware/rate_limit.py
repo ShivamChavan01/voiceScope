@@ -1,6 +1,7 @@
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from collections import defaultdict
+import ipaddress
 import time
 import os
 
@@ -8,6 +9,22 @@ import os
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_RPM", "60"))
 MAX_TRACKED_IPS = 10_000
 CLEANUP_INTERVAL = 300
+
+_TRUSTED_PROXIES = [
+    ipaddress.ip_network(cidr.strip())
+    for cidr in os.getenv("TRUSTED_PROXIES", "").split(",")
+    if cidr.strip()
+]
+
+
+def _is_trusted_proxy(peer_ip: str) -> bool:
+    if not _TRUSTED_PROXIES:
+        return False
+    try:
+        ip = ipaddress.ip_address(peer_ip)
+    except ValueError:
+        return False
+    return any(ip in net for net in _TRUSTED_PROXIES)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -48,6 +65,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 del self.requests[k]
 
     def _get_client_ip(self, request: Request) -> str:
-        if request.client:
-            return str(request.client.host)
-        return "unknown"
+        if not request.client:
+            return "unknown"
+
+        peer = str(request.client.host)
+
+        # Only honor X-Forwarded-For when the direct peer is a trusted proxy;
+        # otherwise the header is attacker-controlled and would bypass limits.
+        if _is_trusted_proxy(peer):
+            xff = request.headers.get("X-Forwarded-For", "")
+            if xff:
+                first = xff.split(",")[0].strip()
+                if first:
+                    return first
+
+        return peer

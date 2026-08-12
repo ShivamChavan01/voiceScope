@@ -72,6 +72,34 @@ class TestRateLimitMiddleware:
         request.client.host = "192.168.1.1"
         assert middleware._get_client_ip(request) == "192.168.1.1"
 
+    def test_xff_ignored_when_proxy_untrusted(self):
+        # Attacker can't spoof X-Forwarded-For to bypass limits
+        from middleware.rate_limit import RateLimitMiddleware
+
+        app = FastAPI()
+        middleware = RateLimitMiddleware(app)
+        request = MagicMock()
+        request.client.host = "203.0.113.9"
+        request.headers = {"X-Forwarded-For": "1.2.3.4"}
+        assert middleware._get_client_ip(request) == "203.0.113.9"
+
+    def test_xff_used_when_proxy_trusted(self):
+        # Real client IP is honored when the direct peer is a trusted proxy
+        import middleware.rate_limit as rl
+        orig = rl._TRUSTED_PROXIES
+        rl._TRUSTED_PROXIES = [__import__("ipaddress").ip_network("10.0.0.0/8")]
+        try:
+            from middleware.rate_limit import RateLimitMiddleware
+
+            app = FastAPI()
+            middleware = RateLimitMiddleware(app)
+            request = MagicMock()
+            request.client.host = "10.0.0.5"
+            request.headers = {"X-Forwarded-For": "198.51.100.7, 10.0.0.5"}
+            assert middleware._get_client_ip(request) == "198.51.100.7"
+        finally:
+            rl._TRUSTED_PROXIES = orig
+
     def test_get_client_ip_unknown(self):
         from middleware.rate_limit import RateLimitMiddleware
 

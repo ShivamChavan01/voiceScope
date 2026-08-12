@@ -170,12 +170,21 @@ class ValidationHarness:
         # Layer 7: Escalation Verification (if transcript available)
         if transcript:
             from core.outcome_check import OutcomeCheck
-            esc_result = OutcomeCheck().check_escalation(transcript, raw_output.get("escalation_signal", False))
+            oc = OutcomeCheck()
+            esc_signal = raw_output.get("escalation_signal", False)
+            esc_result = oc.check_escalation(transcript, esc_signal)
             layer_scores["escalation"] = esc_result.evidence_score
-            if raw_output.get("escalation_signal") and not esc_result.has_evidence:
+            if esc_signal and not esc_result.has_evidence:
                 result.validation_errors.append(
                     "escalation_signal=True but no escalation markers in transcript"
                 )
+            elif not esc_signal:
+                missed = oc.check_missed_escalation(transcript, esc_signal)
+                layer_scores["escalation"] = min(
+                    layer_scores["escalation"], missed.evidence_score
+                )
+                if not missed.has_evidence:
+                    result.validation_errors.append(missed.missing_evidence)
 
         # Layer 10: Duplicate Detection
         content_hash = hashlib.sha256(json.dumps(raw_output, sort_keys=True, default=str).encode()).hexdigest()

@@ -35,6 +35,8 @@ def _ensure_data_dir():
 
 def _print_banner():
     import time
+    if not sys.stdout.isatty():
+        return
     RESET = "\033[0m"
     lines = [
         " __   _____ ___ ___ ___ ___  ___ ___  ___ ___ ",
@@ -82,14 +84,23 @@ def _format_report(result: dict) -> str:
     truth = harness.get("truth_score", 0)
     confidence = harness.get("confidence", "unknown")
 
-    # Color based on truth score
+    # Color based on truth score (only when output is a terminal)
+    use_color = sys.stdout.isatty()
+    color, label = "", "PASS"
     if truth >= 0.8:
-        color, label = "\033[92m", "PASS"
+        label = "PASS"
     elif truth >= 0.5:
-        color, label = "\033[93m", "WARN"
+        label = "WARN"
     else:
-        color, label = "\033[91m", "FAIL"
-    reset = "\033[0m"
+        label = "FAIL"
+    if use_color:
+        if truth >= 0.8:
+            color = "\033[92m"
+        elif truth >= 0.5:
+            color = "\033[93m"
+        else:
+            color = "\033[91m"
+    reset = "\033[0m" if use_color else ""
 
     lines.append(f"{'─' * 60}")
     lines.append(f"  {color}Truth Score: {truth:.2f}  [{label}]{reset}  Confidence: {confidence}")
@@ -116,7 +127,8 @@ def _format_report(result: dict) -> str:
         lines.append(f"  Outcome:     {outcome}")
     if hallucination:
         evidence = result.get("hallucination_evidence", "")
-        lines.append(f"  \033[91mHallucination Detected: {evidence or 'see details'}{reset}")
+        hl_color = "\033[91m" if use_color else ""
+        lines.append(f"  {hl_color}Hallucination Detected: {evidence or 'see details'}{reset}")
 
     # Harness layer scores
     layer_scores = harness.get("layer_scores", {})
@@ -143,8 +155,14 @@ def _format_report(result: dict) -> str:
     return "\n".join(lines)
 
 
+def _info(*args, **kwargs):
+    """Print informational messages to stderr so stdout stays machine-readable."""
+    print(*args, **kwargs, file=sys.stderr)
+
+
 async def _cmd_analyze(audio_path: str, json_output: bool = False):
-    _print_banner()
+    if not json_output:
+        _print_banner()
 
     path = Path(audio_path)
     if not path.exists():
@@ -156,18 +174,18 @@ async def _cmd_analyze(audio_path: str, json_output: bool = False):
         print(f"\033[91m  Error: File too large ({file_size / 1024 / 1024:.1f}MB, max 25MB)\033[0m")
         sys.exit(1)
 
-    print(f"  Analyzing: {path.name} ({file_size / 1024:.0f}KB)")
-    print(f"  Provider:  {os.environ.get('LLM_PROVIDER', 'openai')}")
-    print(f"  STT:       {os.environ.get('STT_PROVIDER', 'deepgram')}\n")
+    _info(f"  Analyzing: {path.name} ({file_size / 1024:.0f}KB)")
+    _info(f"  Provider:  {os.environ.get('LLM_PROVIDER', 'openai')}")
+    _info(f"  STT:       {os.environ.get('STT_PROVIDER', 'deepgram')}\n")
 
     # Import and run pipeline
     from core.pipeline import VoiceScopePipeline
 
     pipeline = VoiceScopePipeline()
 
-    print("  \033[2m⏳ Transcribing...\033[0m", end="", flush=True)
+    _info("  \033[2m⏳ Transcribing...\033[0m", end="", flush=True)
     result = await pipeline.run(path.read_bytes(), path.name)
-    print("\r" + " " * 40 + "\r", end="")
+    _info("\r" + " " * 40 + "\r", end="")
 
     if json_output:
         print(json.dumps(result, indent=2, default=str))

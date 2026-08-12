@@ -290,6 +290,66 @@ class TestOutcomeVerification:
         assert result.has_evidence
         assert result.evidence_score == 1.0
 
+    def test_missed_escalation_detected(self):
+        o = OutcomeCheck()
+        result = o.check_missed_escalation(
+            "Let me transfer you to a manager who can help.", False
+        )
+        assert not result.has_evidence
+        assert result.evidence_score < 1.0
+        assert "escalation markers" in result.missing_evidence
+
+    def test_missed_escalation_no_markers(self):
+        o = OutcomeCheck()
+        result = o.check_missed_escalation("Call went normally.", False)
+        assert result.has_evidence
+        assert result.evidence_score == 1.0
+
+    def test_missed_escalation_skipped_when_signal_true(self):
+        o = OutcomeCheck()
+        result = o.check_missed_escalation(
+            "Let me transfer you to a manager.", True
+        )
+        assert result.has_evidence
+
+
+# ─── Harness Layer 7: False-Negative Escalation ──────────────────────
+
+
+class TestEscalationFalseNegative:
+    def test_harness_flags_missed_escalation(self):
+        h = ValidationHarness()
+        result = h.validate_analysis(
+            {
+                "intent": "billing dispute",
+                "sentiment_arc": "negative",
+                "hallucination_detected": False,
+                "hallucination_evidence": None,
+                "outcome": "escalated",
+                "escalation_signal": False,
+                "findings": ["customer asked for supervisor"],
+            },
+            transcript="Customer: I want to speak to a supervisor. Let me get a manager.",
+        )
+        assert any("escalation markers" in e for e in result.validation_errors)
+        assert result.layer_scores["escalation"] < 1.0
+
+    def test_harness_no_false_positive_without_markers(self):
+        h = ValidationHarness()
+        result = h.validate_analysis(
+            {
+                "intent": "billing inquiry",
+                "sentiment_arc": "neutral",
+                "hallucination_detected": False,
+                "hallucination_evidence": None,
+                "outcome": "resolved",
+                "escalation_signal": False,
+                "findings": ["customer asked a question"],
+            },
+            transcript="Agent: How can I help? Customer: When will my bill arrive?",
+        )
+        assert not any("escalation markers" in e for e in result.validation_errors)
+
 
 # ─── Layer 8: Audio Quality ──────────────────────────────────────────
 
