@@ -35,6 +35,8 @@ class MonitoringStore:
 
         raw = result.get("raw_transcript")
         transcript_preview = raw if raw else None
+        if transcript_preview and len(transcript_preview) > 500:
+            transcript_preview = transcript_preview[:500] + "…"
 
         status = "completed"
         if result.get("errors"):
@@ -291,6 +293,8 @@ class MonitoringStore:
         runs = []
         for r in rows:
             d = dict(r)
+            if d.get("transcript_preview"):
+                d["transcript_preview"] = d["transcript_preview"][:500] + ("…" if len(d["transcript_preview"]) > 500 else "")
             for json_field in ("layer_scores", "transcript_speakers"):
                 if d.get(json_field) and isinstance(d[json_field], str):
                     try:
@@ -430,6 +434,8 @@ class MonitoringStore:
         runs = []
         for r in rows:
             d = dict(r)
+            if d.get("transcript_preview"):
+                d["transcript_preview"] = d["transcript_preview"][:500] + ("…" if len(d["transcript_preview"]) > 500 else "")
             for f in ("layer_scores", "transcript_speakers"):
                 if d.get(f):
                     try:
