@@ -1,11 +1,13 @@
 import os
+
 import pytest
 
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
 
-from unittest.mock import AsyncMock, patch, MagicMock
-from core.batch import BatchProcessor, batches, MAX_BATCHES
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from core.batch import MAX_BATCHES, BatchProcessor, batches
 
 
 @pytest.fixture(autouse=True)

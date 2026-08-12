@@ -5,10 +5,10 @@ Populates: ctx.transcript_speakers with role labels
 """
 
 import json
+
 from core.context import PipelineContext
 from llm_providers.registry import ProviderRegistry
 from utils.logger import logger
-
 
 SPEAKER_PROMPT = """You are analyzing a call transcript. The transcript has been split into segments by speaker number.
 

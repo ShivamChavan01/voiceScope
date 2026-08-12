@@ -1,11 +1,11 @@
+import asyncio
+import hashlib
 import ipaddress
 import re
-import hashlib
 import socket
-import asyncio
 from urllib.parse import urlparse
-from utils.logger import logger
 
+from utils.logger import logger
 
 PRIVATE_RANGES = [
     ipaddress.ip_network("0.0.0.0/8"),

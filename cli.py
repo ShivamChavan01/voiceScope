@@ -9,10 +9,10 @@ Usage:
     voicescope status                   Show system status
 """
 
-import sys
-import os
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 
 # Bootstrap: set defaults before any imports

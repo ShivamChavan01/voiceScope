@@ -1,7 +1,8 @@
+import os
+from typing import Optional
+
 from stt_providers.base import STTProvider
 from utils.logger import logger
-from typing import Optional
-import os
 
 
 class STTRegistry:

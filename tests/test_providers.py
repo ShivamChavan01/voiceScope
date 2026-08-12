@@ -1,4 +1,5 @@
 import pytest
+
 from llm_providers.base import CompletionResult
 from llm_providers.registry import ProviderRegistry
 

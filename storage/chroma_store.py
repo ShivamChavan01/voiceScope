@@ -1,8 +1,10 @@
-import chromadb
-from utils.logger import logger
-import os
 import asyncio
+import os
 from functools import partial
+
+import chromadb
+
+from utils.logger import logger
 
 
 class ChromaStore:

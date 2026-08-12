@@ -1,8 +1,9 @@
-import uuid
 import time
+import uuid
 from contextvars import ContextVar
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 class StageTiming(BaseModel):

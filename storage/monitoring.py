@@ -1,10 +1,11 @@
-import os
 import json
+import os
 from contextlib import closing
 from pathlib import Path
 from typing import Optional
-from utils.logger import logger
+
 from storage.db import get_pool
+from utils.logger import logger
 
 
 class MonitoringStore:

@@ -10,12 +10,13 @@ Layer 6: Outcome Evidence Check
 Layer 7: Escalation Signal Verification
 """
 
-import time
 import hashlib
 import json
-from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+import time
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class SentimentType(str, Enum):

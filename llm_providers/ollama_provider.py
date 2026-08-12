@@ -1,7 +1,9 @@
-import httpx
-from llm_providers.base import LLMProvider, CompletionResult
-from typing import Optional
 import os
+from typing import Optional
+
+import httpx
+
+from llm_providers.base import CompletionResult, LLMProvider
 
 
 class OllamaProvider(LLMProvider):

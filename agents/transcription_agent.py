@@ -1,6 +1,6 @@
 from core.context import PipelineContext
-from utils.logger import logger
 from stt_providers.registry import STTRegistry
+from utils.logger import logger
 
 
 class TranscriptionAgent:

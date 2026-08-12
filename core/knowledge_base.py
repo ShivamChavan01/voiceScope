@@ -1,9 +1,11 @@
-import chromadb
-from pathlib import Path
-from utils.logger import logger
-import os
 import asyncio
+import os
 from functools import partial
+from pathlib import Path
+
+import chromadb
+
+from utils.logger import logger
 
 
 class KnowledgeBase:

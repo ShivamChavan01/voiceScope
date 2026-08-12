@@ -1,9 +1,10 @@
+import os
+from typing import Optional
+
 from google import genai
 from google.genai import types
-from llm_providers.base import LLMProvider, CompletionResult
-from typing import Optional
-import os
 
+from llm_providers.base import CompletionResult, LLMProvider
 
 GEMINI_PRICING = {
     "gemini-1.5-pro": {"input": 1.25, "output": 5.00},

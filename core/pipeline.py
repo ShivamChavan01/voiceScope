@@ -1,11 +1,11 @@
-from agents.transcription_agent import TranscriptionAgent
-from agents.speaker_agent import SpeakerAgent
 from agents.analysis_agent import AnalysisAgent
 from agents.report_agent import ReportAgent
-from core.context import PipelineContext
-from core.knowledge_base import KnowledgeBase
-from core.harness import ValidationHarness
+from agents.speaker_agent import SpeakerAgent
+from agents.transcription_agent import TranscriptionAgent
 from core.audio_quality import AudioQualityChecker
+from core.context import PipelineContext
+from core.harness import ValidationHarness
+from core.knowledge_base import KnowledgeBase
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
 

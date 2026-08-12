@@ -1,14 +1,13 @@
 from api.schemas import (
     detect_and_parse_webhook,
-    parse_vapi_webhook,
-    parse_retell_webhook,
+    parse_airai_webhook,
     parse_bland_webhook,
     parse_bolna_webhook,
-    parse_synthflow_webhook,
-    parse_airai_webhook,
     parse_generic_webhook,
+    parse_retell_webhook,
+    parse_synthflow_webhook,
+    parse_vapi_webhook,
 )
-
 
 # ---------------------------------------------------------------------------
 # Vapi

@@ -9,10 +9,10 @@ _mistralai_mock = MagicMock()
 _mistralai_mock.MistralAsyncClient = MagicMock()
 sys.modules["mistralai"] = _mistralai_mock
 
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, patch  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
+from unittest.mock import AsyncMock, patch  # noqa: E402
 
+import pytest  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # OpenAI Provider
@@ -413,6 +413,7 @@ class TestOllamaProvider:
     @pytest.mark.asyncio
     async def test_complete_raises_on_http_error(self):
         import httpx
+
         from llm_providers.ollama_provider import OllamaProvider
 
         with patch("llm_providers.ollama_provider.httpx.AsyncClient") as MockClient:

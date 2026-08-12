@@ -4,8 +4,10 @@ This is the "loop engineering" that makes VoiceScope grow stronger over time.
 """
 
 import time
+
 from pydantic import BaseModel, Field
-from core.benchmark import HarnessBenchmark, BenchmarkSummary
+
+from core.benchmark import BenchmarkSummary, HarnessBenchmark
 from core.optimizer import CalibrationOptimizer, OptimizationResult
 from core.prompt_tracker import PromptTracker
 from utils.logger import logger

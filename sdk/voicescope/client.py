@@ -1,7 +1,9 @@
-import httpx
-from sdk.voicescope.models import AnalysisReport, BatchResult
-from typing import Optional
 import warnings
+from typing import Optional
+
+import httpx
+
+from sdk.voicescope.models import AnalysisReport, BatchResult
 
 
 class VoiceScope:

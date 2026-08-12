@@ -1,7 +1,9 @@
-import os
 import asyncio
-import asyncpg
+import os
 from typing import Optional
+
+import asyncpg
+
 from utils.logger import logger
 
 _pool: Optional[asyncpg.Pool] = None

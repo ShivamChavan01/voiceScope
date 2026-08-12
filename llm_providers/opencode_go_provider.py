@@ -1,8 +1,9 @@
-from openai import AsyncOpenAI
-from llm_providers.base import LLMProvider, CompletionResult
-from typing import Optional
 import os
+from typing import Optional
 
+from openai import AsyncOpenAI
+
+from llm_providers.base import CompletionResult, LLMProvider
 
 OPENCODE_GO_PRICING = {
     "gpt-5.6-luna": {"input": 0.20, "output": 1.20},

@@ -8,7 +8,6 @@ os.environ["DATABASE_URL"] = ""
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
-
 # ─── Rate Limiter Tests ──────────────────────────────────────────────
 
 
@@ -204,8 +203,8 @@ class TestAuthMiddleware:
 
     def test_empty_valid_keys_returns_503(self):
         with patch.dict(os.environ, {"VALID_API_KEYS": ""}):
-            from middleware.auth import APIKeyAuthMiddleware
             import middleware.auth
+            from middleware.auth import APIKeyAuthMiddleware
             # Force re-evaluation of _VALID_KEYS
             old_keys = middleware.auth._VALID_KEYS
             try:

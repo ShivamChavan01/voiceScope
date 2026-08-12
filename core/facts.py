@@ -4,6 +4,7 @@ verifies LLM analysis doesn't contradict them.
 """
 
 import re
+
 from pydantic import BaseModel
 
 

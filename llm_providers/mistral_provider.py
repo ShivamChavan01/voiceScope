@@ -1,8 +1,9 @@
-from mistralai import MistralAsyncClient
-from llm_providers.base import LLMProvider, CompletionResult
-from typing import Optional
 import os
+from typing import Optional
 
+from mistralai import MistralAsyncClient
+
+from llm_providers.base import CompletionResult, LLMProvider
 
 MISTRAL_PRICING = {
     "mistral-large-latest": {"input": 2.00, "output": 6.00},

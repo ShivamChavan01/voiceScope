@@ -8,8 +8,7 @@ os.environ["PROMPT_TRACKER_DB_PATH"] = ":memory:"
 from core.benchmark import HarnessBenchmark
 from core.optimizer import CalibrationOptimizer, OptimizationResult
 from core.prompt_tracker import PromptTracker
-from core.self_improve import SelfImprovementLoop, LoopResult
-
+from core.self_improve import LoopResult, SelfImprovementLoop
 
 # ─── Benchmark Tests ─────────────────────────────────────────────────
 

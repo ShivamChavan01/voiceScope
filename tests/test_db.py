@@ -1,9 +1,11 @@
 import os
+
 import pytest
 
 os.environ["DATABASE_URL"] = ""
 
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import storage.db as db_module
 
 

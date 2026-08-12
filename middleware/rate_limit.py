@@ -1,10 +1,10 @@
+import ipaddress
+import os
+import time
+from collections import defaultdict
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from collections import defaultdict
-import ipaddress
-import time
-import os
-
 
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_RPM", "60"))
 MAX_TRACKED_IPS = 10_000

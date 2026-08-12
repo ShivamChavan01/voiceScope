@@ -6,9 +6,11 @@ and suggests improvements based on common failure patterns.
 import json
 import os
 import time
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
 from pydantic import BaseModel, Field
+
 from utils.logger import logger
 
 

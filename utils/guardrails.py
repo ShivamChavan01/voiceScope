@@ -1,7 +1,7 @@
 import re
 from typing import Optional
-from utils.logger import logger
 
+from utils.logger import logger
 
 # Harmful content patterns
 HARMFUL_PATTERNS = {

@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 os.environ["VALID_API_KEYS"] = "test-key"

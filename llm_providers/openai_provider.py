@@ -1,8 +1,9 @@
-from openai import AsyncOpenAI
-from llm_providers.base import LLMProvider, CompletionResult
-from typing import Optional
 import os
+from typing import Optional
 
+from openai import AsyncOpenAI
+
+from llm_providers.base import CompletionResult, LLMProvider
 
 OPENAI_PRICING = {
     "gpt-4o": {"input": 2.50, "output": 10.00},

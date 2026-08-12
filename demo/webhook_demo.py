@@ -9,10 +9,11 @@ Usage:
 Requires: VALID_API_KEYS env var set, LLM provider configured.
 """
 
-import httpx
 import json
 import sys
 import time
+
+import httpx
 
 BASE_URL = "http://localhost:8000"
 API_KEY = "demo-key-voicescope"

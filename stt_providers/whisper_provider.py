@@ -1,6 +1,8 @@
 import os
 import tempfile
+
 from openai import AsyncOpenAI
+
 from stt_providers.base import STTProvider, TranscriptionResult
 from utils.logger import logger
 

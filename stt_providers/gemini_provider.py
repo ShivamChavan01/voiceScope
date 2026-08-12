@@ -1,6 +1,8 @@
 import os
+
 from google import genai
 from google.genai import types
+
 from stt_providers.base import STTProvider, TranscriptionResult
 from utils.logger import logger
 

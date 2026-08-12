@@ -1,18 +1,20 @@
 import os
+
 import pytest
 
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
 
 import middleware.auth
+
 middleware.auth._VALID_KEYS = frozenset(["test-key"])
 
 from fastapi.testclient import TestClient  # noqa: E402
-from main import app  # noqa: E402
-from core.qa import QAStore, QACohort, ResolutionCriterion  # noqa: E402
-from core.extractions import ExtractionStore, ExtractionSchema, ExtractionField  # noqa: E402
-from utils.guardrails import ContentGuardrails  # noqa: E402
 
+from core.extractions import ExtractionField, ExtractionSchema, ExtractionStore  # noqa: E402
+from core.qa import QACohort, QAStore, ResolutionCriterion  # noqa: E402
+from main import app  # noqa: E402
+from utils.guardrails import ContentGuardrails  # noqa: E402
 
 client = TestClient(app)
 HEADERS = {"X-API-Key": "test-key"}

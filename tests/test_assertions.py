@@ -1,6 +1,5 @@
 from core.assertions import AssertionEngine, AssertionResult
 
-
 engine = AssertionEngine()
 
 

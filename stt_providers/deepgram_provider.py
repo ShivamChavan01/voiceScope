@@ -1,5 +1,7 @@
 import os
+
 import aiohttp
+
 from stt_providers.base import STTProvider, TranscriptionResult
 from utils.logger import logger
 

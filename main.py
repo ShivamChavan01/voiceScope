@@ -1,18 +1,19 @@
+import os
+import uuid
+from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
+
 from api.routes import router
+from core import __version__
 from middleware.auth import APIKeyAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
+from storage.db import close_pool, init_schema
+from utils.logger import logger, set_correlation_id
 from utils.tracing import RequestContext, set_request_context
-from utils.logger import set_correlation_id, logger
-from storage.db import init_schema, close_pool
-from core import __version__
-import uuid
-import os
-
 
 load_dotenv()
 

@@ -1,8 +1,9 @@
-from llm_providers.base import LLMProvider, CompletionResult
-from utils.resilience import CircuitBreaker, CircuitBreakerOpenError
-from utils.logger import logger
-from typing import Optional
 import os
+from typing import Optional
+
+from llm_providers.base import CompletionResult, LLMProvider
+from utils.logger import logger
+from utils.resilience import CircuitBreaker, CircuitBreakerOpenError
 
 
 class ProviderRegistry:

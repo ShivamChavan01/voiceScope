@@ -1,7 +1,8 @@
 import asyncio
 import time
 from functools import wraps
-from typing import Callable, Any
+from typing import Any, Callable
+
 from utils.logger import logger
 
 

@@ -1,8 +1,9 @@
-from openai import AsyncOpenAI
-from llm_providers.base import LLMProvider, CompletionResult
-from typing import Optional
 import os
+from typing import Optional
 
+from openai import AsyncOpenAI
+
+from llm_providers.base import CompletionResult, LLMProvider
 
 GROQ_PRICING = {
     "llama-3.3-70b-versatile": {"input": 0.0, "output": 0.0},

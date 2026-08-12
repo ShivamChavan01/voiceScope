@@ -1,16 +1,18 @@
-import os
 import json
+import os
 
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
 
 import middleware.auth
+
 middleware.auth._VALID_KEYS = frozenset(["test-key"])
 
-from unittest.mock import AsyncMock, patch, MagicMock  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from main import app  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
+from fastapi.testclient import TestClient  # noqa: E402
+
+from main import app  # noqa: E402
 
 client = TestClient(app)
 HEADERS = {"X-API-Key": "test-key"}

@@ -1,12 +1,13 @@
 import asyncio
 import uuid
-import httpx
 from datetime import datetime, timezone
+from typing import Optional
+
+import httpx
+
 from core.pipeline import VoiceScopePipeline
 from utils.logger import logger
 from utils.security import validate_callback_url_async
-from typing import Optional
-
 
 MAX_BATCHES = 1000
 batches: dict[str, dict] = {}

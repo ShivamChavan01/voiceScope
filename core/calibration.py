@@ -3,11 +3,13 @@ Layer 12: Confidence Calibration — track whether harness confidence correlates
 Layer 13: Feedback Loop — accept user feedback to improve calibration.
 """
 
-import os
 import json
+import os
 import time
 from pathlib import Path
+
 from pydantic import BaseModel
+
 from utils.logger import logger
 
 
