@@ -25,13 +25,17 @@ async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[s
         ctx = await pipeline.report_agent.run(ctx)
         yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'report', 'run_id': ctx.run_id})}\n\n"
 
+        harness_result = pipeline.harness.validate_pipeline(ctx)
+        yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'harness', 'run_id': ctx.run_id})}\n\n"
+
         report = ctx.report or {}
         report["run_id"] = ctx.run_id
         report["raw_transcript"] = ctx.raw_transcript
         report["transcript_speakers"] = ctx.transcript_speakers
+        report["harness"] = harness_result.model_dump()
 
         try:
-            await MonitoringStore().log_run(report, ctx.report.get("harness") if isinstance(ctx.report, dict) else None)
+            await MonitoringStore().log_run(report, harness_result)
         except Exception:
             logger.exception("[SSE] failed to log run")
         try:

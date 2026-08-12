@@ -45,6 +45,7 @@ async def test_sse_complete_event():
     mock_pipeline.transcription_agent.run = AsyncMock(return_value=mock_ctx)
     mock_pipeline.analysis_agent.run = AsyncMock(return_value=mock_ctx)
     mock_pipeline.report_agent.run = AsyncMock(return_value=mock_ctx)
+    mock_pipeline.harness.validate_pipeline.return_value.model_dump.return_value = {"truth_score": 0.8, "confidence": "high"}
 
     with patch("api.sse.VoiceScopePipeline", return_value=mock_pipeline):
         events = []
@@ -55,6 +56,7 @@ async def test_sse_complete_event():
 
     assert events[-1]["event"] == "complete"
     assert events[-1]["result"]["quality_score"] == 85
+    assert events[-1]["result"]["harness"]["truth_score"] == 0.8
 
 
 @pytest.mark.asyncio
@@ -67,6 +69,7 @@ async def test_sse_stage_events():
     mock_pipeline.transcription_agent.run = AsyncMock(return_value=mock_ctx)
     mock_pipeline.analysis_agent.run = AsyncMock(return_value=mock_ctx)
     mock_pipeline.report_agent.run = AsyncMock(return_value=mock_ctx)
+    mock_pipeline.harness.validate_pipeline.return_value.model_dump.return_value = {"truth_score": 0.8}
 
     with patch("api.sse.VoiceScopePipeline", return_value=mock_pipeline):
         events = []
@@ -79,6 +82,7 @@ async def test_sse_stage_events():
     stages = [e["stage"] for e in stage_events]
     assert "transcription" in stages
     assert "report" in stages
+    assert "harness" in stages
 
 
 @pytest.mark.asyncio
