@@ -20,7 +20,6 @@ const ALLOWED_PREFIXES = [
 
 const ALLOWED_RESPONSE_HEADERS = new Set([
   "content-type",
-  "content-length",
   "cache-control",
 ]);
 
