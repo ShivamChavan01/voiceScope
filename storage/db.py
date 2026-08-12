@@ -22,13 +22,17 @@ async def get_pool() -> Optional[asyncpg.Pool]:
         return None
     async with _get_lock():
         if _pool is None or _pool._closed:
-            _pool = await asyncpg.create_pool(
-                database_url,
-                min_size=2,
-                max_size=10,
-                command_timeout=30,
-            )
-            logger.info("[DB] PostgreSQL pool connected")
+            try:
+                _pool = await asyncpg.create_pool(
+                    database_url,
+                    min_size=2,
+                    max_size=10,
+                    command_timeout=15,
+                )
+                logger.info("[DB] PostgreSQL pool connected")
+            except Exception as e:
+                logger.warning(f"[DB] PostgreSQL unavailable — using SQLite fallback: {e}")
+                _pool = None
     return _pool
 
 
