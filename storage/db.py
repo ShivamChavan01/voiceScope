@@ -30,6 +30,7 @@ async def get_pool() -> Optional[asyncpg.Pool]:
                     min_size=2,
                     max_size=10,
                     command_timeout=15,
+                    ssl="require",
                 )
                 logger.info("[DB] PostgreSQL pool connected")
             except Exception as e:
