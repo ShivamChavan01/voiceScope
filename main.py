@@ -9,6 +9,7 @@ from middleware.rate_limit import RateLimitMiddleware
 from utils.tracing import RequestContext, set_request_context
 from utils.logger import set_correlation_id, logger
 from storage.db import init_schema, close_pool
+from core import __version__
 import uuid
 import os
 
@@ -21,16 +22,24 @@ IS_PRODUCTION = os.getenv("APP_ENV") == "production"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if os.environ.get("DATABASE_URL"):
-        await init_schema()
-        logger.info("[Startup] PostgreSQL connected")
+        try:
+            await init_schema()
+            logger.info("[Startup] PostgreSQL connected")
+        except Exception as e:
+            logger.warning(
+                f"[Startup] PostgreSQL unavailable — falling back to SQLite: {e}"
+            )
     yield
-    await close_pool()
+    try:
+        await close_pool()
+    except Exception:
+        pass
 
 
 app = FastAPI(
     title="VoiceScope",
     description="Open source observability API for voice AI agents. Multi-provider LLM support, plugin system, and comprehensive analytics.",
-    version="2.4.0",
+    version=__version__,
     docs_url="/docs" if not IS_PRODUCTION else None,
     redoc_url="/redoc" if not IS_PRODUCTION else None,
     lifespan=lifespan,
@@ -88,7 +97,7 @@ app.include_router(router, prefix="/api/v1")
 async def root():
     return {
         "service": "VoiceScope",
-        "version": "2.4.0",
+        "version": __version__,
         "docs": "/docs" if not IS_PRODUCTION else "disabled",
         "health": "/api/v1/health",
         "analyze": "POST /api/v1/analyze",

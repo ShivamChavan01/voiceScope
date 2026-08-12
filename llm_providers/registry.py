@@ -107,5 +107,12 @@ def _register_all():
     except ImportError:
         pass
 
+    try:
+        from llm_providers.opencode_go_provider import OpenCodeGoProvider
+
+        ProviderRegistry.register(OpenCodeGoProvider)
+    except ImportError:
+        pass
+
 
 _register_all()
