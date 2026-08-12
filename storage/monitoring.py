@@ -286,7 +286,7 @@ class MonitoringStore:
         async with pool.acquire() as conn:
             total = await conn.fetchval(f"SELECT COUNT(*) FROM runs {where_sql}", *params)
             rows = await conn.fetch(
-                f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, transcript_speakers, layer_scores, status, created_at FROM runs {where_sql} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}",
+                f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at FROM runs {where_sql} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}",
                 *params, limit, offset
             )
 
@@ -294,13 +294,12 @@ class MonitoringStore:
         for r in rows:
             d = dict(r)
             if d.get("transcript_preview"):
-                d["transcript_preview"] = d["transcript_preview"][:500] + ("…" if len(d["transcript_preview"]) > 500 else "")
-            for json_field in ("layer_scores", "transcript_speakers"):
-                if d.get(json_field) and isinstance(d[json_field], str):
-                    try:
-                        d[json_field] = json.loads(d[json_field])
-                    except (json.JSONDecodeError, TypeError):
-                        d[json_field] = None
+                d["transcript_preview"] = d["transcript_preview"][:200] + ("…" if len(d["transcript_preview"]) > 200 else "")
+            if d.get("layer_scores") and isinstance(d["layer_scores"], str):
+                try:
+                    d["layer_scores"] = json.loads(d["layer_scores"])
+                except (json.JSONDecodeError, TypeError):
+                    d["layer_scores"] = None
             runs.append(d)
 
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
@@ -430,18 +429,17 @@ class MonitoringStore:
                 params.append(status)
             where_sql = f"WHERE {' AND '.join(where)}" if where else ""
             total = conn.execute(f"SELECT COUNT(*) as cnt FROM runs {where_sql}", params).fetchone()["cnt"]
-            rows = conn.execute(f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, transcript_speakers, layer_scores, status, created_at FROM runs {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
+            rows = conn.execute(f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at FROM runs {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
         runs = []
         for r in rows:
             d = dict(r)
             if d.get("transcript_preview"):
-                d["transcript_preview"] = d["transcript_preview"][:500] + ("…" if len(d["transcript_preview"]) > 500 else "")
-            for f in ("layer_scores", "transcript_speakers"):
-                if d.get(f):
-                    try:
-                        d[f] = json.loads(d[f])
-                    except (json.JSONDecodeError, TypeError):
-                        d[f] = None
+                d["transcript_preview"] = d["transcript_preview"][:200] + ("…" if len(d["transcript_preview"]) > 200 else "")
+            if d.get("layer_scores"):
+                try:
+                    d["layer_scores"] = json.loads(d["layer_scores"])
+                except (json.JSONDecodeError, TypeError):
+                    d["layer_scores"] = None
             runs.append(d)
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
 
