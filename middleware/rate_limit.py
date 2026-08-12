@@ -77,6 +77,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if xff:
                 first = xff.split(",")[0].strip()
                 if first:
-                    return first
+                    return str(first)
 
         return peer
