@@ -315,7 +315,7 @@ Audio Input (file or webhook)
 | OpenAI | `OpenAIProvider` | `gpt-4o` | `OPENAI_API_KEY` |
 | Anthropic | `AnthropicProvider` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
 | Gemini | `GeminiProvider` | `gemini-1.5-pro` | `GOOGLE_API_KEY` |
-| Groq | `GroqProvider` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
+| Groq | `GroqProvider` | `openai/gpt-oss-120b` | `GROQ_API_KEY` |
 | Mistral | `MistralProvider` | `mistral-large-latest` | `MISTRAL_API_KEY` |
 | Ollama | `OllamaProvider` | `llama3.1` | `OLLAMA_BASE_URL` |
 
@@ -329,7 +329,7 @@ Audio Input (file or webhook)
 | claude-3.5-haiku | $0.80 | $4.00 |
 | gemini-1.5-pro | $1.25 | $5.00 |
 | gemini-1.5-flash | $0.075 | $0.30 |
-| llama-3.3-70b (Groq) | $0.59 | $0.79 |
+| openai/gpt-oss-120b (Groq) | Free | Free |
 | mistral-large | $2.00 | $6.00 |
 | Ollama (local) | Free | Free |
 

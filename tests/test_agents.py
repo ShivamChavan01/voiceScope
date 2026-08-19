@@ -369,7 +369,7 @@ class TestReportAgent:
             "recommendations": ["Coach the agent on refund policy"],
         })
         mock_response.provider = "groq"
-        mock_response.model = "llama-3.3-70b-versatile"
+        mock_response.model = "openai/gpt-oss-120b"
         mock_response.cost_usd = 0.004
         mock_response.input_tokens = 200
         mock_response.output_tokens = 120

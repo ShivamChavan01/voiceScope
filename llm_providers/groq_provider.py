@@ -6,16 +6,16 @@ from openai import AsyncOpenAI
 from llm_providers.base import CompletionResult, LLMProvider
 
 GROQ_PRICING = {
-    "llama-3.3-70b-versatile": {"input": 0.0, "output": 0.0},
-    "llama-3.1-8b-instant": {"input": 0.0, "output": 0.0},
-    "mixtral-8x7b-32768": {"input": 0.0, "output": 0.0},
-    "gemma2-9b-it": {"input": 0.0, "output": 0.0},
+    "openai/gpt-oss-120b": {"input": 0.0, "output": 0.0},
+    "openai/gpt-oss-20b": {"input": 0.0, "output": 0.0},
+    "qwen/qwen3.6-27b": {"input": 0.0, "output": 0.0},
+    "allam-2-7b": {"input": 0.0, "output": 0.0},
 }
 
 
 class GroqProvider(LLMProvider):
     name = "groq"
-    default_model = "llama-3.3-70b-versatile"
+    default_model = "openai/gpt-oss-120b"
 
     def __init__(self):
         self.client = AsyncOpenAI(

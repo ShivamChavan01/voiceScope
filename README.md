@@ -136,14 +136,14 @@ uvicorn main:app --reload
 ```bash
 # .env
 LLM_PROVIDER=groq               # openai | anthropic | gemini | groq | ollama | mistral
-GROQ_API_KEY=gsk_...            # free tier: llama-3.3-70b-versatile
+GROQ_API_KEY=gsk_...            # free tier: openai/gpt-oss-120b
 DEEPGRAM_API_KEY=...            # nova-2 with diarization ($200 free credits)
 VALID_API_KEYS=your-key-here    # required — server returns 503 without it
 ```
 
 | Provider | Model | Cost |
 |----------|-------|------|
-| Groq | `llama-3.3-70b-versatile` | Free |
+| Groq | `openai/gpt-oss-120b` | Free |
 | OpenAI | `gpt-4o` | $2.50/$10 per 1M tokens |
 | Anthropic | `claude-sonnet-4` | $3/$15 per 1M tokens |
 | Gemini | `gemini-1.5-pro` | $1.25/$5 per 1M tokens |

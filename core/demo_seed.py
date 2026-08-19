@@ -25,7 +25,7 @@ def _run(
     layer_scores: dict[str, float] | None = None,
     duration: float = 180,
     provider: str = "groq",
-    model: str = "llama-3.3-70b-versatile",
+    model: str = "openai/gpt-oss-120b",
     cost: float = 0.004,
 ) -> dict:
     word_count = len(transcript.split())

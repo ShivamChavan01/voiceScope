@@ -185,7 +185,7 @@ class TestGroqProvider:
             result = await provider.complete("Say hi")
 
             assert result.content == "Hi"
-            assert result.model == "llama-3.3-70b-versatile"
+            assert result.model == "openai/gpt-oss-120b"
             assert result.provider == "groq"
             assert result.cost_usd == 0.0
 
@@ -202,7 +202,7 @@ class TestGroqProvider:
             await provider.complete("test")
 
             call_kwargs = mock_client.chat.completions.create.call_args[1]
-            assert call_kwargs["model"] == "llama-3.3-70b-versatile"
+            assert call_kwargs["model"] == "openai/gpt-oss-120b"
 
     @pytest.mark.asyncio
     async def test_complete_no_choices_raises(self):
@@ -244,8 +244,8 @@ class TestGroqProvider:
 
         with patch("llm_providers.groq_provider.AsyncOpenAI"):
             provider = GroqProvider()
-            assert provider.estimate_cost(1000, 500, "llama-3.3-70b-versatile") == 0.0
-            assert provider.estimate_cost(100000, 50000, "llama-3.3-70b-versatile") == 0.0
+            assert provider.estimate_cost(1000, 500, "openai/gpt-oss-120b") == 0.0
+            assert provider.estimate_cost(100000, 50000, "openai/gpt-oss-120b") == 0.0
 
 
 # ---------------------------------------------------------------------------
