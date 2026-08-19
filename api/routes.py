@@ -1,6 +1,8 @@
 import json
+import os
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -23,6 +25,29 @@ from utils.logger import logger
 from utils.security import hash_api_key, sanitize_log_input, validate_callback_url_async
 
 router = APIRouter()
+
+BOLNA_API_KEY = os.getenv("BOLNA_API_KEY") or ""
+BOLNA_RECORDINGS_API = "https://api.bolna.ai/recordings"
+
+
+def _recording_candidates(event) -> list[tuple[str, dict]]:
+    """Ordered (url, headers) candidates for downloading the recording.
+
+    Bolna recording URLs are served from api.bolna.ai and require a
+    Bearer API key; the stable endpoint regenerates a fresh signed URL
+    on every request, so prefer it over any URL carried in the payload.
+    """
+    candidates: list[tuple[str, dict]] = []
+    if event.platform == "bolna" and event.call_id:
+        auth = {"Authorization": f"Bearer {BOLNA_API_KEY}"} if BOLNA_API_KEY else {}
+        candidates.append((f"{BOLNA_RECORDINGS_API}/call/{event.call_id}", auth))
+        candidates.append((f"{BOLNA_RECORDINGS_API}/transfer/{event.call_id}", auth))
+    if event.recording_url:
+        headers: dict = {}
+        if BOLNA_API_KEY and urlparse(event.recording_url).hostname == "api.bolna.ai":
+            headers["Authorization"] = f"Bearer {BOLNA_API_KEY}"
+        candidates.append((event.recording_url, headers))
+    return candidates
 
 
 @lru_cache(maxsize=1)
@@ -360,39 +385,57 @@ async def webhook_call_completed(request: Request):
             detail=f"Event '{event.event_type}' not supported — expected one of: {completed_events}",
         )
 
-    if not event.recording_url:
+    candidates = _recording_candidates(event)
+    if not candidates:
         raise HTTPException(status_code=400, detail="No recording_url found in webhook payload")
 
-    if not await validate_callback_url_async(event.recording_url):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid recording_url: must be HTTPS and not target private IPs",
-        )
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as http_client:
-            head_resp = await http_client.head(event.recording_url)
-            try:
-                content_length = int(head_resp.headers.get("content-length", 0))
-            except (ValueError, TypeError):
-                content_length = 0
-            if content_length > 25 * 1024 * 1024:
-                raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
-            resp = await http_client.get(event.recording_url)
-            resp.raise_for_status()
-            audio_bytes = b""
-            async for chunk in resp.aiter_bytes(chunk_size=8192):
-                audio_bytes += chunk
-                if len(audio_bytes) > 25 * 1024 * 1024:
+    audio_bytes = b""
+    content_type = ""
+    network_error = False
+    validation_rejected = 0
+    for url, headers in candidates:
+        if not await validate_callback_url_async(url):
+            logger.warning(f"[Webhook] recording URL rejected by SSRF validation: {url}")
+            validation_rejected += 1
+            continue
+        try:
+            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as http_client:
+                head_resp = await http_client.head(url, headers=headers)
+                try:
+                    content_length = int(head_resp.headers.get("content-length", 0))
+                except (ValueError, TypeError):
+                    content_length = 0
+                if content_length > 25 * 1024 * 1024:
                     raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
-    except httpx.HTTPStatusError:
+                resp = await http_client.get(url, headers=headers)
+                resp.raise_for_status()
+                audio_bytes = b""
+                async for chunk in resp.aiter_bytes(chunk_size=8192):
+                    audio_bytes += chunk
+                    if len(audio_bytes) > 25 * 1024 * 1024:
+                        raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
+                content_type = resp.headers.get("content-type", "")
+                break
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                f"[Webhook] recording download failed for {url}: HTTP {exc.response.status_code}"
+            )
+            continue
+        except httpx.RequestError as exc:
+            logger.warning(f"[Webhook] recording download failed for {url}: {exc}")
+            network_error = True
+            continue
+    else:
+        if validation_rejected == len(candidates):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid recording_url: must be HTTPS and not target private IPs",
+            )
         raise HTTPException(
-            status_code=402, detail="Failed to download recording"
+            status_code=502 if network_error else 402,
+            detail="Failed to download recording",
         )
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="Failed to download recording")
 
-    content_type = resp.headers.get("content-type", "")
     if not content_type.startswith("audio/"):
         raise HTTPException(
             status_code=400,

@@ -420,6 +420,35 @@ class TestBolnaWebhook:
         assert data["platform"] == "bolna"
         assert data["call_id"] == "7432382142914"
 
+    @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
+    @patch("api.routes.get_pipeline")
+    @patch("api.routes.httpx.AsyncClient")
+    def test_bolna_prefers_stable_endpoint_without_api_key(
+        self, mock_httpx_cls, mock_get_pipeline, mock_validate
+    ):
+        # Regression: Bolna stopped serving raw S3 recording URLs (June 2026).
+        # Even with no BOLNA_API_KEY, the stable api.bolna.ai endpoint MUST be
+        # tried before the payload's recording_url — otherwise downloads fail
+        # with 402 "Failed to download recording".
+        import api.routes
+
+        assert api.routes.BOLNA_API_KEY == ""  # no key configured in this env
+
+        mock_pipeline = AsyncMock()
+        mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
+        mock_get_pipeline.return_value = mock_pipeline
+        mock_client = _mock_httpx_client()
+        mock_httpx_cls.return_value = mock_client
+
+        response = client.post(
+            "/api/v1/webhooks/call-completed", json=BOLNA_WEBHOOK, headers=HEADERS
+        )
+        assert response.status_code == 200
+        assert mock_client.get.await_count == 1
+        requested = mock_client.get.call_args_list[0].args[0]
+        assert requested == "https://api.bolna.ai/recordings/call/7432382142914"
+        assert "s3.amazonaws.com" not in requested
+
 
 # ---------------------------------------------------------------------------
 # Synthflow integration
