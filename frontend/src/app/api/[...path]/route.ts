@@ -16,6 +16,8 @@ const ALLOWED_PREFIXES = [
   "/api/v1/loop",
   "/api/v1/batch",
   "/api/v1/webhooks",
+  "/api/v1/demo",
+  "/api/v1/knowledge",
 ];
 
 const ALLOWED_RESPONSE_HEADERS = new Set([
