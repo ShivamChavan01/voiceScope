@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   getAlerts,
   createAlertRule,
@@ -20,8 +20,6 @@ import {
   type KnowledgeEntry,
 } from "@/lib/api";
 
-const ALL_PROVIDERS = ["OpenAI", "Deepgram", "Google", "Anthropic", "Azure", "AWS Bedrock", "Whisper", "Assembly AI", "Eleven Labs", "Cohere", "Mistral", "Meta"];
-
 const METRIC_OPTIONS = [
   { value: "hallucination_rate", label: "Hallucination Rate" },
   { value: "escalation_rate", label: "Escalation Rate" },
@@ -29,46 +27,6 @@ const METRIC_OPTIONS = [
   { value: "total_calls", label: "Total Calls" },
   { value: "negative_sentiment_rate", label: "Negative Sentiment Rate" },
 ];
-
-function MultiSelect({ label, selected, onToggle }: { label: string; selected: string[]; onToggle: (p: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  return (
-    <div className="settings-group">
-      <div className="settings-group-title">{label}</div>
-      <div className="settings-row">
-        <span className="settings-row-label">Providers</span>
-        <div ref={ref} style={{ position: "relative", minWidth: 200 }}>
-          <button className="f-input f-row" style={{ cursor: "pointer", textAlign: "left" }} onClick={() => setOpen(!open)}>
-            <span className={`f-row-grow ${selected.length === 0 ? "f-hint" : ""}`} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {selected.length === 0 ? "Select providers..." : selected.join(", ")}
-            </span>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}><path d="M3 5L6 8L9 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
-          {open && (
-            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--popover)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "var(--radius)", padding: 4, zIndex: 100, maxHeight: 240, overflowY: "auto" }}>
-              {ALL_PROVIDERS.map((p) => (
-                <button key={p} onClick={() => onToggle(p)} className="f-row" style={{ width: "100%", padding: "6px 8px", background: selected.includes(p) ? "rgba(79,195,247,0.12)" : "transparent", border: "none", borderRadius: 4, color: selected.includes(p) ? "var(--primary)" : "var(--foreground)", fontSize: 13, cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ width: 14, height: 14, border: `1.5px solid ${selected.includes(p) ? "var(--primary)" : "var(--muted-foreground)"}`, borderRadius: 3, display: "grid", placeItems: "center", background: selected.includes(p) ? "var(--primary)" : "transparent", flexShrink: 0 }}>
-                    {selected.includes(p) && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5L4.5 7.5L8 3" stroke="var(--background)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </span>
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ProvidersTab() {
   const providers = {
