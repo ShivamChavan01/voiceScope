@@ -352,6 +352,49 @@ class TestReportAgent:
         mock_chroma.store.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_report_persists_evidence_fields(self):
+        from agents.report_agent import ReportAgent
+
+        mock_chroma = AsyncMock()
+        mock_chroma.store = AsyncMock()
+        with patch("agents.report_agent.ProviderRegistry") as mock_reg:
+            mock_reg.get.return_value = AsyncMock()
+            agent = ReportAgent(chroma_store=mock_chroma)
+
+        mock_response = MagicMock()
+        mock_response.content = json.dumps({
+            "executive_summary": "Hallucination detected.",
+            "quality_score": 55,
+            "key_findings": ["Agent promised same-day refund"],
+            "recommendations": ["Coach the agent on refund policy"],
+        })
+        mock_response.provider = "groq"
+        mock_response.model = "llama-3.3-70b-versatile"
+        mock_response.cost_usd = 0.004
+        mock_response.input_tokens = 200
+        mock_response.output_tokens = 120
+
+        agent.provider = AsyncMock()
+        agent.provider.name = "groq"
+        agent.provider.complete = AsyncMock(return_value=mock_response)
+
+        from llm_providers.registry import ProviderRegistry
+        ProviderRegistry._instances["groq"] = agent.provider
+
+        ctx = PipelineContext()
+        ctx.intent = "refund request"
+        ctx.sentiment_arc = "negative"
+        ctx.outcome = "unresolved"
+        ctx.hallucination_detected = True
+        ctx.hallucination_evidence = "Agent guaranteed a same-day refund."
+        ctx.policy_evidence = "Claim: same-day refund\nRelevant Policy:\nAgents cannot guarantee same-day refunds."
+
+        ctx = await agent.run(ctx)
+
+        assert ctx.report["analysis"]["hallucination_evidence"] == "Agent guaranteed a same-day refund."
+        assert ctx.report["analysis"]["policy_evidence"].startswith("Claim:")
+
+    @pytest.mark.asyncio
     async def test_report_error_sets_error_report(self):
         from agents.report_agent import ReportAgent
 
