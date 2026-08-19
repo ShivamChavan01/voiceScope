@@ -10,6 +10,7 @@ import {
   getMetrics,
   getRunHistory,
   getCosts,
+  seedDemo,
   type Run,
   type AlertIncident,
   type MetricsSummary,
@@ -364,9 +365,19 @@ export default function OverviewPage() {
                     <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 16 }}>
                       No calls analyzed yet. Upload your first audio file to see insights here.
                     </div>
-                    <a href="/runs" className="btn btn-primary">
-                      Analyze a call →
-                    </a>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                      <a href="/runs" className="btn btn-primary">
+                        Analyze a call →
+                      </a>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          seedDemo().then(() => window.location.reload()).catch(() => {});
+                        }}
+                      >
+                        Load demo data
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (

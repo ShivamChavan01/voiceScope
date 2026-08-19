@@ -35,6 +35,8 @@ export interface Run {
   transcript_preview: string | null;
   transcript_speakers: { speaker: number; text: string; role?: string; label?: string }[] | null;
   layer_scores: Record<string, number> | null;
+  hallucination_evidence: string | null;
+  policy_evidence: string | null;
   status: string;
   created_at: string;
 }
@@ -334,4 +336,85 @@ export async function createQACohort(cohort: {
 
 export async function getGuardrailStatus(): Promise<Record<string, unknown>> {
   return fetchJson("/api/v1/guardrails/status");
+}
+
+// ── Demo ────────────────────────────────────────────────────────────
+
+export async function seedDemo(): Promise<{ seeded: number; total_runs: number }> {
+  return fetchJson("/api/v1/demo/seed", { method: "POST" });
+}
+
+export async function resetDemo(): Promise<{ reset: boolean; removed: number }> {
+  return fetchJson("/api/v1/demo/reset", { method: "POST" });
+}
+
+// ── Knowledge Base ───────────────────────────────────────────────────
+
+export interface KnowledgeEntry {
+  id: number;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+export async function getKnowledge(): Promise<KnowledgeEntry[]> {
+  return fetchJson("/api/v1/knowledge");
+}
+
+export async function createKnowledge(entry: {
+  title: string;
+  content: string;
+}): Promise<{ entry_id: number; status: string }> {
+  return fetchJson("/api/v1/knowledge", {
+    method: "POST",
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function deleteKnowledge(entryId: number): Promise<{ status: string }> {
+  return fetchJson(`/api/v1/knowledge/${entryId}`, { method: "DELETE" });
+}
+
+// ── Self-Improvement Loop ────────────────────────────────────────────
+
+export interface BenchmarkSummary {
+  total_tests: number;
+  avg_truth_score: number;
+  sentiment_accuracy: number;
+  outcome_accuracy: number;
+  hallucination_accuracy: number;
+  escalation_accuracy: number;
+  avg_citation_coverage: number;
+  avg_fact_accuracy: number;
+  weakest_layer: string;
+  strongest_layer: string;
+}
+
+export async function getBenchmark(): Promise<BenchmarkSummary> {
+  return fetchJson("/api/v1/loop/benchmark");
+}
+
+export async function getLoopStatus(): Promise<{
+  optimizer_weights: Record<string, number>;
+  optimization_history: number;
+  prompt_stats: unknown[];
+  suggestions: unknown[];
+}> {
+  return fetchJson("/api/v1/loop/status");
+}
+
+export async function runLoop(): Promise<{
+  status: string;
+  benchmark: BenchmarkSummary;
+  optimization: { improvement: number; changes: unknown[] };
+  suggestions: unknown[];
+}> {
+  return fetchJson("/api/v1/loop/run", { method: "POST" });
+}
+
+export async function getWeights(): Promise<{
+  weights: Record<string, number>;
+  history: number;
+}> {
+  return fetchJson("/api/v1/loop/weights");
 }

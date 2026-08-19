@@ -2,9 +2,11 @@ import asyncio
 import os
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 import chromadb
 
+from core.knowledge_store import KnowledgeStore
 from utils.logger import logger
 
 
@@ -12,29 +14,46 @@ class KnowledgeBase:
     """
     Policy knowledge base stored in ChromaDB.
     Used by AnalysisAgent for grounded hallucination detection.
-    Chunks a markdown/text policy file into paragraphs and enables semantic search.
+
+    Sources (merged, in order):
+      1. The static `knowledge/business_policy.md` file (default seed)
+      2. User-added entries from KnowledgeStore (editable via API / Settings)
+
+    Chunks each policy paragraph and enables semantic search.
     """
 
     def __init__(self, path: str = "knowledge/business_policy.md"):
+        self.path = path
+        self.store = KnowledgeStore()
         self.available = False
-        self.collection = None
+        self.collection: Any = None
+        self.chunks: list[str] = []
+        self._client: Any = None
+        self.reload()
 
-        file_path = Path(path)
+    def _file_chunks(self) -> list[str]:
+        file_path = Path(self.path)
         if not file_path.exists():
-            logger.warning(f"[KnowledgeBase] policy file not found: {path} — KB disabled")
-            return
+            logger.warning(f"[KnowledgeBase] policy file not found: {self.path}")
+            return []
+        raw = file_path.read_text(encoding="utf-8")
+        return [chunk.strip() for chunk in raw.split("\n\n") if chunk.strip()]
 
+    def reload(self) -> None:
+        """Rebuild the ChromaDB index from the file plus user-added entries."""
         try:
-            raw = file_path.read_text(encoding="utf-8")
-            self.chunks = [chunk.strip() for chunk in raw.split("\n\n") if chunk.strip()]
+            file_chunks = self._file_chunks()
+            user_chunks = self.store.get_chunks()
+            self.chunks = file_chunks + user_chunks
 
             if not self.chunks:
-                logger.warning(f"[KnowledgeBase] policy file empty: {path}")
+                logger.warning("[KnowledgeBase] no policy chunks — KB disabled")
+                self.available = False
                 return
 
             persist_dir = os.getenv("CHROMA_PERSIST_DIR", "/tmp/chroma_db")
-            client = chromadb.PersistentClient(path=persist_dir)
-            self.collection = client.get_or_create_collection(
+            self._client = chromadb.PersistentClient(path=persist_dir)
+            self.collection = self._client.get_or_create_collection(
                 name="policy_kb", metadata={"hnsw:space": "cosine"}
             )
 
@@ -46,7 +65,10 @@ class KnowledgeBase:
             )
 
             self.available = True
-            logger.info(f"[KnowledgeBase] loaded {len(self.chunks)} chunks from {path}")
+            logger.info(
+                f"[KnowledgeBase] loaded {len(file_chunks)} file + "
+                f"{len(user_chunks)} user chunks from {self.path}"
+            )
 
         except Exception as e:
             logger.error(f"[KnowledgeBase] initialization failed: {e}")

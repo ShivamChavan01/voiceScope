@@ -7,6 +7,7 @@ import {
   getRun,
   analyzeAudioStream,
   deleteRun,
+  seedDemo,
   type Run,
   type StreamEvent,
 } from "@/lib/api";
@@ -61,12 +62,13 @@ export default function RunsPage() {
   const [uploading, setUploading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
-  const [drawerTab, setDrawerTab] = useState<"harness" | "transcript" | "report">("harness");
+  const [drawerTab, setDrawerTab] = useState<"harness" | "transcript" | "report" | "evidence">("harness");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([]);
   const [streamError, setStreamError] = useState<string | undefined>();
+  const [demoLoading, setDemoLoading] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLTableRowElement | null>(null);
@@ -154,6 +156,18 @@ export default function RunsPage() {
     if (file) handleUpload(file);
   };
 
+  const handleDemoSeed = async () => {
+    setDemoLoading(true);
+    try {
+      await seedDemo();
+      await fetchRuns();
+    } catch (err) {
+      setStreamError(err instanceof Error ? err.message : "Failed to load demo data");
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
   const openRun = async (run: Run, trigger: HTMLTableRowElement) => {
     triggerRef.current = trigger;
     try {
@@ -197,9 +211,14 @@ export default function RunsPage() {
 
   return (
     <>
-      <div className="page-header">
-        <h1 className="page-title">Runs</h1>
-        <p className="page-subtitle">Analyze audio files and review call transcripts</p>
+      <div className="page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <h1 className="page-title">Runs</h1>
+          <p className="page-subtitle">Analyze audio files and review call transcripts</p>
+        </div>
+        <button className="btn btn-ghost" onClick={handleDemoSeed} disabled={demoLoading}>
+          {demoLoading ? "Loading..." : "Load demo data"}
+        </button>
       </div>
 
       {/* Upload */}
@@ -359,7 +378,7 @@ export default function RunsPage() {
         </div>
 
         <div className="drawer-tabs" role="tablist">
-          {(["harness", "transcript", "report"] as const).map((tab) => (
+          {(["harness", "transcript", "report", "evidence"] as const).map((tab) => (
             <button
               key={tab}
               className={`drawer-tab ${drawerTab === tab ? "active" : ""}`}
@@ -597,6 +616,46 @@ export default function RunsPage() {
                 </>
               ) : (
                 <div className="empty-state">No report data available</div>
+              )}
+            </div>
+          )}
+
+          {drawerTab === "evidence" && selectedRun && (
+            <div id="drawer-panel-evidence" role="tabpanel">
+              {!selectedRun.hallucination_detected && !selectedRun.hallucination_evidence ? (
+                <div className="empty-state">
+                  No hallucinations detected in this call. The evidence panel shows
+                  the claim-versus-policy contradiction when the agent violates your policy.
+                </div>
+              ) : (
+                <>
+                  {selectedRun.hallucination_evidence && (
+                    <div className="evidence-block">
+                      <div className="evidence-label">Hallucination Evidence</div>
+                      <div className="evidence-quote">
+                        {selectedRun.hallucination_evidence}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRun.policy_evidence && (
+                    <div className="evidence-block">
+                      <div className="evidence-label">Policy Contradiction</div>
+                      <pre className="evidence-policy">{selectedRun.policy_evidence}</pre>
+                    </div>
+                  )}
+
+                  {selectedRun.hallucination_detected &&
+                    !selectedRun.hallucination_evidence &&
+                    !selectedRun.policy_evidence && (
+                      <div className="evidence-block">
+                        <div className="evidence-label">Hallucination Detected</div>
+                        <div className="evidence-quote">
+                          The agent made claims not supported by the transcript or knowledge base.
+                        </div>
+                      </div>
+                    )}
+                </>
               )}
             </div>
           )}

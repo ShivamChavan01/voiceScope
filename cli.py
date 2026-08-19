@@ -7,6 +7,8 @@ Usage:
     voicescope serve                    Start the API server
     voicescope init                     Interactive setup
     voicescope status                   Show system status
+    voicescope demo                     Seed the dashboard with sample calls
+    voicescope demo --reset             Remove sample calls
 """
 
 import asyncio
@@ -303,6 +305,22 @@ def _cmd_status():
     print()
 
 
+def _cmd_demo(reset: bool = False):
+    from core.demo_seed import reset_demo_runs, seed_demo_runs
+
+    if reset:
+        _print_banner()
+        result = asyncio.run(reset_demo_runs())
+        print(f"  Removed {result.get('removed', 0)} demo runs.")
+        return
+
+    _print_banner()
+    result = asyncio.run(seed_demo_runs())
+    seeded = result.get("seeded", 0)
+    print(f"  \033[92m✓ Seeded {seeded} sample calls\033[0m")
+    print("  \033[2mStart the server with `voicescope serve` and open the dashboard.\033[0m")
+
+
 def main():
     if len(sys.argv) < 2:
         _print_banner()
@@ -311,6 +329,7 @@ def main():
         print("    voicescope serve            Start the API server")
         print("    voicescope init             Interactive setup")
         print("    voicescope status           Show system status")
+        print("    voicescope demo             Seed the dashboard with sample calls")
         print()
         return
 
@@ -341,12 +360,16 @@ def main():
     elif cmd == "status":
         _cmd_status()
 
+    elif cmd == "demo":
+        _cmd_demo(reset="--reset" in sys.argv)
+
     elif cmd in ("--help", "-h", "help"):
         _print_banner()
         print("  voicescope analyze <file>   Analyze a call recording")
         print("  voicescope serve            Start the API server")
         print("  voicescope init             Interactive setup")
         print("  voicescope status           Show system status")
+        print("  voicescope demo             Seed the dashboard with sample calls")
         print()
 
     else:

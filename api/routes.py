@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field
 from api.schemas import HealthResponse, detect_and_parse_webhook
 from api.sse import stream_analysis
 from core.batch import BatchProcessor
+from core.demo_seed import reset_demo_runs, seed_demo_runs
 from core.extractions import ExtractionField, ExtractionSchema, ExtractionStore
+from core.knowledge_store import KnowledgeStore
 from core.pipeline import VoiceScopePipeline
 from core.qa import QACohort, QAStore, ResolutionCriterion
 from core.test_harness import TestHarness
@@ -64,6 +66,11 @@ def get_qa_store():
 @lru_cache(maxsize=1)
 def get_extraction_store():
     return ExtractionStore()
+
+
+@lru_cache(maxsize=1)
+def get_knowledge_store():
+    return KnowledgeStore()
 
 
 async def _log_cost(result: dict):
@@ -163,6 +170,16 @@ def _validate_audio(file: UploadFile, audio_bytes: bytes):
 @router.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse()
+
+
+@router.post("/demo/seed")
+async def demo_seed():
+    return await seed_demo_runs(get_monitoring_store())
+
+
+@router.post("/demo/reset")
+async def demo_reset():
+    return await reset_demo_runs(get_monitoring_store())
 
 
 @router.post("/analyze")
@@ -571,6 +588,45 @@ async def run_extractions(schema_id: int, req: ExtractionRunRequest):
 @router.get("/extractions/schemas/{schema_id}/results")
 async def get_extraction_results(schema_id: int, limit: int = 100):
     return await get_extraction_store().get_results(schema_id, limit)
+
+
+# ─── Knowledge Base ─────────────────────────────────────────────────
+
+
+class KnowledgeEntryRequest(BaseModel):
+    title: str = ""
+    content: str
+
+
+@router.get("/knowledge")
+async def list_knowledge():
+    return await get_knowledge_store().list_entries()
+
+
+@router.post("/knowledge")
+async def add_knowledge(req: KnowledgeEntryRequest):
+    try:
+        entry_id = await get_knowledge_store().add_entry(req.title, req.content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    # Rebuild the pipeline KB index so new policies take effect immediately.
+    try:
+        get_pipeline().kb.reload()
+    except Exception:
+        logger.exception("[Routes] failed to reload knowledge base")
+    return {"entry_id": entry_id, "status": "created"}
+
+
+@router.delete("/knowledge/{entry_id}")
+async def delete_knowledge(entry_id: int):
+    deleted = await get_knowledge_store().delete_entry(entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Knowledge entry not found")
+    try:
+        get_pipeline().kb.reload()
+    except Exception:
+        logger.exception("[Routes] failed to reload knowledge base")
+    return {"status": "deleted"}
 
 
 # ─── Guardrails ──────────────────────────────────────────────────────

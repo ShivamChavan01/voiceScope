@@ -18,6 +18,7 @@ class PipelineContext(BaseModel):
     sentiment_arc: Optional[str] = None
     hallucination_detected: Optional[bool] = None
     hallucination_evidence: Optional[str] = None
+    policy_evidence: Optional[str] = None
     outcome: Optional[str] = None
     escalation_signal: Optional[bool] = None
     raw_analysis: Optional[dict] = None

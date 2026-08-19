@@ -44,6 +44,7 @@ class ReportAgent:
             "sentiment_arc": ctx.sentiment_arc,
             "hallucination_detected": ctx.hallucination_detected,
             "hallucination_evidence": ctx.hallucination_evidence,
+            "policy_evidence": ctx.policy_evidence,
             "outcome": ctx.outcome,
             "escalation_signal": ctx.escalation_signal,
             "findings": raw.get("findings", []),

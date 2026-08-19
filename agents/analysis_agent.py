@@ -175,6 +175,7 @@ class AnalysisAgent:
                     logger.info("[AnalysisAgent] KB check: no claims extracted")
             except Exception as e:
                 logger.warning(f"[AnalysisAgent] KB extraction failed — {e}")
+            ctx.policy_evidence = kb_context
 
         prompt = ANALYSIS_PROMPT.format(
             transcript=transcript_for_analysis,

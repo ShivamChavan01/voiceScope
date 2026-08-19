@@ -55,6 +55,9 @@ class MonitoringStore:
         if speakers:
             transcript_speakers_json = json.dumps(speakers)
 
+        hallucination_evidence = analysis.get("hallucination_evidence") if analysis else None
+        policy_evidence = analysis.get("policy_evidence") if analysis else None
+
         pool = await self._get_pool()
         if pool:
             async with pool.acquire() as conn:
@@ -62,8 +65,8 @@ class MonitoringStore:
                     """INSERT INTO runs (run_id, intent, sentiment, outcome, hallucination_detected,
                        escalation_signal, truth_score, confidence, quality_score, cost_usd,
                        provider, model, duration_seconds, word_count, transcript_preview,
-                       transcript_speakers, layer_scores, status)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18)
+                       transcript_speakers, layer_scores, hallucination_evidence, policy_evidence, status)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19,$20)
                        ON CONFLICT (run_id) DO UPDATE SET
                        intent=EXCLUDED.intent, sentiment=EXCLUDED.sentiment, outcome=EXCLUDED.outcome,
                        hallucination_detected=EXCLUDED.hallucination_detected, escalation_signal=EXCLUDED.escalation_signal,
@@ -71,7 +74,8 @@ class MonitoringStore:
                        cost_usd=EXCLUDED.cost_usd, provider=EXCLUDED.provider, model=EXCLUDED.model,
                        duration_seconds=EXCLUDED.duration_seconds, word_count=EXCLUDED.word_count,
                        transcript_preview=EXCLUDED.transcript_preview, transcript_speakers=EXCLUDED.transcript_speakers,
-                       layer_scores=EXCLUDED.layer_scores, status=EXCLUDED.status""",
+                       layer_scores=EXCLUDED.layer_scores, hallucination_evidence=EXCLUDED.hallucination_evidence,
+                       policy_evidence=EXCLUDED.policy_evidence, status=EXCLUDED.status""",
                     result.get("run_id", ""),
                     analysis.get("intent") if analysis else None,
                     analysis.get("sentiment_arc") if analysis else None,
@@ -84,12 +88,14 @@ class MonitoringStore:
                     provider_data.get("model") if provider_data else None,
                     transcript_meta.get("duration_seconds"),
                     transcript_meta.get("word_count"),
-                    transcript_preview, transcript_speakers_json, layer_scores_json, status,
+                    transcript_preview, transcript_speakers_json, layer_scores_json,
+                    hallucination_evidence, policy_evidence, status,
                 )
         else:
             await self._log_run_sqlite(result, analysis, provider_data, transcript_meta,
                                        truth_score, confidence, quality_score, status,
-                                       layer_scores_json, transcript_speakers_json, transcript_preview)
+                                       layer_scores_json, transcript_speakers_json, transcript_preview,
+                                       hallucination_evidence, policy_evidence)
         logger.debug(f"[MonitoringStore] logged run run_id={result.get('run_id')}")
 
     async def delete_run(self, run_id: str) -> bool:
@@ -357,6 +363,7 @@ class MonitoringStore:
                 duration_seconds REAL, word_count INTEGER,
                 transcript_preview TEXT, transcript_speakers TEXT,
                 layer_scores TEXT, status TEXT DEFAULT 'completed',
+                hallucination_evidence TEXT, policy_evidence TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -396,19 +403,21 @@ class MonitoringStore:
         conn.commit()
         return closing(conn)
 
-    async def _log_run_sqlite(self, result, analysis, provider_data, transcript_meta, truth_score, confidence, quality_score, status, layer_scores_json, transcript_speakers_json, transcript_preview):
+    async def _log_run_sqlite(self, result, analysis, provider_data, transcript_meta, truth_score, confidence, quality_score, status, layer_scores_json, transcript_speakers_json, transcript_preview, hallucination_evidence, policy_evidence):
         with self._sqlite_conn() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO runs (run_id, intent, sentiment, outcome, hallucination_detected,
                    escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model,
-                   duration_seconds, word_count, transcript_preview, transcript_speakers, layer_scores, status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   duration_seconds, word_count, transcript_preview, transcript_speakers, layer_scores,
+                   hallucination_evidence, policy_evidence, status)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (result.get("run_id", ""), analysis.get("intent") if analysis else None, analysis.get("sentiment_arc") if analysis else None,
                  analysis.get("outcome") if analysis else None, 1 if analysis and analysis.get("hallucination_detected") else 0,
                  1 if analysis and analysis.get("escalation_signal") else 0, truth_score, confidence, quality_score,
                  provider_data.get("cost_usd", 0.0) if provider_data else 0.0, provider_data.get("name") if provider_data else None,
                  provider_data.get("model") if provider_data else None, transcript_meta.get("duration_seconds"),
-                 transcript_meta.get("word_count"), transcript_preview, transcript_speakers_json, layer_scores_json, status),
+                 transcript_meta.get("word_count"), transcript_preview, transcript_speakers_json, layer_scores_json,
+                 hallucination_evidence, policy_evidence, status),
             )
             conn.commit()
 

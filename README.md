@@ -3,6 +3,7 @@
 [![CI](https://github.com/ShivamChavan01/voicescope/actions/workflows/ci.yml/badge.svg)](https://github.com/ShivamChavan01/voicescope/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-311-brightgreen.svg)]()
+[![Harness truth score](https://img.shields.io/badge/harness%20truth-0.78-blue.svg)](scripts/run_benchmark.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > Voice AI agents hallucinate. They promise refunds that don't exist, cite policies that aren't real, and escalate when they shouldn't. Nobody catches it. VoiceScope does.
@@ -82,6 +83,27 @@ Weights are re-normalized over whichever layers actually run, so missing data (e
 
 Every API response includes a `harness` field with `truth_score` (0.0–1.0), `confidence`, `layer_scores`, and `validation_errors`. No black boxes.
 
+## Harness Benchmark
+
+The harness is measured against 10 labeled call transcripts with known ground truth (`tests/test_data_labeled.json`). Run it yourself:
+
+```bash
+python scripts/run_benchmark.py
+```
+
+```
+  Avg truth score:        0.78
+  Sentiment accuracy:     100%
+  Outcome accuracy:       70%
+  Hallucination accuracy: 100%
+  Escalation accuracy:    100%
+  Avg citation coverage:  83%
+  Weakest layer:          outcome_evidence
+  Strongest layer:        schema
+```
+
+The benchmark runs in CI (`python scripts/run_benchmark.py --min-truth 0.7`) and fails the build on regression. The dashboard exposes it at `/benchmark` with a one-click improvement loop.
+
 ## Get Running
 
 ### Option A: CLI (fastest)
@@ -90,6 +112,7 @@ Every API response includes a `harness` field with `truth_score` (0.0–1.0), `c
 git clone https://github.com/ShivamChavan01/voicescope && cd voicescope
 pip install -e .
 voicescope init              # pick your provider, set keys
+voicescope demo              # no keys yet? seed sample calls
 voicescope analyze call.mp3  # see results
 voicescope serve             # start API server
 ```

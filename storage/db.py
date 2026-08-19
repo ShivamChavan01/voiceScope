@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS runs (
     transcript_preview TEXT,
     transcript_speakers JSONB,
     layer_scores JSONB,
+    hallucination_evidence TEXT,
+    policy_evidence TEXT,
     status TEXT DEFAULT 'completed',
     created_at TIMESTAMP DEFAULT NOW()
 );

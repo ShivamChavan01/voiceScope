@@ -11,9 +11,13 @@ import {
   getQACohorts,
   createQACohort,
   getGuardrailStatus,
+  getKnowledge,
+  createKnowledge,
+  deleteKnowledge,
   type Alert,
   type ExtractionSchema,
   type QACohort,
+  type KnowledgeEntry,
 } from "@/lib/api";
 
 const ALL_PROVIDERS = ["OpenAI", "Deepgram", "Google", "Anthropic", "Azure", "AWS Bedrock", "Whisper", "Assembly AI", "Eleven Labs", "Cohere", "Mistral", "Meta"];
@@ -421,6 +425,120 @@ function CohortsTab() {
   );
 }
 
+function KnowledgeTab() {
+  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", content: "" });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getKnowledge().then(setEntries).catch(() => setEntries([])).finally(() => setLoading(false));
+  }, []);
+
+  const addEntry = async () => {
+    if (!form.content.trim()) return;
+    setError(null);
+    try {
+      const res = await createKnowledge({ title: form.title, content: form.content });
+      setEntries((p) => [
+        {
+          id: res.entry_id,
+          title: form.title || "Untitled policy",
+          content: form.content,
+          created_at: new Date().toISOString(),
+        },
+        ...p,
+      ]);
+      setForm({ title: "", content: "" });
+      setShowForm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add policy");
+    }
+  };
+
+  const removeEntry = async (id: number) => {
+    try {
+      await deleteKnowledge(id);
+      setEntries((p) => p.filter((e) => e.id !== id));
+    } catch (err) {
+      console.error("Failed to delete policy:", err);
+    }
+  };
+
+  return (
+    <div>
+      <div className="settings-group">
+        <div className="settings-group-title">Knowledge Base</div>
+        <div className="settings-group-subtitle">
+          Policies the harness checks agent claims against. Entries merge with the default{" "}
+          <code style={{ color: "var(--primary)" }}>knowledge/business_policy.md</code> seed.
+        </div>
+      </div>
+
+      <div className="section-header" style={{ marginBottom: 16 }}>
+        <div>
+          <div className="section-title">Your Policies</div>
+          <div className="f-hint" style={{ marginTop: 2 }}>Add, edit, or remove grounding policies</div>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? "Cancel" : "+ Add policy"}</button>
+      </div>
+
+      {showForm && (
+        <div className="f-panel">
+          <div className="f-grid f-grid-2">
+            <div>
+              <label className="f-label">Title</label>
+              <input className="f-input" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Refund Policy" />
+            </div>
+          </div>
+          <div className="f-grid">
+            <div>
+              <label className="f-label">Policy Text</label>
+              <textarea className="f-input" data-mono rows={6} value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} placeholder="Agents cannot guarantee same-day refunds under any circumstances." style={{ resize: "vertical", minHeight: 120 }} />
+            </div>
+          </div>
+          {error && <div className="f-hint" style={{ color: "var(--destructive)", marginBottom: 12 }}>{error}</div>}
+          <button className="btn btn-primary" onClick={addEntry}>Add Policy</button>
+        </div>
+      )}
+
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Title</th><th>Policy</th><th>Added</th><th></th></tr></thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={4} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>Loading...</td></tr>
+            ) : entries.length === 0 ? (
+              <tr><td colSpan={4} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>
+                No custom policies yet. The default policy file is active. Add your own policies above.
+              </td></tr>
+            ) : (
+              entries.map((e) => (
+                <tr key={e.id}>
+                  <td className="text-primary" style={{ fontWeight: 500 }}>{e.title}</td>
+                  <td className="text-secondary" style={{ whiteSpace: "normal", minWidth: 280, lineHeight: 1.4 }}>{e.content}</td>
+                  <td className="mono text-muted">{new Date(e.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <button onClick={() => removeEntry(e.id)} style={{ background: "none", border: "none", color: "var(--muted-foreground)", cursor: "pointer", fontSize: 14, padding: "2px 6px" }} title="Delete">×</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="f-api-hint">
+        <strong style={{ color: "var(--primary)" }}>API:</strong>{" "}
+        <span className="mono" style={{ fontSize: 11 }}>GET /knowledge</span> list ·{" "}
+        <span className="mono" style={{ fontSize: 11 }}>POST /knowledge</span> add ·{" "}
+        <span className="mono" style={{ fontSize: 11 }}>DELETE /knowledge/:id</span> remove
+      </div>
+    </div>
+  );
+}
+
 function IntegrationsTab() {
   const [copied, setCopied] = useState(false);
   const backendUrl = typeof window !== "undefined" ? window.location.origin : "";
@@ -509,7 +627,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="settings-tabs">
-        {(["integrations", "providers", "guardrails", "alerts", "schemas", "cohorts"] as const).map((t) => (
+        {(["integrations", "providers", "guardrails", "alerts", "schemas", "cohorts", "knowledge"] as const).map((t) => (
           <button key={t} className={`settings-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -522,6 +640,7 @@ export default function SettingsPage() {
       {tab === "alerts" && <AlertsTab />}
       {tab === "schemas" && <SchemasTab />}
       {tab === "cohorts" && <CohortsTab />}
+      {tab === "knowledge" && <KnowledgeTab />}
     </>
   );
 }
