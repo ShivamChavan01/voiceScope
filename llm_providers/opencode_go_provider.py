@@ -13,14 +13,24 @@ OPENCODE_GO_PRICING = {
     "mimo-v2.5": {"input": 0.14, "output": 0.28},
     "hy3": {"input": 0.14, "output": 0.58},
     "qwen3.7-plus": {"input": 0.40, "output": 1.60},
+    "deepseek-v4-flash-free": {"input": 0.0, "output": 0.0},
+    "mimo-v2.5-free": {"input": 0.0, "output": 0.0},
+    "hy3-free": {"input": 0.0, "output": 0.0},
+    "laguna-s-2.1-free": {"input": 0.0, "output": 0.0},
+    "nemotron-3-ultra-free": {"input": 0.0, "output": 0.0},
+    "nemotron-3.5-lightning-free": {"input": 0.0, "output": 0.0},
+    "big-pickle": {"input": 0.0, "output": 0.0},
 }
 
 
 class OpenCodeGoProvider(LLMProvider):
     name = "opencode-go"
-    default_model = "gpt-5.6-luna"
+    default_model = "deepseek-v4-flash-free"
 
     def __init__(self):
+        # Subscriptions/plan endpoints:
+        #   https://opencode.ai/zen/go/v1   (Go plan — deepseek-v4-flash, mimo-v2.5, ...)
+        #   https://opencode.ai/zen/v1      (Zen — free models: *-free, big-pickle)
         self.base_url = os.getenv(
             "OPENCODE_GO_BASE_URL", "https://opencode.ai/zen/go/v1"
         )

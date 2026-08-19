@@ -34,27 +34,48 @@ class ProviderRegistry:
         return provider
 
     @classmethod
+    def _backup_names(cls, primary: str) -> list[str]:
+        """Ordered fallback providers from LLM_BACKUP_PROVIDERS (comma-separated)."""
+        raw = os.getenv("LLM_BACKUP_PROVIDERS", "")
+        return [b.strip() for b in raw.split(",") if b.strip() and b.strip() != primary]
+
+    @classmethod
     async def call(cls, name: Optional[str] = None, **complete_kwargs) -> CompletionResult:
-        """Call a provider with circuit breaker protection."""
+        """Call a provider with circuit breaker protection and ordered fallback.
+
+        The primary provider comes from `name` (or LLM_PROVIDER). If it fails
+        (rate limit, quota, outage, open circuit), the request falls through to
+        each provider listed in LLM_BACKUP_PROVIDERS.
+        """
         name = name or os.getenv("LLM_PROVIDER", "openai")
         assert name is not None
-        cb = cls._circuit_breakers.get(name)
 
-        if cb and cb.is_open():
-            raise CircuitBreakerOpenError(f"Circuit breaker open for provider '{name}'")
+        backends = [name] + cls._backup_names(name)
+        last_exc: Optional[Exception] = None
+        for backend in backends:
+            cb = cls._circuit_breakers.get(backend)
+            if cb and cb.is_open():
+                last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
+                logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
+                continue
 
-        provider = cls.get(name)
-        try:
-            result = await provider.complete(**complete_kwargs)
-            if cb:
-                cb.record_success()
-            return result
-        except CircuitBreakerOpenError:
-            raise
-        except Exception:
-            if cb:
-                cb.record_failure()
-            raise
+            provider = cls.get(backend)
+            try:
+                result = await provider.complete(**complete_kwargs)
+                if cb:
+                    cb.record_success()
+                if backend != name:
+                    logger.info(f"[ProviderRegistry] failover used provider={backend}")
+                return result
+            except Exception as exc:
+                if cb:
+                    cb.record_failure()
+                if backend != name:
+                    logger.warning(f"[ProviderRegistry] failover '{backend}' failed: {exc}")
+                last_exc = exc
+
+        assert last_exc is not None
+        raise last_exc
 
     @classmethod
     def get_circuit_breaker(cls, name: str) -> Optional[CircuitBreaker]:
@@ -112,6 +133,13 @@ def _register_all():
         from llm_providers.opencode_go_provider import OpenCodeGoProvider
 
         ProviderRegistry.register(OpenCodeGoProvider)
+    except ImportError:
+        pass
+
+    try:
+        from llm_providers.openrouter_provider import OpenRouterProvider
+
+        ProviderRegistry.register(OpenRouterProvider)
     except ImportError:
         pass
 

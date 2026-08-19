@@ -135,15 +135,21 @@ uvicorn main:app --reload
 
 ```bash
 # .env
-LLM_PROVIDER=groq               # openai | anthropic | gemini | groq | ollama | mistral
-GROQ_API_KEY=gsk_...            # free tier: openai/gpt-oss-120b
+LLM_PROVIDER=opencode-go        # primary LLM (openai | anthropic | gemini | groq | opencode-go ...)
+LLM_MODEL=deepseek-v4-flash-free
+LLM_BACKUP_PROVIDERS=groq,openrouter   # ordered fallbacks when primary is rate-limited
+OPENCODE_GO_API_KEY=sk-...      # from https://opencode.ai/auth (Zen free models)
+OPENROUTER_API_KEY=             # optional — used only if set
 DEEPGRAM_API_KEY=...            # nova-2 with diarization ($200 free credits)
 VALID_API_KEYS=your-key-here    # required — server returns 503 without it
 ```
 
 | Provider | Model | Cost |
 |----------|-------|------|
-| Groq | `openai/gpt-oss-120b` | Free |
+| OpenCode Zen (primary) | `deepseek-v4-flash-free`, `hy3-free`, `big-pickle` | Free (monthly quota) |
+| Groq (backup) | `openai/gpt-oss-120b` | Free |
+| OpenRouter (backup) | `*:free` models | Free |
+| OpenCode Go | `deepseek-v4-flash` | ~$0.14/$0.28 per 1M tokens, ~30k req/5h |
 | OpenAI | `gpt-4o` | $2.50/$10 per 1M tokens |
 | Anthropic | `claude-sonnet-4` | $3/$15 per 1M tokens |
 | Gemini | `gemini-1.5-pro` | $1.25/$5 per 1M tokens |
