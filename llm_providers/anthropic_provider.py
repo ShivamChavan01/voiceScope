@@ -16,6 +16,7 @@ ANTHROPIC_PRICING = {
 class AnthropicProvider(LLMProvider):
     name = "anthropic"
     default_model = "claude-sonnet-4-20250514"
+    required_env = ("ANTHROPIC_API_KEY",)
 
     def __init__(self):
         self.client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"), timeout=60.0)

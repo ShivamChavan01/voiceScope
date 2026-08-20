@@ -9,6 +9,7 @@ from llm_providers.base import CompletionResult, LLMProvider
 class OpenRouterProvider(LLMProvider):
     name = "openrouter"
     default_model = "meta-llama/llama-3.3-70b-instruct:free"
+    required_env = ("OPENROUTER_API_KEY",)
 
     def __init__(self):
         self.client = AsyncOpenAI(

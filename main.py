@@ -3,6 +3,9 @@ import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,8 +17,6 @@ from middleware.rate_limit import RateLimitMiddleware
 from storage.db import close_pool, init_schema
 from utils.logger import logger, set_correlation_id
 from utils.tracing import RequestContext, set_request_context
-
-load_dotenv()
 
 IS_PRODUCTION = os.getenv("APP_ENV") == "production"
 
@@ -87,7 +88,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     from utils.logger import logger
 
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error("Unhandled exception: {}", exc, exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 

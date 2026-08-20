@@ -16,6 +16,7 @@ MISTRAL_PRICING = {
 class MistralProvider(LLMProvider):
     name = "mistral"
     default_model = "mistral-large-latest"
+    required_env = ("MISTRAL_API_KEY",)
 
     def __init__(self):
         self.client = MistralAsyncClient(api_key=os.getenv("MISTRAL_API_KEY"))

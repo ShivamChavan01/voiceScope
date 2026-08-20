@@ -75,6 +75,27 @@ def _count_words(text: str) -> int:
     return len(text.split())
 
 
+def _parse_json_content(content: str):
+    """Parse JSON from LLM output, tolerating markdown fences and prose."""
+    text = content.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"[\[{]", text)
+    if match:
+        start = match.start()
+        try:
+            return json.loads(text[start:])
+        except json.JSONDecodeError:
+            pass
+    raise ValueError(f"Could not parse JSON from LLM output: {content[:300]}")
+
+
 def _split_by_speaker_turns(transcript: str) -> list[str]:
     lines = transcript.splitlines()
     turns: list[str] = []
@@ -189,7 +210,7 @@ class AnalysisAgent:
                 prompt=prompt, temperature=0.1, response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.content)
+            result = _parse_json_content(response.content)
 
             intent = result.get("intent", "")
             if len(intent.split()) > 8:
@@ -238,7 +259,7 @@ class AnalysisAgent:
             name=self.provider.name,
             prompt=prompt, temperature=0.0, response_format={"type": "json_object"}
         )
-        result = json.loads(response.content)
+        result = _parse_json_content(response.content)
         if isinstance(result, dict) and "summary" in result:
             summary: str = result["summary"]
             return summary
@@ -272,7 +293,7 @@ class AnalysisAgent:
             name=self.provider.name,
             prompt=prompt, temperature=0.0, response_format={"type": "json_object"}
         )
-        result = json.loads(response.content)
+        result = _parse_json_content(response.content)
         if isinstance(result, list):
             return result
         if isinstance(result, dict) and "claims" in result:

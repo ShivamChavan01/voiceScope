@@ -35,9 +35,23 @@ class ProviderRegistry:
 
     @classmethod
     def _backup_names(cls, primary: str) -> list[str]:
-        """Ordered fallback providers from LLM_BACKUP_PROVIDERS (comma-separated)."""
+        """Ordered fallback providers from LLM_BACKUP_PROVIDERS (comma-separated),
+        restricted to those that have their credentials configured."""
         raw = os.getenv("LLM_BACKUP_PROVIDERS", "")
-        return [b.strip() for b in raw.split(",") if b.strip() and b.strip() != primary]
+        names = [b.strip() for b in raw.split(",") if b.strip() and b.strip() != primary]
+        configured = []
+        for backend in names:
+            provider_cls = cls._providers.get(backend)
+            if provider_cls is None:
+                continue
+            if not provider_cls.is_configured():
+                logger.warning(
+                    f"[ProviderRegistry] skipping backup '{backend}' — missing "
+                    f"credentials {provider_cls.required_env}"
+                )
+                continue
+            configured.append(backend)
+        return configured
 
     @classmethod
     async def call(cls, name: Optional[str] = None, **complete_kwargs) -> CompletionResult:
@@ -53,14 +67,26 @@ class ProviderRegistry:
         backends = [name] + cls._backup_names(name)
         last_exc: Optional[Exception] = None
         for backend in backends:
+            provider_cls = cls._providers.get(backend)
+            if provider_cls is None:
+                last_exc = ValueError(f"Unknown provider '{backend}'")
+                continue
+            if not provider_cls.is_configured():
+                exc = ValueError(
+                    f"Provider '{backend}' not configured — missing {provider_cls.required_env}"
+                )
+                logger.warning(f"[ProviderRegistry] skipping '{backend}': {exc}")
+                last_exc = exc
+                continue
+
             cb = cls._circuit_breakers.get(backend)
             if cb and cb.is_open():
                 last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
                 logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
                 continue
 
-            provider = cls.get(backend)
             try:
+                provider = cls.get(backend)
                 result = await provider.complete(**complete_kwargs)
                 if cb:
                     cb.record_success()

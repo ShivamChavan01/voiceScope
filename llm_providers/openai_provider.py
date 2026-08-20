@@ -16,6 +16,7 @@ OPENAI_PRICING = {
 class OpenAIProvider(LLMProvider):
     name = "openai"
     default_model = "gpt-4o"
+    required_env = ("OPENAI_API_KEY",)
 
     def __init__(self):
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60.0)

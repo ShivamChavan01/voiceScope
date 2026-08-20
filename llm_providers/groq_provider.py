@@ -4,6 +4,7 @@ from typing import Optional
 from openai import AsyncOpenAI
 
 from llm_providers.base import CompletionResult, LLMProvider
+from utils.logger import logger
 
 GROQ_PRICING = {
     "openai/gpt-oss-120b": {"input": 0.0, "output": 0.0},
@@ -13,9 +14,15 @@ GROQ_PRICING = {
 }
 
 
+def _is_json_validation_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "json_validate_failed" in text or "Failed to generate JSON" in text
+
+
 class GroqProvider(LLMProvider):
     name = "groq"
     default_model = "openai/gpt-oss-120b"
+    required_env = ("GROQ_API_KEY",)
 
     def __init__(self):
         self.client = AsyncOpenAI(
@@ -40,7 +47,21 @@ class GroqProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        response = await self.client.chat.completions.create(**kwargs)
+        try:
+            response = await self.client.chat.completions.create(**kwargs)
+        except Exception as exc:
+            # Strict JSON validation (json_object / json_schema) on some open
+            # models fails when the model emits empty/output — retry WITHOUT the
+            # response_format constraint; the prompt already asks for JSON.
+            if response_format and _is_json_validation_error(exc):
+                logger.warning(
+                    f"[GroqProvider] json_validate_failed on {model} — retrying without"
+                    f" response_format"
+                )
+                kwargs.pop("response_format", None)
+                response = await self.client.chat.completions.create(**kwargs)
+            else:
+                raise
 
         if not response.choices:
             raise ValueError("LLM returned no choices")

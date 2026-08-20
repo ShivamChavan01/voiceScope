@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -16,6 +17,12 @@ class CompletionResult(BaseModel):
 class LLMProvider(ABC):
     name: str
     default_model: str
+    required_env: tuple[str, ...] = ()
+
+    @classmethod
+    def is_configured(cls) -> bool:
+        """True when every credential this provider needs is present."""
+        return all(os.getenv(k) for k in cls.required_env)
 
     @abstractmethod
     async def complete(
