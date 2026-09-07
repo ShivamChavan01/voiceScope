@@ -14,6 +14,21 @@ class MonitoringStore:
     async def _get_pool(self):
         return await get_pool()
 
+    async def _runs_columns(self, conn) -> set:
+        """Column names actually present in the `runs` table (cached).
+
+        Lets writes work against older databases that predate newer columns
+        without requiring a migration.
+        """
+        cached = self.__dict__.get("_runs_cols")
+        if cached is None:
+            rows = await conn.fetch(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='runs'"
+            )
+            cached = {r["column_name"] for r in rows}
+            self.__dict__["_runs_cols"] = cached
+        return cached
+
     # ── Runs CRUD ─────────────────────────────────────────────────
 
     async def log_run(self, result: dict, harness_result=None):
@@ -61,35 +76,43 @@ class MonitoringStore:
         pool = await self._get_pool()
         if pool:
             async with pool.acquire() as conn:
+                # (column, value, cast) — only columns present in the table are written,
+                # so old databases without newer columns still accept the row.
+                desired = [
+                    ("run_id", result.get("run_id", ""), None),
+                    ("intent", analysis.get("intent") if analysis else None, None),
+                    ("sentiment", analysis.get("sentiment_arc") if analysis else None, None),
+                    ("outcome", analysis.get("outcome") if analysis else None, None),
+                    ("hallucination_detected", 1 if analysis and analysis.get("hallucination_detected") else 0, None),
+                    ("escalation_signal", 1 if analysis and analysis.get("escalation_signal") else 0, None),
+                    ("truth_score", truth_score, None),
+                    ("confidence", confidence, None),
+                    ("quality_score", quality_score, None),
+                    ("cost_usd", provider_data.get("cost_usd", 0.0) if provider_data else 0.0, None),
+                    ("provider", provider_data.get("name") if provider_data else None, None),
+                    ("model", provider_data.get("model") if provider_data else None, None),
+                    ("duration_seconds", transcript_meta.get("duration_seconds"), None),
+                    ("word_count", transcript_meta.get("word_count"), None),
+                    ("transcript_preview", transcript_preview, None),
+                    ("transcript_speakers", transcript_speakers_json, "jsonb"),
+                    ("layer_scores", layer_scores_json, "jsonb"),
+                    ("hallucination_evidence", hallucination_evidence, None),
+                    ("policy_evidence", policy_evidence, None),
+                    ("status", status, None),
+                ]
+                existing = await self._runs_columns(conn)
+                use = [(c, v, cast) for c, v, cast in desired if c in existing]
+                if not any(c == "run_id" for c, _, _ in use):
+                    raise ValueError("runs table has no run_id column — cannot log run")
+                cols_sql = ", ".join(c for c, _, _ in use)
+                vals_sql = ", ".join(
+                    f"${i + 1}{'::' + cast if cast else ''}" for i, (_, _, cast) in enumerate(use)
+                )
+                update_sql = ", ".join(f"{c}=EXCLUDED.{c}" for c, _, _ in use if c != "run_id")
                 await conn.execute(
-                    """INSERT INTO runs (run_id, intent, sentiment, outcome, hallucination_detected,
-                       escalation_signal, truth_score, confidence, quality_score, cost_usd,
-                       provider, model, duration_seconds, word_count, transcript_preview,
-                       transcript_speakers, layer_scores, hallucination_evidence, policy_evidence, status)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19,$20)
-                       ON CONFLICT (run_id) DO UPDATE SET
-                       intent=EXCLUDED.intent, sentiment=EXCLUDED.sentiment, outcome=EXCLUDED.outcome,
-                       hallucination_detected=EXCLUDED.hallucination_detected, escalation_signal=EXCLUDED.escalation_signal,
-                       truth_score=EXCLUDED.truth_score, confidence=EXCLUDED.confidence, quality_score=EXCLUDED.quality_score,
-                       cost_usd=EXCLUDED.cost_usd, provider=EXCLUDED.provider, model=EXCLUDED.model,
-                       duration_seconds=EXCLUDED.duration_seconds, word_count=EXCLUDED.word_count,
-                       transcript_preview=EXCLUDED.transcript_preview, transcript_speakers=EXCLUDED.transcript_speakers,
-                       layer_scores=EXCLUDED.layer_scores, hallucination_evidence=EXCLUDED.hallucination_evidence,
-                       policy_evidence=EXCLUDED.policy_evidence, status=EXCLUDED.status""",
-                    result.get("run_id", ""),
-                    analysis.get("intent") if analysis else None,
-                    analysis.get("sentiment_arc") if analysis else None,
-                    analysis.get("outcome") if analysis else None,
-                    1 if analysis and analysis.get("hallucination_detected") else 0,
-                    1 if analysis and analysis.get("escalation_signal") else 0,
-                    truth_score, confidence, quality_score,
-                    provider_data.get("cost_usd", 0.0) if provider_data else 0.0,
-                    provider_data.get("name") if provider_data else None,
-                    provider_data.get("model") if provider_data else None,
-                    transcript_meta.get("duration_seconds"),
-                    transcript_meta.get("word_count"),
-                    transcript_preview, transcript_speakers_json, layer_scores_json,
-                    hallucination_evidence, policy_evidence, status,
+                    f"INSERT INTO runs ({cols_sql}) VALUES ({vals_sql})"
+                    f" ON CONFLICT (run_id) DO UPDATE SET {update_sql}",
+                    *(v for _, v, _ in use),
                 )
         else:
             await self._log_run_sqlite(result, analysis, provider_data, transcript_meta,
