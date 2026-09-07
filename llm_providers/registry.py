@@ -36,7 +36,8 @@ class ProviderRegistry:
     @classmethod
     def _backup_names(cls, primary: str) -> list[str]:
         """Ordered fallback providers from LLM_BACKUP_PROVIDERS (comma-separated),
-        restricted to those that have their credentials configured."""
+        restricted to those that are either already instantiated or have their
+        credentials configured."""
         raw = os.getenv("LLM_BACKUP_PROVIDERS", "")
         names = [b.strip() for b in raw.split(",") if b.strip() and b.strip() != primary]
         configured = []
@@ -44,7 +45,7 @@ class ProviderRegistry:
             provider_cls = cls._providers.get(backend)
             if provider_cls is None:
                 continue
-            if not provider_cls.is_configured():
+            if backend not in cls._instances and not provider_cls.is_configured():
                 logger.warning(
                     f"[ProviderRegistry] skipping backup '{backend}' — missing "
                     f"credentials {provider_cls.required_env}"
@@ -71,22 +72,41 @@ class ProviderRegistry:
             if provider_cls is None:
                 last_exc = ValueError(f"Unknown provider '{backend}'")
                 continue
-            if not provider_cls.is_configured():
-                exc = ValueError(
-                    f"Provider '{backend}' not configured — missing {provider_cls.required_env}"
-                )
-                logger.warning(f"[ProviderRegistry] skipping '{backend}': {exc}")
-                last_exc = exc
-                continue
 
-            cb = cls._circuit_breakers.get(backend)
-            if cb and cb.is_open():
-                last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
-                logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
-                continue
+            # Use an already-instantiated provider if available (tests inject
+            # mocks here); otherwise check credentials before instantiating.
+            provider = cls._instances.get(backend)
+            if provider is None:
+                if not provider_cls.is_configured():
+                    exc = ValueError(
+                        f"Provider '{backend}' not configured — missing {provider_cls.required_env}"
+                    )
+                    logger.warning(f"[ProviderRegistry] skipping '{backend}': {exc}")
+                    last_exc = exc
+                    continue
+
+                cb = cls._circuit_breakers.get(backend)
+                if cb and cb.is_open():
+                    last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
+                    logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
+                    continue
+
+                try:
+                    provider = cls.get(backend)
+                except Exception as exc:
+                    if cb:
+                        cb.record_failure()
+                    logger.warning(f"[ProviderRegistry] init '{backend}' failed: {exc}")
+                    last_exc = exc
+                    continue
+            else:
+                cb = cls._circuit_breakers.get(backend)
+                if cb and cb.is_open():
+                    last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
+                    logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
+                    continue
 
             try:
-                provider = cls.get(backend)
                 result = await provider.complete(**complete_kwargs)
                 if cb:
                     cb.record_success()

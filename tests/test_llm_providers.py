@@ -600,19 +600,19 @@ class TestProviderRegistry:
         from llm_providers.registry import ProviderRegistry
 
         mock_result = SimpleNamespace(content="fallback-ok", input_tokens=1, output_tokens=1)
-        with patch.dict(os.environ, {"LLM_BACKUP_PROVIDERS": "openrouter"}):
-            with patch.object(ProviderRegistry, "get") as mock_get:
-                primary = MagicMock()
-                primary.complete = AsyncMock(side_effect=RuntimeError("quota exhausted"))
-                backup = MagicMock()
-                backup.complete = AsyncMock(return_value=mock_result)
+        primary = MagicMock()
+        primary.complete = AsyncMock(side_effect=RuntimeError("quota exhausted"))
+        backup = MagicMock()
+        backup.complete = AsyncMock(return_value=mock_result)
 
-                def _get(name):
-                    return primary if name == "opencode-go" else backup
-
-                mock_get.side_effect = _get
-
+        ProviderRegistry._instances["opencode-go"] = primary
+        ProviderRegistry._instances["openrouter"] = backup
+        try:
+            with patch.dict(os.environ, {"LLM_BACKUP_PROVIDERS": "openrouter"}):
                 result = await ProviderRegistry.call("opencode-go", prompt="hi")
                 assert result == mock_result
                 backup.complete.assert_awaited_once()
                 primary.complete.assert_awaited_once()
+        finally:
+            ProviderRegistry._instances.pop("opencode-go", None)
+            ProviderRegistry._instances.pop("openrouter", None)
