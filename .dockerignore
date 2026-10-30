@@ -1,7 +1,7 @@
 __pycache__
 *.pyc
 *.pyo
-.env
+.env*
 .venv
 venv/
 chroma_db/
@@ -15,3 +15,8 @@ tests/
 examples/
 sdk/
 *.md
+
+!knowledge/business_policy.md
+frontend/
+
+stt_reviews/

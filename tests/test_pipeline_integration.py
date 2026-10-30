@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -15,6 +15,7 @@ def pipeline():
          patch("core.pipeline.ReportAgent"), \
          patch("core.pipeline.AudioQualityChecker"):
         p = VoiceScopePipeline()
+        p.speaker_agent.run = AsyncMock(side_effect=lambda ctx: ctx)
 
         quality = MagicMock()
         quality.should_proceed = True
@@ -84,6 +85,7 @@ async def test_pipeline_transcription_failure():
          patch("core.pipeline.ReportAgent"), \
          patch("core.pipeline.AudioQualityChecker"):
         p = VoiceScopePipeline()
+        p.speaker_agent.run = AsyncMock(side_effect=lambda ctx: ctx)
 
         quality = MagicMock()
         quality.should_proceed = True
@@ -131,3 +133,41 @@ async def test_pipeline_analysis_failure(pipeline):
     assert "harness" in result
     assert len(result["errors"]) > 0
     assert any("[analysis]" in e for e in result["errors"])
+
+
+async def test_failed_analysis_skips_report_and_returns_failed_state(pipeline):
+    from unittest.mock import AsyncMock
+
+    async def fail(ctx):
+        ctx.add_error('analysis', 'invalid model output')
+        return ctx
+
+    pipeline.analysis_agent.run = fail
+    pipeline.report_agent.run = AsyncMock()
+    result = await pipeline.run_from_transcript('Agent: Hello.')
+    pipeline.report_agent.run.assert_not_awaited()
+    assert result['status'] == 'failed'
+    assert result['evaluation_status'] == 'failed'
+    assert not result['harness']['validation_passed']
+
+
+async def test_validation_error_returns_review_state(pipeline):
+    async def report(ctx):
+        ctx.report = {
+            'run_id': ctx.run_id,
+            'analysis': {
+                'intent': 'refund', 'sentiment_arc': 'neutral',
+                'hallucination_detected': False, 'outcome': 'unresolved',
+                'findings': ['Refund $75'],
+            },
+            'report': {'quality_score': 80},
+        }
+        ctx.mark_stage('report')
+        return ctx
+
+    pipeline.report_agent.run = report
+    result = await pipeline.run_from_transcript('Agent: Refund $50. It is still unresolved.')
+    assert result['status'] == 'partial'
+    assert result['evaluation_status'] == 'needs_review'
+    assert result['analysis']['hallucination_detected'] is False
+    assert not result['harness']['validation_passed']

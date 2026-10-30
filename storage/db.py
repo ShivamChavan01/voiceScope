@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS alert_incidents (
     resolved_at TIMESTAMP
 );
 
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS evaluation JSONB;
+
 CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_run_id ON runs(run_id);
 CREATE INDEX IF NOT EXISTS idx_call_metrics_created_at ON call_metrics(created_at DESC);

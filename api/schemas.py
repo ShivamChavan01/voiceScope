@@ -364,7 +364,7 @@ def parse_bland_webhook(payload: dict) -> WebhookEvent:
 
 def parse_bolna_webhook(payload: dict) -> WebhookEvent:
     """Parse Bolna call completed webhook into WebhookEvent."""
-    telephony = payload.get("telephony_data", {})
+    telephony = payload.get("telephony_data") or {}
 
     return WebhookEvent(
         platform="bolna",
@@ -384,6 +384,11 @@ def parse_bolna_webhook(payload: dict) -> WebhookEvent:
             "total_cost": payload.get("total_cost"),
             "extracted_data": payload.get("extracted_data"),
             "usage_breakdown": payload.get("usage_breakdown"),
+            "latency_data": payload.get("latency_data"),
+            "created_at": payload.get("created_at"),
+            "updated_at": payload.get("updated_at"),
+            "hangup_reason": telephony.get("hangup_reason"),
+            "hangup_by": telephony.get("hangup_by"),
         },
         raw=payload,
     )

@@ -5,7 +5,10 @@ verifies LLM analysis doesn't contradict them.
 
 import re
 
-from pydantic import BaseModel
+from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class Fact(BaseModel):
@@ -15,9 +18,13 @@ class Fact(BaseModel):
 
 
 class FactVerificationResult(BaseModel):
-    accuracy: float = 1.0
-    facts_found: list[Fact] = []
-    contradictions: list[str] = []
+    # Numeric support checks analysis claims, not the caller agent's truthfulness.
+    accuracy: float = Field(default=1.0, ge=0.0, le=1.0)
+    status: Literal["assessed", "not_assessed"] = "not_assessed"
+    claims_checked: int = 0
+    facts_found: list[Fact] = Field(default_factory=list)
+    unsupported_claims: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
 
 
 class FactExtractor:
@@ -64,47 +71,40 @@ class FactExtractor:
         return facts
 
     def verify(self, transcript: str, analysis: dict) -> FactVerificationResult:
-        """Verify analysis doesn't contradict transcript facts."""
+        """Measure numeric support in findings, once per distinct claimed value.
+
+        A number absent from a transcript is unsupported, not a proven contradiction.
+        Matching values do not prove semantic correctness (price vs. refund, negation,
+        speaker attribution). Policy excerpts and model metadata are not call claims.
+        """
         facts = self.extract_facts(transcript)
-        contradictions = []
+        if not transcript.strip():
+            return FactVerificationResult(facts_found=facts)
 
-        # Exclude metadata fields from number comparison
-        analysis_filtered = {
-            k: v for k, v in analysis.items()
-            if k not in ("audio_duration_seconds", "word_count", "char_count")
-        }
-        analysis_text = str(analysis_filtered).lower()
+        def values(text: str) -> set[tuple[bool, Decimal]]:
+            return {
+                (match.group().startswith("$"), Decimal(match.group().lstrip("$").replace(",", "")))
+                for match in self.NUMBER_PATTERN.finditer(text)
+            }
 
-        for fact in facts:
-            if fact.fact_type == "number":
-                # Check if analysis mentions a different number
-                numbers_in_analysis = re.findall(r"\$?\d[\d,]*\.?\d*", analysis_text)
-                if numbers_in_analysis:
-                    fact_num = fact.value.replace("$", "").replace(",", "")
-                    for analysis_num in numbers_in_analysis:
-                        analysis_num_clean = analysis_num.replace("$", "").replace(",", "")
-                        try:
-                            if abs(float(fact_num) - float(analysis_num_clean)) > 0.01:
-                                if analysis_num_clean in analysis_text:
-                                    contradictions.append(
-                                        f"transcript says {fact.value} but analysis mentions {analysis_num}"
-                                    )
-                        except ValueError:
-                            pass
+        findings = analysis.get("findings", [])
+        claims = set()
+        if isinstance(findings, list):
+            for finding in findings:
+                if isinstance(finding, str):
+                    claims.update(values(finding))
+        if not claims:
+            return FactVerificationResult(facts_found=facts)
 
-            elif fact.fact_type == "promise":
-                # Check if analysis claims something was promised when it wasn't, or vice versa
-                promise_keywords = ["promise", "guarantee", "commit", "will do"]
-                has_promise_in_transcript = any(kw in fact.text.lower() for kw in promise_keywords)
-                if has_promise_in_transcript and "no promise" in analysis_text:
-                    contradictions.append("transcript contains promise but analysis says none")
-                if not has_promise_in_transcript and "promise" in analysis_text and "no" not in analysis_text:
-                    contradictions.append("analysis claims promise but none found in transcript")
-
-        accuracy = 1.0 - (len(contradictions) / max(len(facts), 1))
-
+        observed = values(transcript)
+        unsupported = claims - observed
         return FactVerificationResult(
-            accuracy=round(accuracy, 4),
+            status="assessed",
+            claims_checked=len(claims),
+            accuracy=round(len(claims & observed) / len(claims), 4),
             facts_found=facts,
-            contradictions=contradictions,
+            unsupported_claims=[
+                f"analysis numeric claim {'$' if currency else ''}{number} is absent from transcript"
+                for currency, number in sorted(unsupported)
+            ],
         )

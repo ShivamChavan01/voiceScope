@@ -1,36 +1,32 @@
 "use client";
 
 import React from "react";
+import { layerStatus } from "@/lib/evaluation";
 
 const HARNESS_LAYERS = [
-  { id: "schema", name: "Schema", label: "Schema", weight: 0.33 },
-  { id: "citations", name: "Citations", label: "Citations", weight: 0.17 },
-  { id: "facts", name: "Facts", label: "Facts", weight: 0.17 },
-  { id: "sentiment_consistency", name: "Sentiment", label: "Sent.", weight: 0.11 },
-  { id: "outcome_evidence", name: "Outcome", label: "Outcome", weight: 0.11 },
-  { id: "escalation", name: "Escalation", label: "Escal", weight: 0.06 },
-  { id: "duplicate", name: "Duplicate", label: "Dup", weight: 0.05 },
+  { id: "schema", name: "Schema", label: "Schema", weight: 0.25 / 0.95 },
+  { id: "citations", name: "Citations", label: "Citations", weight: 0.15 / 0.95 },
+  { id: "cross_check", name: "Cross-check", label: "Cross", weight: 0.10 / 0.95 },
+  { id: "facts", name: "Facts", label: "Facts", weight: 0.15 / 0.95 },
+  { id: "sentiment_consistency", name: "Sentiment", label: "Sent.", weight: 0.10 / 0.95 },
+  { id: "outcome_evidence", name: "Outcome", label: "Outcome", weight: 0.10 / 0.95 },
+  { id: "escalation", name: "Escalation", label: "Escal", weight: 0.05 / 0.95 },
+  { id: "duplicate", name: "Duplicate", label: "Dup", weight: 0.05 / 0.95 },
 ];
 
 export const HARNESS_NAMES = HARNESS_LAYERS.map((l) => l.name);
 export const HARNESS_KEYS = HARNESS_LAYERS.map((l) => l.id);
 
-function getStatus(score: number): "pass" | "warning" | "fail" | "na" {
-  if (score === 0) return "na";
-  if (score >= 80) return "pass";
-  if (score >= 50) return "warning";
-  return "fail";
-}
-
 function statusLabel(status: string) {
   if (status === "pass") return "Pass";
   if (status === "warning") return "Warn";
   if (status === "fail") return "Fail";
+  if (status === "invalid") return "Invalid";
   return "N/A";
 }
 
 interface HarnessBarProps {
-  scores: number[];
+  scores: (number | null)[];
   runId?: string;
   runLabel?: string;
   onOpenRun?: (id: string) => void;
@@ -43,8 +39,8 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
 
   const layers = HARNESS_LAYERS.map((l, i) => ({
     ...l,
-    score: scores[i] || 0,
-    status: getStatus(scores[i] || 0),
+    score: scores[i] ?? null,
+    status: layerStatus(scores[i] ?? null),
   }));
   const flagged = layers.filter((l) => l.status !== "pass" && l.status !== "na").length;
   const active = layers.filter((l) => l.status !== "na").length;
@@ -105,7 +101,7 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
             style={{ width: `${l.weight * 100}%` }}
             role="button"
             tabIndex={0}
-            aria-label={`${l.name}, score ${l.score.toFixed(2)}, ${l.status}`}
+            aria-label={`${l.name}, score ${l.score?.toFixed(2) ?? "N/A"}, ${l.status}`}
             onMouseEnter={() => !touchMode && setHighlight(i)}
             onMouseLeave={() => !touchMode && clearHighlight()}
             onFocus={() => setHighlight(i)}
@@ -152,7 +148,7 @@ export function HarnessBar({ scores, runId, runLabel, onOpenRun, mini }: Harness
                 <div className="expand-bar weight" style={{ width: `${l.weight * 100}%` }} />
                 <div className="expand-bar" data-status={l.status} style={{ width: `${l.weight * 100}%` }} />
               </div>
-              <span className={`expand-score ${l.status}`}>{l.status === "na" ? "N/A" : `${l.score}`}</span>
+              <span className={`expand-score ${l.status}`}>{l.status === "na" ? "N/A" : l.status === "invalid" ? "Invalid" : `${l.score}`}</span>
               <span className={`expand-status-badge badge badge-${l.status === "pass" ? "pass" : l.status === "warning" ? "flag" : l.status === "fail" ? "fail" : "na"}`}>
                 {statusLabel(l.status)}
               </span>

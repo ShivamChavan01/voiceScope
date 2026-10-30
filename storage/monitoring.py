@@ -8,6 +8,32 @@ from storage.db import get_pool
 from utils.logger import logger
 
 
+def reliability_summary(evaluation) -> dict | None:
+    """Return only assessed finding counts; legacy rows have no invented verdict."""
+    from pydantic import ValidationError
+    from core.reliability import ReliabilityReport
+
+    if isinstance(evaluation, str):
+        try:
+            evaluation = json.loads(evaluation)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if not isinstance(evaluation, dict) or not isinstance(evaluation.get("reliability"), dict):
+        return None
+    try:
+        report = ReliabilityReport.model_validate(evaluation["reliability"])
+    except ValidationError:
+        return None
+    return {
+        "status": report.status,
+        "checked_rule_count": len(report.checked_rule_ids),
+        "finding_count": len(report.findings),
+        "confirmed_policy_count": sum(f.category == "policy_violation" and f.status == "confirmed" for f in report.findings),
+        "review_count": sum(f.status == "needs_review" for f in report.findings),
+        "unverified_claim_count": sum(f.category == "unverified_claim" for f in report.findings),
+    }
+
+
 class MonitoringStore:
     """Monitoring & alerting store. Tracks metrics and fires threshold-based alerts."""
 
@@ -53,7 +79,7 @@ class MonitoringStore:
         if transcript_preview and len(transcript_preview) > 500:
             transcript_preview = transcript_preview[:500] + "…"
 
-        status = "completed"
+        status = result.get("status", "completed")
         if result.get("errors"):
             status = "partial"
         if result.get("status") == "failed":
@@ -99,6 +125,7 @@ class MonitoringStore:
                     ("hallucination_evidence", hallucination_evidence, None),
                     ("policy_evidence", policy_evidence, None),
                     ("status", status, None),
+                    ("evaluation", json.dumps(result), "jsonb"),
                 ]
                 existing = await self._runs_columns(conn)
                 use = [(c, v, cast) for c, v, cast in desired if c in existing]
@@ -135,6 +162,46 @@ class MonitoringStore:
             return await self._get_runs_pg(pool, limit, offset, search, status)
         return await self._get_runs_sqlite(limit, offset, search, status)
 
+    async def get_run_summary(self) -> dict:
+        """All-time persisted runs. Demo IDs are reserved by the legacy seeder."""
+        query = """SELECT COUNT(*) AS total_calls,
+            COALESCE(SUM(CASE WHEN run_id LIKE 'demo-%' THEN 1 ELSE 0 END), 0) AS demo_calls,
+            COALESCE(SUM(CASE WHEN run_id NOT LIKE 'demo-%' THEN 1 ELSE 0 END), 0) AS real_calls,
+            COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) AS completed_calls,
+            COALESCE(SUM(CASE WHEN run_id NOT LIKE 'demo-%' AND status = 'completed'
+                AND hallucination_detected = 1 THEN 1 ELSE 0 END), 0) AS flagged_calls,
+            COALESCE(SUM(CASE WHEN run_id NOT LIKE 'demo-%' AND status = 'completed'
+                AND escalation_signal = 1 THEN 1 ELSE 0 END), 0) AS escalated_calls,
+            COALESCE(SUM(CASE WHEN run_id NOT LIKE 'demo-%' AND status = 'completed'
+                THEN 1 ELSE 0 END), 0) AS evaluated_real_calls
+            FROM runs"""
+        pool = await self._get_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query)
+                evaluations = await conn.fetch("SELECT run_id, evaluation FROM runs")
+        else:
+            with self._sqlite_conn() as conn:
+                row = conn.execute(query).fetchone()
+                evaluations = conn.execute("SELECT run_id, evaluation FROM runs").fetchall()
+        result = dict(row)
+        denominator = result["evaluated_real_calls"]
+        result["hallucination_rate"] = result["flagged_calls"] / denominator if denominator else None
+        result["escalation_rate"] = result["escalated_calls"] / denominator if denominator else None
+        result["scope"] = "all_time_persisted_runs"
+        result.update(confirmed_policy_calls=0, review_calls=0, evaluated_policy_calls=0, legacy_calls=0)
+        for evaluation in evaluations:
+            if evaluation["run_id"].startswith("demo-"):
+                continue
+            summary = reliability_summary(evaluation["evaluation"])
+            if summary is None:
+                result["legacy_calls"] += 1
+                continue
+            result["confirmed_policy_calls"] += int(summary["confirmed_policy_count"] > 0)
+            result["review_calls"] += int(summary["review_count"] > 0 or summary["status"] == "insufficient_evidence")
+            result["evaluated_policy_calls"] += int(summary["status"] == "assessed")
+        return result
+
     async def get_run(self, run_id: str) -> Optional[dict]:
         pool = await self._get_pool()
         if pool:
@@ -143,7 +210,7 @@ class MonitoringStore:
             if not row:
                 return None
             d = dict(row)
-            for json_field in ("layer_scores", "transcript_speakers"):
+            for json_field in ("layer_scores", "transcript_speakers", "evaluation"):
                 if d.get(json_field) and isinstance(d[json_field], str):
                     try:
                         d[json_field] = json.loads(d[json_field])
@@ -315,7 +382,7 @@ class MonitoringStore:
         async with pool.acquire() as conn:
             total = await conn.fetchval(f"SELECT COUNT(*) FROM runs {where_sql}", *params)
             rows = await conn.fetch(
-                f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at FROM runs {where_sql} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}",
+                f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at, evaluation FROM runs {where_sql} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}",
                 *params, limit, offset
             )
 
@@ -329,6 +396,7 @@ class MonitoringStore:
                     d["layer_scores"] = json.loads(d["layer_scores"])
                 except (json.JSONDecodeError, TypeError):
                     d["layer_scores"] = None
+            d["reliability_summary"] = reliability_summary(d.pop("evaluation", None))
             runs.append(d)
 
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
@@ -423,6 +491,9 @@ class MonitoringStore:
                 resolved_at TIMESTAMP
             )
         """)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        if "evaluation" not in columns:
+            conn.execute("ALTER TABLE runs ADD COLUMN evaluation TEXT")
         conn.commit()
         return closing(conn)
 
@@ -432,15 +503,15 @@ class MonitoringStore:
                 """INSERT OR REPLACE INTO runs (run_id, intent, sentiment, outcome, hallucination_detected,
                    escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model,
                    duration_seconds, word_count, transcript_preview, transcript_speakers, layer_scores,
-                   hallucination_evidence, policy_evidence, status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   hallucination_evidence, policy_evidence, status, evaluation)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (result.get("run_id", ""), analysis.get("intent") if analysis else None, analysis.get("sentiment_arc") if analysis else None,
                  analysis.get("outcome") if analysis else None, 1 if analysis and analysis.get("hallucination_detected") else 0,
                  1 if analysis and analysis.get("escalation_signal") else 0, truth_score, confidence, quality_score,
                  provider_data.get("cost_usd", 0.0) if provider_data else 0.0, provider_data.get("name") if provider_data else None,
                  provider_data.get("model") if provider_data else None, transcript_meta.get("duration_seconds"),
                  transcript_meta.get("word_count"), transcript_preview, transcript_speakers_json, layer_scores_json,
-                 hallucination_evidence, policy_evidence, status),
+                 hallucination_evidence, policy_evidence, status, json.dumps(result)),
             )
             conn.commit()
 
@@ -461,7 +532,7 @@ class MonitoringStore:
                 params.append(status)
             where_sql = f"WHERE {' AND '.join(where)}" if where else ""
             total = conn.execute(f"SELECT COUNT(*) as cnt FROM runs {where_sql}", params).fetchone()["cnt"]
-            rows = conn.execute(f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at FROM runs {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
+            rows = conn.execute(f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at, evaluation FROM runs {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
         runs = []
         for r in rows:
             d = dict(r)
@@ -472,6 +543,7 @@ class MonitoringStore:
                     d["layer_scores"] = json.loads(d["layer_scores"])
                 except (json.JSONDecodeError, TypeError):
                     d["layer_scores"] = None
+            d["reliability_summary"] = reliability_summary(d.pop("evaluation", None))
             runs.append(d)
         return {"runs": runs, "total": total, "limit": limit, "offset": offset}
 
@@ -481,7 +553,7 @@ class MonitoringStore:
         if not row:
             return None
         d = dict(row)
-        for f in ("layer_scores", "transcript_speakers"):
+        for f in ("layer_scores", "transcript_speakers", "evaluation"):
             if d.get(f):
                 try:
                     d[f] = json.loads(d[f])

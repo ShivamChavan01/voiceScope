@@ -413,7 +413,7 @@ class TestBolnaWebhook:
         mock_httpx_cls.return_value = _mock_httpx_client()
 
         response = client.post(
-            "/api/v1/webhooks/call-completed", json=BOLNA_WEBHOOK, headers=HEADERS
+            "/api/v1/webhooks/call-completed", json={**BOLNA_WEBHOOK, "transcript": None}, headers=HEADERS
         )
         assert response.status_code == 200
         data = response.json()
@@ -423,6 +423,7 @@ class TestBolnaWebhook:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
     @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.BOLNA_API_KEY", "")
     def test_bolna_prefers_stable_endpoint_without_api_key(
         self, mock_httpx_cls, mock_get_pipeline, mock_validate
     ):
@@ -441,7 +442,7 @@ class TestBolnaWebhook:
         mock_httpx_cls.return_value = mock_client
 
         response = client.post(
-            "/api/v1/webhooks/call-completed", json=BOLNA_WEBHOOK, headers=HEADERS
+            "/api/v1/webhooks/call-completed", json={**BOLNA_WEBHOOK, "transcript": None}, headers=HEADERS
         )
         assert response.status_code == 200
         assert mock_client.get.await_count == 1

@@ -38,3 +38,16 @@ def mock_provider():
 @pytest.fixture
 def sample_audio_bytes():
     return b"fake audio data for testing"
+
+
+@pytest.fixture(autouse=True)
+def isolate_shared_app_rate_limit():
+    """Each test gets a fresh request budget; limits still apply within a test."""
+    from main import app
+    from middleware.rate_limit import RateLimitMiddleware
+
+    current = app.middleware_stack
+    while current is not None:
+        if isinstance(current, RateLimitMiddleware):
+            current.requests.clear()
+        current = getattr(current, 'app', None)

@@ -21,3 +21,9 @@ test-audio/
 scripts/
 *.mp3
 *.wav
+
+stt_reviews/
+*.sqlite
+*.sqlite3
+/pytest-of-*/
+/tmp*/

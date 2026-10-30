@@ -1,0 +1,753 @@
+{
+  "version": "2",
+  "policies": [
+    {
+      "id": "refund",
+      "title": "No same-day guarantees",
+      "kind": "no_same_day_refund_guarantee",
+      "text": "Agents must never guarantee same-day refunds."
+    },
+    {
+      "id": "escalation",
+      "title": "Honor supervisor requests",
+      "kind": "honor_escalation_request",
+      "text": "If a customer requests a supervisor, agents must honor the request immediately."
+    }
+  ],
+  "cases": [
+    {
+      "id": "ordinary",
+      "name": "Refund estimate without a guarantee",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "When should I expect my refund?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Refunds usually take five to seven business days. I can check the status for you."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "A refund estimate without a guarantee should not trigger the refund-promise rule."
+    },
+    {
+      "id": "compliant-refund",
+      "name": "No timing guarantee",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Refunds usually take five to seven business days."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "A typical refund timeframe is allowed. The rule prohibits guaranteed same-day completion."
+    },
+    {
+      "id": "promise",
+      "name": "Explicit forbidden guarantee",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "purpose": "An explicit same-day refund guarantee should violate the fictional refund-promise rule."
+    },
+    {
+      "id": "promise-today",
+      "name": "Promise refund today",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I promise your refund will arrive today."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "purpose": "Promising that the refund will arrive today should match the same-day guarantee rule."
+    },
+    {
+      "id": "negation",
+      "name": "Explicitly refuses guarantee",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "Refusing to guarantee a same-day refund must not be mistaken for making that guarantee."
+    },
+    {
+      "id": "negative-promise",
+      "name": "Promise of no refund",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I promise no same-day refunds."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "A promise of no same-day refunds is not a promise that a refund will arrive today."
+    },
+    {
+      "id": "quoted-promise",
+      "name": "Reported promise",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "The last agent said I guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "An agent reporting an earlier promise must not be treated as making a new promise."
+    },
+    {
+      "id": "caller-promise",
+      "name": "Caller statement is not agent promise",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I guarantee a same-day refund."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Please explain the issue."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "The refund rule governs agent promises. The caller saying the same words is not an agent violation."
+    },
+    {
+      "id": "no-rules",
+      "name": "No configured policies",
+      "scope": "supported_patterns",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [],
+      "purpose": "Without an enabled company rule, a refund promise cannot be confirmed as a policy violation."
+    },
+    {
+      "id": "inferred-promise",
+      "name": "Inferred agent needs review",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "model_inference",
+          "text": "I guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles"
+          ]
+        }
+      ],
+      "purpose": "The forbidden wording is present, but inferred speaker attribution must downgrade it to review."
+    },
+    {
+      "id": "unknown-promise",
+      "name": "Unknown speaker cannot confirm",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "unknown",
+          "role_source": "unknown",
+          "text": "I guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles"
+          ]
+        }
+      ],
+      "purpose": "An unknown speaker must never produce a confirmed agent policy violation."
+    },
+    {
+      "id": "refusal",
+      "name": "Explicit supervisor refusal",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to a supervisor."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "purpose": "A caller requests a supervisor and the agent explicitly refuses, contradicting the escalation rule."
+    },
+    {
+      "id": "offer",
+      "name": "Supervisor transfer offered",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will connect you to a supervisor now."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "Offering the requested supervisor transfer must not be flagged as a refusal. Actual transfer completion is unverified."
+    },
+    {
+      "id": "silent-transfer",
+      "name": "No transfer log proves nothing",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Please hold while I check."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "A missing transfer log does not prove that an agent refused a supervisor request."
+    },
+    {
+      "id": "unrelated-refusal",
+      "name": "Billing refusal is not supervisor refusal",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to billing."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "Refusing a transfer to billing does not establish refusal of the requested supervisor."
+    },
+    {
+      "id": "alternative",
+      "name": "Offers supervisor after billing refusal",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to billing, but I will connect you to a supervisor."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "An agent refusing billing but offering the requested supervisor must not trigger the escalation rule."
+    },
+    {
+      "id": "no-request",
+      "name": "Refusal without request",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to a supervisor."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "This rule requires an explicit caller request. A refusal excerpt alone is insufficient to establish this violation."
+    },
+    {
+      "id": "withdrawn",
+      "name": "Caller withdraws request",
+      "scope": "supported_patterns",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Never mind, I do not need a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [],
+      "purpose": "A supervisor request withdrawn by the caller must not remain an outstanding escalation obligation."
+    },
+    {
+      "id": "refund-done",
+      "name": "Completion without external action result",
+      "scope": "supported_patterns",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I have processed your refund."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [
+        {
+          "category": "unverified_claim",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "action_result"
+          ]
+        }
+      ],
+      "purpose": "A refund-completion claim needs an external action result. Without it, the claim is unverified, not a confirmed failed refund."
+    },
+    {
+      "id": "request-done",
+      "name": "Refund request processing is not completed refund",
+      "scope": "supported_patterns",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I have processed your refund request."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [],
+      "purpose": "Processing a refund request is an administrative step, not a claim that the refund itself completed."
+    },
+    {
+      "id": "conditional",
+      "name": "Approval condition is not completion",
+      "scope": "supported_patterns",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Your refund is processed only after approval."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [],
+      "purpose": "A conditional description of refund processing must not become a claim that a refund already completed."
+    },
+    {
+      "id": "negated-completion",
+      "name": "Refund not completed",
+      "scope": "supported_patterns",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I have not processed your refund."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [],
+      "purpose": "Saying the refund has not been processed must not be flagged as a completed-refund claim."
+    },
+    {
+      "id": "missing",
+      "name": "Missing transcript",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [],
+      "expected_status": "insufficient_evidence",
+      "expected": [
+        {
+          "category": "insufficient_evidence",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "info",
+          "turn_indices": [],
+          "missing_evidence": [
+            "transcript"
+          ]
+        }
+      ],
+      "purpose": "With no transcript, even an enabled refund rule must yield insufficient evidence."
+    },
+    {
+      "id": "two-findings",
+      "name": "Promise and unverified completion",
+      "scope": "supported_patterns",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee a same-day refund. I have completed your refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        },
+        {
+          "category": "unverified_claim",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "action_result"
+          ]
+        }
+      ],
+      "purpose": "A forbidden timing promise and an unverified completion claim are different findings in the same agent turn."
+    },
+    {
+      "id": "challenge-assure",
+      "name": "Assurance of same-day arrival",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I assure you your refund will arrive today."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "purpose": "Tests whether assurance wording is recognized as a guaranteed same-day refund. This is a known coverage gap."
+    },
+    {
+      "id": "challenge-lead",
+      "name": "Request for team lead refused",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Please let me speak with your team lead."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will not let you speak with the team lead."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "purpose": "Tests whether a refused team-lead request is understood as escalation failure. This is a known coverage gap."
+    },
+    {
+      "id": "challenge-returned",
+      "name": "Completion phrased as money returned",
+      "scope": "challenge_paraphrases",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "The money has been returned to your card."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [
+        {
+          "category": "unverified_claim",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "action_result"
+          ]
+        }
+      ],
+      "purpose": "Tests whether money returned to a card is recognized as a refund-completion claim. This is a known coverage gap."
+    },
+    {
+      "id": "challenge-polite",
+      "name": "Polite escalation request refused",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "May I speak to a human, please?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "You cannot speak to a human."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "purpose": "A polite human request followed by an explicit refusal should still trigger the escalation rule."
+    }
+  ]
+}

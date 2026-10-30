@@ -62,98 +62,62 @@ class TestTranscriptionAgent:
 
 class TestSpeakerAgent:
     @pytest.mark.asyncio
-    async def test_single_speaker_gets_agent_role(self):
+    async def test_single_speaker_is_inferred_from_content(self):
         from agents.speaker_agent import SpeakerAgent
 
-        with patch("agents.speaker_agent.ProviderRegistry") as mock_reg:
-            mock_reg.get.return_value = AsyncMock()
+        with patch("agents.speaker_agent.ProviderRegistry") as registry:
+            registry.get.return_value.name = "test"
+            registry.call = AsyncMock()
+            registry.call.return_value.content = '{"speaker_roles": {"0": "customer"}}'
             agent = SpeakerAgent()
-        ctx = PipelineContext()
-        ctx.transcript_speakers = [{"speaker": 0, "text": "Hello, I'm the agent"}]
+            ctx = PipelineContext(transcript_speakers=[{"speaker": 0, "text": "I need help with my bill"}])
+            await agent.run(ctx)
+        assert ctx.transcript_speakers[0]["role"] == "customer"
+        assert ctx.transcript_speakers[0]["role_source"] == "model_inference"
 
-        ctx = await agent.run(ctx)
-
-        assert ctx.transcript_speakers[0]["role"] == "agent"
-        assert ctx.transcript_speakers[0]["label"] == "Agent"
-
-    @pytest.mark.asyncio
     async def test_no_speakers(self):
         from agents.speaker_agent import SpeakerAgent
-
-        with patch("agents.speaker_agent.ProviderRegistry") as mock_reg:
-            mock_reg.get.return_value = AsyncMock()
-            agent = SpeakerAgent()
-        ctx = PipelineContext()
-        ctx.transcript_speakers = None
-
-        ctx = await agent.run(ctx)
-
+        with patch("agents.speaker_agent.ProviderRegistry"):
+            ctx = await SpeakerAgent().run(PipelineContext())
         assert ctx.transcript_speakers is None
 
-    @pytest.mark.asyncio
-    async def test_same_speaker_twice_gets_agent(self):
+    async def test_same_speaker_all_turns_get_same_role(self):
         from agents.speaker_agent import SpeakerAgent
+        with patch("agents.speaker_agent.ProviderRegistry") as registry:
+            registry.call = AsyncMock()
+            registry.call.return_value.content = '{"speaker_roles": {"4": "customer"}}'
+            ctx = PipelineContext(transcript_speakers=[
+                {"speaker": 4, "text": "Hello"}, {"speaker": 4, "text": "I need help"},
+            ])
+            await SpeakerAgent().run(ctx)
+        assert all(turn["role"] == "customer" for turn in ctx.transcript_speakers)
 
-        with patch("agents.speaker_agent.ProviderRegistry") as mock_reg:
-            mock_reg.get.return_value = AsyncMock()
-            agent = SpeakerAgent()
-        ctx = PipelineContext()
-        ctx.transcript_speakers = [
-            {"speaker": 0, "text": "Hello"},
-            {"speaker": 0, "text": "Hello again"},
-        ]
-
-        ctx = await agent.run(ctx)
-
-        assert ctx.transcript_speakers[0]["role"] == "agent"
-
-    @pytest.mark.asyncio
-    async def test_multi_speaker_classification(self):
+    async def test_customer_can_speak_before_agent(self):
         from agents.speaker_agent import SpeakerAgent
+        with patch("agents.speaker_agent.ProviderRegistry") as registry:
+            registry.call = AsyncMock()
+            registry.call.return_value.content = '{"speaker_roles": {"0": "customer", "1": "agent"}}'
+            ctx = PipelineContext(transcript_speakers=[
+                {"speaker": 0, "text": "I need help"}, {"speaker": 1, "text": "Support speaking"},
+            ])
+            await SpeakerAgent().run(ctx)
+        assert [turn["role"] for turn in ctx.transcript_speakers] == ["customer", "agent"]
 
-        with patch("agents.speaker_agent.ProviderRegistry") as mock_reg:
-            mock_reg.get.return_value = AsyncMock()
-            agent = SpeakerAgent()
-        ctx = PipelineContext()
-        ctx.transcript_speakers = [
-            {"speaker": 0, "text": "How can I help you today?"},
-            {"speaker": 1, "text": "I need help with my order"},
-            {"speaker": 0, "text": "Let me look into that"},
-        ]
-
-        mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "speaker_roles": {"0": "agent", "1": "customer"}
-        })
-
-        agent.provider = AsyncMock()
-        agent.provider.complete = AsyncMock(return_value=mock_response)
-
-        ctx = await agent.run(ctx)
-
-        assert ctx.transcript_speakers[0]["role"] == "agent"
-        assert ctx.transcript_speakers[1]["role"] == "customer"
-
-    @pytest.mark.asyncio
-    async def test_llm_failure_defaults_to_agent_customer(self):
+    @pytest.mark.parametrize("content", [None, 'not json', '{"speaker_roles": {"0": "boss"}}', '{"speaker_roles": {}}'])
+    async def test_failed_or_inconclusive_classification_never_guesses(self, content):
         from agents.speaker_agent import SpeakerAgent
-
-        with patch("agents.speaker_agent.ProviderRegistry") as mock_reg:
-            mock_reg.get.return_value = AsyncMock()
-            agent = SpeakerAgent()
-        agent.provider = AsyncMock()
-        agent.provider.complete = AsyncMock(side_effect=Exception("LLM error"))
-
-        ctx = PipelineContext()
-        ctx.transcript_speakers = [
-            {"speaker": 0, "text": "Agent speaking"},
-            {"speaker": 1, "text": "Customer speaking"},
-        ]
-
-        ctx = await agent.run(ctx)
-
-        assert ctx.transcript_speakers[0]["role"] == "agent"
-        assert ctx.transcript_speakers[1]["role"] == "customer"
+        with patch("agents.speaker_agent.ProviderRegistry") as registry:
+            registry.call = AsyncMock()
+            if content is None:
+                registry.call.side_effect = RuntimeError("provider unavailable")
+            else:
+                registry.call.return_value.content = content
+            ctx = PipelineContext(transcript_speakers=[
+                {"speaker": 0, "text": "Hello"}, {"speaker": 1, "text": "Hi"},
+            ])
+            await SpeakerAgent().run(ctx)
+        assert all(turn["role"] == "unknown" for turn in ctx.transcript_speakers)
+        assert ctx.errors
 
 
 # ─── Analysis Agent Tests ─────────────────────────────────────────────
@@ -411,3 +375,34 @@ class TestReportAgent:
         assert ctx.report is not None
         assert "error" in ctx.report
         assert len(ctx.errors) > 0
+
+
+@pytest.mark.parametrize('payload', [{}, {'hallucination_detected': 'false'}])
+async def test_analysis_rejects_incomplete_or_mistyped_model_output(payload):
+    from agents.analysis_agent import AnalysisAgent
+
+    kb = MagicMock(available=False)
+    provider = MagicMock(name='provider')
+    provider.name = 'test'
+    with patch('agents.analysis_agent.ProviderRegistry.get', return_value=provider), \
+         patch('agents.analysis_agent.ProviderRegistry.call', new_callable=AsyncMock) as call:
+        call.return_value.content = json.dumps(payload)
+        agent = AnalysisAgent(AsyncMock(), kb)
+        ctx = await agent.run(PipelineContext(raw_transcript='Agent: Hello.'))
+    assert 'analysis' not in ctx.stages_completed
+    assert ctx.errors
+    assert ctx.hallucination_detected is None
+
+
+async def test_report_rejects_out_of_range_score_without_clamping():
+    from agents.report_agent import ReportAgent
+
+    provider = MagicMock()
+    provider.name = 'test'
+    with patch('agents.report_agent.ProviderRegistry.get', return_value=provider), \
+         patch('agents.report_agent.ProviderRegistry.call', new_callable=AsyncMock) as call:
+        call.return_value.content = json.dumps({'quality_score': -35})
+        ctx = await ReportAgent(AsyncMock()).run(PipelineContext(raw_transcript='Agent: Hello.'))
+    assert 'report' not in ctx.stages_completed
+    assert ctx.errors
+    assert ctx.report['quality_score'] is None

@@ -24,22 +24,32 @@ def main() -> int:
     parser.add_argument("--json", type=str, default="")
     args = parser.parse_args()
 
-    summary = HarnessBenchmark().run_benchmark()
+    try:
+        summary = HarnessBenchmark().run_benchmark()
+    except (OSError, ValueError) as exc:
+        print(f"Benchmark unavailable: {exc}", file=sys.stderr)
+        return 1
 
     print("=" * 62)
     print("  VoiceScope Harness Benchmark")
     print("=" * 62)
     if summary.total_tests == 0:
-        print("  No labeled test data found. Skipping.")
-        return 0
+        print("  No labeled test data found.")
+        return 1
     print(f"  Tests:                  {summary.total_tests}")
     print(f"  Avg truth score:        {summary.avg_truth_score:.4f}")
     print(f"  Sentiment accuracy:     {summary.sentiment_accuracy:.1%}")
     print(f"  Outcome accuracy:       {summary.outcome_accuracy:.1%}")
-    print(f"  Hallucination accuracy: {summary.hallucination_accuracy:.1%}")
+    if summary.hallucination_accuracy is None:
+        print("  Hallucination accuracy: not measured (no independent predictions)")
+    else:
+        print(f"  Hallucination accuracy: {summary.hallucination_accuracy:.1%}")
     print(f"  Escalation accuracy:    {summary.escalation_accuracy:.1%}")
     print(f"  Avg citation coverage:  {summary.avg_citation_coverage:.1%}")
-    print(f"  Avg fact accuracy:      {summary.avg_fact_accuracy:.1%}")
+    if summary.avg_fact_accuracy is None:
+        print("  Numeric support:        not assessed")
+    else:
+        print(f"  Numeric support:        {summary.avg_fact_accuracy:.1%}")
     print(f"  Weakest layer:          {summary.weakest_layer}")
     print(f"  Strongest layer:        {summary.strongest_layer}")
     print("=" * 62)

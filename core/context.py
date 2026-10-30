@@ -10,6 +10,7 @@ class PipelineContext(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     raw_transcript: Optional[str] = None
+    attributed_transcript: Optional[str] = None
     transcript_speakers: Optional[list[dict]] = None
     audio_duration_seconds: Optional[float] = None
     language_detected: Optional[str] = None
@@ -22,6 +23,7 @@ class PipelineContext(BaseModel):
     outcome: Optional[str] = None
     escalation_signal: Optional[bool] = None
     raw_analysis: Optional[dict] = None
+    reliability: Optional[dict] = None
 
     word_count: Optional[int] = None
     chunk_count: Optional[int] = None

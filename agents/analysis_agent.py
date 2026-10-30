@@ -4,6 +4,7 @@ import re
 
 from core.context import PipelineContext
 from core.knowledge_base import KnowledgeBase
+from core.harness import AnalysisOutput
 from llm_providers.registry import ProviderRegistry
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
@@ -12,7 +13,7 @@ CHUNK_WORD_LIMIT = 1000
 ANALYSIS_WORD_THRESHOLD = 4000
 
 _SPEAKER_PATTERN = re.compile(
-    r"^((?:Agent|Customer|User|Bot|Rep|Support|Caller|Representative|CSR)\s*:)",
+    r"^((?:Agent|Customer|User|Bot|Rep|Support|Caller|Representative|CSR|Other|Speaker\s+\d+)(?:\s*\((?:inferred|role unknown)\))?\s*:)",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -42,11 +43,16 @@ Similar past calls for context (RAG):
 Knowledge base policy context for claim verification:
 {kb_context}
 
-Instructions for hallucination detection:
-- The "Knowledge base policy context" section contains claims extracted from the transcript alongside relevant business policy.
-- If a claim contradicts documented policy, set hallucination_detected to true and quote the specific contradiction in hallucination_evidence.
-- If no knowledge base context is available, perform transcript-only analysis: flag claims that seem factually inconsistent within the transcript itself.
-- Only flag genuine contradictions, not minor wording differences.
+Configured transcript-policy assessment:
+{reliability_context}
+
+Instructions for factual analysis:
+- Keep factual hallucinations separate from policy violations and unverified action claims.
+- Policy violations are assessed by the configured structured checks above, not this boolean.
+- Reference knowledge may contain fictional sample policies; never assume it is the company's policy.
+- Missing tool results do not prove a completed action or a failed action. Do not invent action evidence.
+- Only set hallucination_detected for a genuine factual contradiction within the transcript, with quoted evidence.
+- If evidence is absent or inconclusive, do not claim verification. Preserve uncertainty in the findings.
 
 Return ONLY valid JSON with these exact keys:
 {{
@@ -157,14 +163,14 @@ class AnalysisAgent:
         logger.info(f"[AnalysisAgent] run_id={ctx.run_id}")
 
         ctx.word_count = _count_words(ctx.raw_transcript)
-        transcript_for_analysis = ctx.raw_transcript
+        transcript_for_analysis = ctx.attributed_transcript or ctx.raw_transcript
 
         if ctx.word_count > ANALYSIS_WORD_THRESHOLD:
             logger.info(
                 f"[AnalysisAgent] transcript is {ctx.word_count} words — "
                 f"using hierarchical summarization"
             )
-            transcript_for_analysis = await self._hierarchical_summarize(ctx.raw_transcript, ctx)
+            transcript_for_analysis = await self._hierarchical_summarize(transcript_for_analysis, ctx)
             logger.info(
                 f"[AnalysisAgent] summarized {ctx.chunk_count} chunks "
                 f"into {ctx.word_count} words (original: {_count_words(ctx.raw_transcript)} words)"
@@ -202,6 +208,7 @@ class AnalysisAgent:
             transcript=transcript_for_analysis,
             rag_context=rag_context or "No similar past calls found.",
             kb_context=kb_context,
+            reliability_context=json.dumps(ctx.reliability or {"status": "insufficient_evidence"}),
         )
 
         try:
@@ -210,7 +217,7 @@ class AnalysisAgent:
                 prompt=prompt, temperature=0.1, response_format={"type": "json_object"}
             )
 
-            result = _parse_json_content(response.content)
+            result = AnalysisOutput.model_validate(_parse_json_content(response.content)).model_dump()
 
             intent = result.get("intent", "")
             if len(intent.split()) > 8:

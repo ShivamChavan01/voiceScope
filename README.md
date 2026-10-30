@@ -1,228 +1,131 @@
 # VoiceScope
 
-[![CI](https://github.com/ShivamChavan01/voicescope/actions/workflows/ci.yml/badge.svg)](https://github.com/ShivamChavan01/voicescope/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-311-brightgreen.svg)]()
-[![Harness truth score](https://img.shields.io/badge/harness%20truth-0.78-blue.svg)](scripts/run_benchmark.py)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+VoiceScope is a post-call inspection tool for voice AI calls. It combines transcription, LLM analysis, policy retrieval, and deterministic checks of the resulting evaluation.
 
-> Voice AI agents hallucinate. They promise refunds that don't exist, cite policies that aren't real, and escalate when they shouldn't. Nobody catches it. VoiceScope does.
+The current score measures heuristic consistency of an evaluation. It is **not** a calibrated probability that the call is truthful or compliant. A model flag needs supporting evidence and review. A real Bolna execution has been replayed through recording download, Deepgram transcription, Groq evaluation, and local persistence/reload. Fresh Bolna-originated webhook delivery, retry safety, and durable ingestion remain unverified. See the [live-service verification report](docs/bolna-verification.md).
 
-VoiceScope analyzes voice AI call recordings and catches hallucinations, policy violations, and quality issues — before your customers notice. It's a 3-agent pipeline with a 7-layer validation harness that catches LLM errors deterministically, not with another LLM call.
+See the [repository audit and delivery plan](docs/p0-audit.md), [scoring contract](docs/scoring-contract.md), and [demo walkthrough](docs/demo-walkthrough.md).
 
-## Try It (30 seconds)
+## Architecture
+
+```mermaid
+flowchart LR
+    UI[Next.js UI on Vercel] --> Proxy[Next.js API proxy]
+    Proxy --> API[FastAPI backend]
+    Audio[Audio upload] --> API
+    Hook[Call-completed webhook] --> API
+    API --> STT[Deepgram, Whisper, or Gemini STT]
+    STT --> Analysis[LLM analysis and policy retrieval]
+    Analysis --> Report[LLM report]
+    Report --> Checks[Deterministic evaluation checks]
+    Checks --> Runs[PostgreSQL or SQLite runs]
+    Analysis <--> Chroma[Chroma policy and transcript indexes]
+```
+
+The transcript API skips STT. Speaker roles are preserved from attributed transcripts and inferred for diarized audio in both regular and streaming flows. The UI distinguishes transcript labels, inferred roles, and unknown roles. See [speaker attribution](docs/speaker-attribution.md). The pipeline supports multiple LLM providers and configured fallback providers. The API also exposes batch processing, monitoring, knowledge entries, QA cohorts, extraction schemas, and feedback. Batch jobs and rate limits use process memory.
+
+## Local setup
+
+Use Python 3.11 or later and Node.js 24 or later for the frontend test command.
 
 ```bash
-pip install voicescope
-export GROQ_API_KEY=gsk_your_key_here    # free tier works
-voicescope analyze call.mp3
-```
-
-You get:
-
-```
-  ┌─────────────────────────────────────────────────────┐
-  │  Truth Score: 0.92  [PASS]  Confidence: high        │
-  ├─────────────────────────────────────────────────────┤
-  │                                                     │
-  │  Transcript:                                        │
-  │  Agent: How can I help you today?                   │
-  │  Customer: I want to cancel my subscription...      │
-  │                                                     │
-  │  Intent:      cancel subscription                   │
-  │  Sentiment:   negative                              │
-  │  Outcome:     resolved                              │
-  │  Hallucination: clean                               │
-  │                                                     │
-  │  Harness Layers:                                    │
-  │    schema          ████████████████████ 0.95        │
-  │    citations       ████████████████░░░░ 0.80        │
-  │    facts           ████████████████████ 0.90        │
-  │    sentiment       ████████████████████ 1.00        │
-  │    outcome         ██████████████████░░ 0.85        │
-  │                                                     │
-  └─────────────────────────────────────────────────────┘
-```
-
-## How It Works
-
-```
-                          Knowledge Base
-                          (your policies)
-                               │
-Audio ──→ Transcribe ──→ Analyze ──→ Report ──→ Validate
-          (Deepgram)    (LLM+RAG)    (LLM)     (7 rules)
-               │
-          Speaker ID
-          (agent vs customer)
-```
-
-1. **Transcribe** — Deepgram Nova-2 with speaker diarization (or Gemini/Whisper)
-2. **Classify speakers** — LLM identifies who's the agent, who's the customer
-3. **Analyze** — Intent, sentiment, hallucination detection, outcome, escalation
-4. **Ground in your policies** — RAG against your knowledge base. "Did the agent violate *your* refund policy?" not just "did the agent lie?"
-5. **Generate report** — Quality score, findings, recommendations
-6. **Validate** — 7-layer harness catches LLM errors before they reach your dashboard
-
-## The Harness (This Is the Hard Part)
-
-Anyone can call an LLM and get a JSON response. The hard part is knowing when the LLM is wrong. VoiceScope's validation harness runs 8 deterministic checks on every output:
-
-| # | Layer | What It Catches | Weight |
-|---|-------|-----------------|--------|
-| 1 | **Schema** | Wrong types, bad enums, missing fields | 0.25 |
-| 2 | **Citations** | Findings not grounded in the transcript | 0.15 |
-| 3 | **Cross-check** | Contradictory fields (e.g. "escalated" + "resolved") | 0.10 |
-| 4 | **Facts** | Numbers, dates, promises that contradict the transcript | 0.15 |
-| 5 | **Sentiment** | "Angry" transcript labeled "positive" | 0.10 |
-| 6 | **Outcome** | "Resolved" with no resolution evidence | 0.10 |
-| 7 | **Escalation** | Escalation markers that don't match the reported signal (both missed and false escalations) | 0.05 |
-| 8 | **Duplicate** | Same analysis repeated within 5 minutes | 0.05 |
-
-Weights are re-normalized over whichever layers actually run, so missing data (e.g. no transcript) never skews the score.
-
-Every API response includes a `harness` field with `truth_score` (0.0–1.0), `confidence`, `layer_scores`, and `validation_errors`. No black boxes.
-
-## Harness Benchmark
-
-The harness is measured against 10 labeled call transcripts with known ground truth (`tests/test_data_labeled.json`). Run it yourself:
-
-```bash
-python scripts/run_benchmark.py
-```
-
-```
-  Avg truth score:        0.78
-  Sentiment accuracy:     100%
-  Outcome accuracy:       70%
-  Hallucination accuracy: 100%
-  Escalation accuracy:    100%
-  Avg citation coverage:  83%
-  Weakest layer:          outcome_evidence
-  Strongest layer:        schema
-```
-
-The benchmark runs in CI (`python scripts/run_benchmark.py --min-truth 0.7`) and fails the build on regression. The dashboard exposes it at `/benchmark` with a one-click improvement loop.
-
-## Get Running
-
-### Option A: CLI (fastest)
-
-```bash
-git clone https://github.com/ShivamChavan01/voicescope && cd voicescope
-pip install -e .
-voicescope init              # pick your provider, set keys
-voicescope demo              # no keys yet? seed sample calls
-voicescope analyze call.mp3  # see results
-voicescope serve             # start API server
-```
-
-### Option B: Docker
-
-```bash
-docker compose up -d
-# API at localhost:8000, docs at localhost:8000/docs
-```
-
-### Option C: API only
-
-```bash
+python -m venv .venv
+. .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+pip install pytest pytest-asyncio ruff
+cp .env.example .env
 ```
 
-## Configuration
+Edit `.env` locally. Set `VALID_API_KEYS` and the credentials for the LLM and STT providers you select. Keep keys out of commits and screenshots. For transcript-only evaluation, no STT credential is required.
 
 ```bash
-# .env
-LLM_PROVIDER=opencode-go        # primary LLM (openai | anthropic | gemini | groq | opencode-go ...)
-LLM_MODEL=deepseek-v4-flash-free
-LLM_BACKUP_PROVIDERS=groq,openrouter   # ordered fallbacks when primary is rate-limited
-OPENCODE_GO_API_KEY=sk-...      # from https://opencode.ai/auth (Zen free models)
-OPENROUTER_API_KEY=             # optional — used only if set
-DEEPGRAM_API_KEY=...            # nova-2 with diarization ($200 free credits)
-VALID_API_KEYS=your-key-here    # required — server returns 503 without it
+uvicorn main:app --reload --port 8000
 ```
 
-| Provider | Model | Cost |
-|----------|-------|------|
-| OpenCode Zen (primary) | `deepseek-v4-flash-free`, `hy3-free`, `big-pickle` | Free (monthly quota) |
-| Groq (backup) | `openai/gpt-oss-120b` | Free |
-| OpenRouter (backup) | `*:free` models | Free |
-| OpenCode Go | `deepseek-v4-flash` | ~$0.14/$0.28 per 1M tokens, ~30k req/5h |
-| OpenAI | `gpt-4o` | $2.50/$10 per 1M tokens |
-| Anthropic | `claude-sonnet-4` | $3/$15 per 1M tokens |
-| Gemini | `gemini-1.5-pro` | $1.25/$5 per 1M tokens |
-| Ollama | `llama3.1` | Free (local) |
+Configure the frontend in `frontend/.env.local`:
 
-## API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/v1/analyze` | Upload audio, get full analysis |
-| `POST /api/v1/analyze/stream` | SSE streaming with progress events |
-| `GET /api/v1/runs` | List analyzed calls with harness scores |
-| `POST /api/v1/webhooks/call-completed` | Auto-detects Vapi, Retell, Bland, Bolna, Synthflow, Air.ai |
-| `GET /api/v1/harness/status` | Validation harness state |
-
-Full 33-endpoint reference in [BACKEND.md](BACKEND.md).
-
-## Built With
-
-- **FastAPI** + **uvicorn** — async API server
-- **Deepgram** / **Gemini** / **Whisper** — speech-to-text with diarization
-- **6 LLM providers** — OpenAI, Anthropic, Gemini, Groq, Ollama, Mistral
-- **ChromaDB** — vector store for RAG context from past calls
-- **PostgreSQL** (Supabase) + **SQLite** fallback — production + local
-- **Pydantic** — schema validation, structured outputs
-- **asyncpg** — async PostgreSQL connection pool with lock
-
-## Engineering
-
-This isn't a notebook demo. It's built like production software:
-
-- **311 tests** — unit, integration, and end-to-end
-- **Security audit** — SQL injection fixed (4 locations), SSRF blocked, auth middleware, rate limiting
-- **Connection pooling** — `asyncio.Lock` around pool creation, stale cache removed
-- **Error isolation** — DB logging failures don't kill API responses
-- **Parameterized queries** — `$1 || ' minutes'::interval` for PostgreSQL, `?` for SQLite
-- **Streaming** — SSE with `fetch()` + `ReadableStream`, not EventSource
-- **LLM timeouts** — 60s on OpenAI, Anthropic clients
-- **Bounds checking** — `response.choices[0]` validated before access
-
+```dotenv
+BACKEND_URL=http://localhost:8000
+API_KEY=your-local-voicescope-api-key
 ```
-voicescope/
-├── agents/          Transcription, Speaker, Analysis, Report
-├── api/             Routes, SSE streaming, webhook handlers
-├── core/            Pipeline, harness, knowledge base, batch
-├── llm_providers/   6 providers with strategy pattern
-├── stt_providers/   3 STT providers with registry
-├── storage/         PostgreSQL/SQLite stores, ChromaDB
-├── middleware/       Auth, rate limiting
-├── tests/           311 tests
-├── cli.py           CLI entry point
-└── main.py          FastAPI app
-```
-
-## Demo Limitations
-
-These are known limitations of the current demo. For a production deployment, address each accordingly:
-
-- **In-memory rate limiting** — Rate limit state is per-process and lost on restart. Use Redis or PostgreSQL-backed rate limiting for distributed deployments.
-- **In-memory batch storage** — Batch job state is stored in a Python dict and lost on restart. Persist to a database for production use.
-- **Extraction heuristics** — Custom field extraction uses keyword matching and regex, not LLM inference. Suitable for structured fields; replace with LLM calls for nuanced extraction.
-- **Settings UI** — Provider selection in the frontend is for reference only. Configure API keys in `.env` on the server.
-
-## Deploy
 
 ```bash
-# Docker
-docker build -t voicescope . && docker run -p 8000:8000 --env-file .env voicescope
-
-# Docker Compose (with PostgreSQL)
-docker compose up -d
+cd frontend
+npm ci
+npm run dev
 ```
 
-## License
+The UI opens at `http://localhost:3000`. FastAPI documentation is at `http://localhost:8000/docs` outside production. Backend requests require `X-API-Key`, except health and documentation routes.
 
-MIT
+**Access-control limitation:** the frontend currently attaches its server-side API key to proxied requests without authenticating the visitor. Use a private local environment for real call data until frontend authentication and operation permissions are implemented. A hidden backend key alone does not protect this proxy.
+
+## Data and persistence
+
+Set `DATABASE_URL` for PostgreSQL. Without it, stores use SQLite under `DATA_DIR` or their configured paths. The PostgreSQL client currently requires SSL; a local PostgreSQL instance without SSL falls back to SQLite. Database connection failure also falls back to SQLite, which can produce separate datasets across instances.
+
+New runs store the full evaluation and transcript in `runs.evaluation`. Existing databases gain this column during schema initialization. Legacy rows may have only a truncated transcript and cannot recover missing evidence automatically. No production data migration or re-evaluation has been run.
+
+Overview totals come from persisted Runs across all time. Real and synthetic runs have separate counts. Flag rates exclude synthetic runs and incomplete evaluations. Monitoring endpoints still use a time window and a separate metrics table.
+
+## Tests and benchmark
+
+```bash
+.venv/bin/pytest -q
+.venv/bin/ruff check .
+.venv/bin/python scripts/run_benchmark.py --min-truth 0.7 --json /tmp/voicescope-benchmark.json
+cd frontend
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
+```
+
+The primary [policy detector benchmark](docs/policy-benchmark.md) independently runs the production deterministic detector against 28 manually labeled synthetic cases. The Benchmark page shows expected versus detected findings, source transcripts, precision/recall, and visible misses. Run `.venv/bin/python scripts/run_reliability_benchmark.py --json /tmp/policy-benchmark.json`. Its default all-cases gate currently fails on three challenge paraphrases: 25/28 cases match. Those failures remain visible; this is not production accuracy.
+
+The legacy offline harness benchmark loads ten synthetic labeled transcripts from `core/data/labeled_calls.json`. It checks consistency against supplied fixture answers and does not independently test hallucination detection, STT, or a live LLM. It remains available through `scripts/run_benchmark.py` and the collapsed legacy section of Benchmark. The disconnected optimizer controls have been removed from the page.
+
+Repository-wide Ruff currently reports existing import-order errors in `main.py`, where dotenv loads before application imports. The changed Python modules pass Ruff.
+
+Regression tests cover numeric support, invalid scores, incomplete model output, conflicting evidence, failure states, run summaries, synthetic data, and evaluation persistence. Mocked service tests do not establish live integration success.
+
+## Demo
+
+```bash
+.venv/bin/python cli.py demo
+```
+
+For the evidence review demo, select **Explore 3 synthetic scenarios** on Overview. This seeds a compliant conversation, a forbidden same-day refund promise, and an explicit supervisor-transfer refusal. Findings are computed from fictional policies and attributed transcripts. Seeding is idempotent and does not activate company policies. Synthetic rows have no fabricated timings, payment results, cost, or quality score and are excluded from real-call counters. The CLI above retains the older heuristic fixtures.
+
+Configure actual company rules in **Settings → Policies** before evaluating real calls. Only two bounded English rule types are supported: no same-day refund guarantees and honoring explicit escalation requests. Reference knowledge does not activate these rules. Each assessment stores the applied policy version and exact transcript quotes. A refund-completion statement without an action result is an **unverified claim**. See [reliability contracts and setup](docs/reliability.md).
+
+## Post-call STT quality
+
+Call detail now includes **STT quality**: retrieve an original Bolna recording for listening, automatically prepare a separate Deepgram pass under workspace authorization or a human-verified reference, and inspect timestamped discrepancies. Human references support WER; automatic references show **estimated transcript disagreement**. Missing timings, ambiguous speakers, absent audio, and provider failures withhold scores. Bolna's stored plain transcript needs manual timing annotations before an aligned rate is possible.
+
+The new recording routes are disabled on the public frontend proxy by default. Enable only in a private, access-controlled environment. See [STT contracts, private setup, APIs, tests, and limitations](docs/stt-quality.md). The [live STT verification](docs/stt-live-verification.md) retrieved a completed real recording and verified actual Deepgram transcription, timestamps, persistence, and reload. Missing Bolna timestamps still prevent an aligned rate.
+
+## Bolna integration status
+
+The existing endpoint is `POST /api/v1/webhooks/call-completed`. The parser recognizes the execution-shaped Bolna payload. The handler uses a nonempty supplied Bolna transcript first, preserving its assistant/user roles. Calls without a supplied transcript use recording download and STT. Evaluations remain synchronous. Source call/agent metadata and role attribution persist with the evaluation. Durable ingestion, deduplication, retry recovery, and complete source metadata handling remain unfinished.
+
+Bolna documents configurable webhook headers and execution-shaped payloads in its [webhook guide](https://www.bolna.ai/docs/post-call/polling-call-status-webhooks) and [Get Execution API](https://www.bolna.ai/docs/api-reference/executions/get_execution). Configure credentials securely on the backend; never paste them into a transcript or commit them. An existing completed execution has verified local replay and live-service processing. Fresh Bolna-originated delivery to production remains unverified.
+
+## Deployment
+
+The frontend uses Next.js and is deployed separately on Vercel. The backend Dockerfile starts Uvicorn and honors `PORT`. `railway.toml` specifies the health endpoint and a data volume. Docker Compose includes PostgreSQL and local data storage. Review the SSL limitation above before relying on Compose database persistence.
+
+Production needs a private backend configuration, durable storage, frontend authentication, safe recording downloads, and a durable worker before real ingestion can be described as reliable. No deployment, secret change, or infrastructure change is part of the current local milestone.
+
+## Known limits
+
+- Deterministic policy detection covers explicit English patterns for two supported rule types. No matches do not establish overall compliance. Arbitrary policy prose and semantic paraphrase detection are unsupported.
+- Policies use a local SQLite store (`POLICY_DB_PATH`, otherwise `DATA_DIR/policies.db`) even when run storage uses PostgreSQL. This is a single-workspace implementation without tenant isolation.
+- Numeric support checks presence and currency, not attribution, negation, time ordering, or whether two values refer to the same entity.
+- Citation, sentiment, outcome, and escalation checks are heuristics. They can require review on valid calls.
+- Quality scores are LLM judgments. They have range validation but are not calibrated.
+- A refund claim in a transcript does not prove a successful refund tool result. Tool evidence is not currently verified.
+- Existing persisted negative scores require re-evaluation. This milestone does not rewrite historical or production records.
+- Recording redirects, public proxy permissions, tenant isolation, storage fallback, and in-memory jobs need work before handling customer data.
+- The optimizer does not establish better detection accuracy; its weights are not wired into the main validation score.
+
+Licensed under [MIT](LICENSE).

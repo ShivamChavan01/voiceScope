@@ -98,7 +98,7 @@ class TestSchemaValidation:
             "recommendations": [],
             "summary": "test",
         })
-        assert result.validation_passed  # should clamp to 100
+        assert not result.validation_passed  # invalid scores must be rejected
 
     def test_empty_response(self):
         h = ValidationHarness()
@@ -190,13 +190,13 @@ class TestFactExtraction:
         )
         assert result.accuracy >= 0.8
 
-    def test_verify_contradiction(self):
+    def test_verify_unsupported_numeric_claim(self):
         e = FactExtractor()
         result = e.verify(
             "The price is $50",
             {"intent": "billing", "findings": ["Customer paid $75"]},
         )
-        assert len(result.contradictions) > 0
+        assert len(result.unsupported_claims) > 0
 
 
 # ─── Layer 5: Sentiment Consistency ──────────────────────────────────

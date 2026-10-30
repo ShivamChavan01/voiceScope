@@ -38,3 +38,22 @@ class TestAnalyzeEndpoint:
             headers={"X-API-Key": "test-key"},
         )
         assert response.status_code == 400
+
+
+class TestAnalyzeTextEndpoint:
+    def test_analyze_text_empty(self):
+        response = client.post(
+            "/api/v1/analyze-text",
+            json={"transcript": ""},
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 422
+
+    def test_status(self):
+        response = client.get("/api/v1/status", headers={"X-API-Key": "test-key"})
+        assert response.status_code == 200
+        data = response.json()
+        assert "llm_provider" in data
+        assert "llm_backups_configured" in data
+        assert "OPENROUTER_API_KEY" not in str(data)
+        assert "GROQ_API_KEY" not in str(data)

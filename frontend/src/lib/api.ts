@@ -1,4 +1,8 @@
+import { parseSTTState, type STTReview } from "./stt-quality";
+import { requestErrorMessage, type PolicyRule, type ReliabilityReport, type ReliabilitySummary, type SpeechDiagnostics } from "./reliability";
+
 // Use local proxy to avoid CORS — /api/[...path] forwards to Railway backend
+
 const API_BASE = "";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -10,7 +14,9 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    throw new Error(`API ${res.status}: ${res.statusText}`);
+    let body: unknown = null;
+    try { body = await res.json(); } catch { /* Non-JSON errors use the HTTP status. */ }
+    throw new Error(requestErrorMessage(body, res.status, res.statusText));
   }
   return res.json();
 }
@@ -33,12 +39,25 @@ export interface Run {
   duration_seconds: number | null;
   word_count: number | null;
   transcript_preview: string | null;
-  transcript_speakers: { speaker: number; text: string; role?: string; label?: string }[] | null;
+  transcript_speakers: { speaker: number; text: string; role?: string; label?: string; role_source?: string }[] | null;
   layer_scores: Record<string, number> | null;
   hallucination_evidence: string | null;
   policy_evidence: string | null;
   status: string;
   created_at: string;
+  reliability_summary?: ReliabilitySummary | null;
+  evaluation?: {
+    reliability?: ReliabilityReport;
+    stt_quality?: STTReview;
+    speech_diagnostics?: SpeechDiagnostics;
+    data_source?: string;
+    source_call?: { call_id?: string; agent_id?: string; platform?: string };
+    report?: { executive_summary?: string };
+    raw_transcript?: string;
+    evaluation_status?: "failed" | "needs_review" | "validated" | "deterministic_checks_completed";
+    errors?: string[];
+    harness?: { validation_passed: boolean; validation_errors: string[] };
+  };
 }
 
 export interface RunsResponse {
@@ -150,7 +169,7 @@ export interface StreamEvent {
   event: "started" | "stage_complete" | "complete" | "error";
   run_id?: string;
   stage?: string;
-  result?: Run;
+  result?: { run_id: string; status: string };
   detail?: string;
 }
 
@@ -165,62 +184,58 @@ export async function analyzeAudio(file: File): Promise<Run> {
   return res.json();
 }
 
-export async function* analyzeAudioStream(
-  file: File
-): AsyncGenerator<StreamEvent> {
-  const formData = new FormData();
-  formData.append("file", file);
+function analysisFrame(frame: string): StreamEvent | null {
+  const data = frame.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).replace(/^ /, '')).join('\n');
+  if (!data) return null;
+  let value: unknown;
+  try { value = JSON.parse(data); } catch { throw new Error('Analysis returned an invalid progress event. Retry the upload.'); }
+  if (typeof value !== 'object' || value === null || !('event' in value)) throw new Error('Analysis returned an invalid progress event.');
+  if (value.event === 'started' && 'run_id' in value && typeof value.run_id === 'string' && value.run_id.trim()) return {event:'started',run_id:value.run_id};
+  if (value.event === 'stage_complete' && 'stage' in value && typeof value.stage === 'string' && ['transcription','analysis','report','harness'].includes(value.stage)) return {event:'stage_complete',stage:value.stage};
+  if (value.event === 'error' && 'detail' in value && typeof value.detail === 'string' && value.detail.trim()) return {event:'error',detail:value.detail};
+  if (value.event === 'complete' && 'result' in value && typeof value.result === 'object' && value.result !== null && 'run_id' in value.result && typeof value.result.run_id === 'string' && value.result.run_id.trim() && 'status' in value.result && typeof value.result.status === 'string' && ['completed','partial','failed'].includes(value.result.status)) return {event:'complete',result:{run_id:value.result.run_id,status:value.result.status}};
+  throw new Error('Analysis returned an invalid progress event or missing result.');
+}
 
+export async function* analyzeAudioStream(file: File): AsyncGenerator<StreamEvent> {
+  const formData = new FormData();
+  formData.append('file', file);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120_000);
-
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
-    const res = await fetch(`${API_BASE}/api/v1/analyze/stream`, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal,
-    });
-
+    const res = await fetch(`${API_BASE}/api/v1/analyze/stream`, {method:'POST',body:formData,signal:controller.signal});
     if (!res.ok) {
-      throw new Error(`Analysis failed: ${res.status} ${res.statusText}`);
+      let body: unknown = null;
+      try { body = await res.json(); } catch { /* Some proxies return a non-JSON error. */ }
+      throw new Error(requestErrorMessage(body, res.status, res.statusText));
     }
-
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
+    if (!res.headers.get('content-type')?.includes('text/event-stream')) throw new Error('Analysis did not return a progress stream. Retry the upload.');
+    reader = res.body?.getReader();
+    if (!reader) throw new Error('Analysis returned no response body. Retry the upload.');
     const decoder = new TextDecoder();
-    let buffer = "";
-
+    let buffer = '';
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            yield data as StreamEvent;
-          } catch {
-            // skip malformed JSON lines
-          }
-        }
+      const {done,value} = await reader.read();
+      buffer += done ? decoder.decode() : decoder.decode(value,{stream:true});
+      const frames = buffer.split(/\r?\n\r?\n/);
+      buffer = frames.pop() || '';
+      if (done && buffer.trim()) { frames.push(buffer); buffer = ''; }
+      for (const frame of frames) {
+        const event = analysisFrame(frame);
+        if (!event) continue;
+        yield event;
+        if (event.event === 'complete' || event.event === 'error') return;
       }
+      if (done) throw new Error('Analysis stream ended before a result was returned. Retry the upload.');
     }
-
-    if (buffer.startsWith("data: ")) {
-      try {
-        const data = JSON.parse(buffer.slice(6));
-        yield data as StreamEvent;
-      } catch {
-        // skip
-      }
-    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('Analysis timed out. Retry the upload.');
+    throw error;
   } finally {
     clearTimeout(timeout);
+    controller.abort();
+    reader?.releaseLock();
   }
 }
 
@@ -382,10 +397,10 @@ export interface BenchmarkSummary {
   avg_truth_score: number;
   sentiment_accuracy: number;
   outcome_accuracy: number;
-  hallucination_accuracy: number;
+  hallucination_accuracy: number | null;
   escalation_accuracy: number;
   avg_citation_coverage: number;
-  avg_fact_accuracy: number;
+  avg_fact_accuracy: number | null;
   weakest_layer: string;
   strongest_layer: string;
 }
@@ -417,4 +432,113 @@ export async function getWeights(): Promise<{
   history: number;
 }> {
   return fetchJson("/api/v1/loop/weights");
+}
+
+export interface RunSummary {
+  total_calls: number;
+  real_calls: number;
+  demo_calls: number;
+  completed_calls: number;
+  evaluated_real_calls: number;
+  flagged_calls: number;
+  escalated_calls: number;
+  hallucination_rate: number | null;
+  escalation_rate: number | null;
+  confirmed_policy_calls: number;
+  review_calls: number;
+  evaluated_policy_calls: number;
+  legacy_calls: number;
+  scope: "all_time_persisted_runs";
+}
+
+export async function getRunSummary(): Promise<RunSummary> {
+  return fetchJson("/api/v1/runs/summary");
+}
+
+export async function getPolicyRules(): Promise<PolicyRule[]> {
+  return fetchJson("/api/v1/policies/rules");
+}
+export async function savePolicyRule(rule: Omit<PolicyRule, "version">): Promise<PolicyRule> {
+  return fetchJson("/api/v1/policies/rules", { method: "POST", body: JSON.stringify(rule) });
+}
+export async function deletePolicyRule(id: string): Promise<{ status: string }> {
+  return fetchJson(`/api/v1/policies/rules/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+export async function loadReviewDemo(): Promise<{ seeded: number; run_ids: string[] }> {
+  return fetchJson("/api/v1/demo/reliability", { method: "POST" });
+}
+
+export interface DetectionMetrics {
+  true_positives: number;
+  false_positives: number;
+  false_negatives: number;
+  precision: number | null;
+  recall: number | null;
+  f1: number | null;
+}
+
+export interface BenchmarkFinding {
+  category: 'policy_violation' | 'unverified_claim' | 'insufficient_evidence';
+  status: 'confirmed' | 'needs_review';
+  policy_kind: string | null;
+  severity: string;
+  turn_indices: number[];
+  missing_evidence: string[];
+}
+
+export interface PolicyBenchmark {
+  benchmark_kind: 'policy_detector_labeled';
+  dataset_version: string;
+  dataset_sha256: string;
+  data_source: 'synthetic_hand_labeled';
+  total_cases: number;
+  passed_cases: number;
+  exact_case_accuracy: number;
+  supported_cases: number;
+  supported_passed: number;
+  challenge_cases: number;
+  challenge_passed: number;
+  metrics: DetectionMetrics;
+  by_category: Record<string, DetectionMetrics>;
+  results: {
+    id: string;
+    name: string;
+    purpose: string;
+    scope: string;
+    passed: boolean;
+    turns: { speaker: number; role: string; role_source: string; text: string }[];
+    policies: PolicyRule[];
+    expected_status: string;
+    actual_status: string;
+    expected: BenchmarkFinding[];
+    actual: BenchmarkFinding[];
+    evidence_errors: string[];
+  }[];
+  limitations: string[];
+}
+
+export async function getPolicyBenchmark(): Promise<PolicyBenchmark> {
+  return fetchJson('/api/v1/loop/benchmark/reliability');
+}
+
+
+export async function getSTTReview(runId: string) {
+  return parseSTTState(await fetchJson<unknown>(`/api/v1/runs/${encodeURIComponent(runId)}/stt-review`));
+}
+export async function generateSTTReference(runId: string) {
+  return parseSTTState(await fetchJson<unknown>(`/api/v1/runs/${encodeURIComponent(runId)}/stt-review/reference`, {method:'POST',body:JSON.stringify({provider:'deepgram'})}));
+}
+export async function evaluateSTT(runId: string, body: unknown) {
+  return parseSTTState(await fetchJson<unknown>(`/api/v1/runs/${encodeURIComponent(runId)}/stt-review`, {method:'POST',body:JSON.stringify(body)}));
+}
+
+export async function retrieveSTTRecording(runId: string) {
+  return parseSTTState(await fetchJson<unknown>(`/api/v1/runs/${encodeURIComponent(runId)}/stt-review/recording`, {method:'POST'}));
+}
+
+export async function prepareSTTReview(runId: string) {
+  const state = await getSTTReview(runId);
+  const eligible = !runId.startsWith('demo-') && state.provider.configured && state.bolna.segments.length > 0;
+  if (eligible && !state.reference && state.review?.status !== 'failed') return generateSTTReference(runId);
+  return state;
 }

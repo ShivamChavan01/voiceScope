@@ -9,30 +9,34 @@ from utils.logger import logger
 
 
 async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[str, None]:
-    pipeline = VoiceScopePipeline()
     ctx = PipelineContext()
 
     yield f"data: {json.dumps({'event': 'started', 'run_id': ctx.run_id})}\n\n"
 
     try:
+        pipeline = VoiceScopePipeline()
         ctx = await pipeline.transcription_agent.run(ctx, audio_bytes, filename)
-        yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'transcription', 'run_id': ctx.run_id})}\n\n"
+        if "transcription" in ctx.stages_completed:
+            yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'transcription', 'run_id': ctx.run_id})}\n\n"
 
         if "transcription" in ctx.stages_completed:
+            ctx = await pipeline.attribute_speakers(ctx)
+            ctx = await pipeline.assess_reliability(ctx)
             ctx = await pipeline.analysis_agent.run(ctx)
-            yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'analysis', 'run_id': ctx.run_id})}\n\n"
+            if "analysis" in ctx.stages_completed:
+                yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'analysis', 'run_id': ctx.run_id})}\n\n"
 
-        ctx = await pipeline.report_agent.run(ctx)
-        yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'report', 'run_id': ctx.run_id})}\n\n"
+        if "analysis" in ctx.stages_completed:
+            ctx = await pipeline.report_agent.run(ctx)
+        else:
+            ctx.report = {"run_id": ctx.run_id, "analysis": {}}
+        if "report" in ctx.stages_completed:
+            yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'report', 'run_id': ctx.run_id})}\n\n"
 
         harness_result = pipeline.harness.validate_pipeline(ctx)
         yield f"data: {json.dumps({'event': 'stage_complete', 'stage': 'harness', 'run_id': ctx.run_id})}\n\n"
 
-        report = ctx.report or {}
-        report["run_id"] = ctx.run_id
-        report["raw_transcript"] = ctx.raw_transcript
-        report["transcript_speakers"] = ctx.transcript_speakers
-        report["harness"] = harness_result.model_dump()
+        report = pipeline.finalize_result(ctx, harness_result)
 
         try:
             await MonitoringStore().log_run(report, harness_result)

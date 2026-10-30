@@ -1,666 +1,173 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { HarnessBar, HARNESS_NAMES, HARNESS_KEYS } from "@/components/harness-bar";
-import {
-  getRuns,
-  getRun,
-  analyzeAudioStream,
-  deleteRun,
-  seedDemo,
-  type Run,
-  type StreamEvent,
-} from "@/lib/api";
-import { UploadProgress } from "@/components/upload-progress";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { AudioLines, ArrowUpRight, Search, Upload, X } from 'lucide-react';
+import { HarnessBar, HARNESS_KEYS } from '@/components/harness-bar';
+import { CallReport, CallSummary, FindingsPanel, ReviewBadge, SpeechPanel } from '@/components/call-review';
+import { CallRecording } from '@/components/call-recording';
+import { STTReviewPanel } from '@/components/stt-review';
+import { TranscriptConversation } from '@/components/transcript-conversation';
+import { UploadProgress } from '@/components/upload-progress';
+import { getRuns, getRun, analyzeAudioStream, deleteRun, loadReviewDemo, type Run, type StreamEvent } from '@/lib/api';
+import { validScore } from '@/lib/evaluation';
+import { formatDuration, relativeTime } from '@/lib/reliability';
 
-function UploadIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={20} height={20} aria-hidden="true">
-      <path d="M12 16V4M8 8l4-4 4 4M4 14v3a1 1 0 001 1h14a1 1 0 001-1v-3" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={14} height={14} aria-hidden="true">
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5L14 14" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-      <path d="M3 3l8 8M11 3l-8 8" />
-    </svg>
-  );
-}
-
-function relativeTime(dateStr: string) {
-  if (!dateStr) return "—";
-  const diff = Date.now() - new Date(dateStr + "Z").getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function formatDuration(seconds: number | null) {
-  if (seconds == null) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
-}
+type Detail = { kind: 'closed' } | { kind: 'loading'; id: string } | { kind: 'error'; id: string; message: string } | { kind: 'ready'; run: Run };
+type Tab = 'findings' | 'transcript' | 'speech' | 'stt' | 'checks';
+const TABS: { key: Tab; label: string }[] = [{ key: 'findings', label: 'Findings' }, { key: 'transcript', label: 'Transcript' }, { key: 'speech', label: 'Speech diagnostics' }, { key: 'stt', label: 'STT quality' }, { key: 'checks', label: 'Evaluation checks' }];
 
 export default function RunsPage() {
   const [runs, setRuns] = useState<Run[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedRun, setSelectedRun] = useState<Run | null>(null);
-  const [drawerTab, setDrawerTab] = useState<"harness" | "transcript" | "report" | "evidence">("harness");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [detail, setDetail] = useState<Detail>({ kind: 'closed' });
+  const [tab, setTab] = useState<Tab>('findings');
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([]);
-  const [streamError, setStreamError] = useState<string | undefined>();
+  const [events, setEvents] = useState<StreamEvent[]>([]);
+  const [actionError, setActionError] = useState<string | undefined>();
   const [demoLoading, setDemoLoading] = useState(false);
+  const [highlightedTurn, setHighlightedTurn] = useState<number | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const triggerRef = useRef<HTMLTableRowElement | null>(null);
+  const turnRefs = useRef(new Map<number, HTMLDivElement>());
+  const detailRequest = useRef(0);
+  const open = detail.kind !== 'closed';
+  const selected = detail.kind === 'ready' ? detail.run : null;
 
-  const fetchRuns = useCallback(async () => {
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setListError(null);
     try {
-      const params: Record<string, string | number> = { limit: 50 };
-      if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
-      const res = await getRuns(params);
-      setRuns(res.runs);
-    } catch {
-      setRuns([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter]);
+      const response = await getRuns({ limit: 50, search, status });
+      setRuns(response.runs);
+      setTotal(response.total);
+    } catch (error) {
+      setListError(error instanceof Error ? error.message : 'Calls could not be loaded.');
+    } finally { setLoading(false); }
+  }, [search, status]);
 
   useEffect(() => {
     let active = true;
-    void (async () => {
-      try {
-        const params: Record<string, string | number> = { limit: 50 };
-        if (search) params.search = search;
-        if (statusFilter) params.status = statusFilter;
-        const res = await getRuns(params);
-        if (active) setRuns(res.runs);
-      } catch {
-        if (active) setRuns([]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [search, statusFilter]);
+    getRuns({ limit: 50, search, status }).then(response => {
+      if (active) { setRuns(response.runs); setTotal(response.total); }
+    }).catch(error => {
+      if (active) setListError(error instanceof Error ? error.message : 'Calls could not be loaded.');
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [search, status]);
 
-  // Escape key closes drawer
   useEffect(() => {
-    if (!drawerOpen) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDrawerOpen(false);
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [drawerOpen]);
+    const call = new URLSearchParams(window.location.search).get('call');
+    if (!call) return;
+    const request = ++detailRequest.current;
+    getRun(call).then(run => {
+      if (request === detailRequest.current) setDetail({ kind: 'ready', run });
+    }).catch(error => {
+      if (request === detailRequest.current) setDetail({ kind: 'error', id: call, message: error instanceof Error ? error.message : 'Call details could not be loaded.' });
+    });
+    return () => { detailRequest.current += 1; };
+  }, []);
 
-  // Focus trap in drawer
+  const close = useCallback(() => {
+    detailRequest.current += 1;
+    setDetail({ kind: 'closed' });
+    triggerRef.current?.focus();
+  }, []);
+
   useEffect(() => {
-    if (drawerOpen && closeButtonRef.current) {
-      closeButtonRef.current.focus();
+    if (!open) return;
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+      if (event.key !== 'Tab') return;
+      const closedSections = Array.from(drawerRef.current?.querySelectorAll('details:not([open])') || []);
+      const elements = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input, select, textarea, summary, audio[controls], [tabindex="0"]') || []).filter(element =>
+        element.getClientRects().length > 0 && !closedSections.some(section => section.contains(element) && section.querySelector('summary') !== element));
+      if (!elements?.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, close]);
+
+  useEffect(() => {
+    if (tab === 'transcript' && highlightedTurn != null) {
+      turnRefs.current.get(highlightedTurn)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [drawerOpen]);
+  }, [tab, highlightedTurn]);
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
-    setStreamEvents([]);
-    setStreamError(undefined);
+  const openRun = async (run: Pick<Run, 'run_id'>, trigger?: HTMLElement) => {
+    if (trigger) triggerRef.current = trigger;
+    const request = ++detailRequest.current;
+    setDetail({ kind: 'loading', id: run.run_id });
+    setTab('findings');
+    setHighlightedTurn(null);
+    try {
+      const result = await getRun(run.run_id);
+      if (request === detailRequest.current) setDetail({ kind: 'ready', run: result });
+    } catch (error) {
+      if (request === detailRequest.current) setDetail({ kind: 'error', id: run.run_id, message: error instanceof Error ? error.message : 'Call details could not be loaded.' });
+    }
+  };
+  const upload = async (file: File) => {
+    if (uploading) return;
+    if (file.size > 25 * 1024 * 1024) { setActionError('Choose an audio file smaller than 25 MB.'); return; }
+    setUploading(true); setEvents([]); setActionError(undefined);
     try {
       for await (const event of analyzeAudioStream(file)) {
-        setStreamEvents((prev) => [...prev, event]);
-        if (event.event === "complete") {
-          await fetchRuns();
-        }
-        if (event.event === "error") {
-          setStreamError(event.detail || "Analysis failed");
-        }
+        setEvents(previous => [...previous, event]);
+        if (event.event === 'complete' && event.result) { await refresh(); await openRun(event.result); }
+        if (event.event === 'error') setActionError(event.detail || 'Analysis failed.');
       }
-    } catch (err) {
-      setStreamError(err instanceof Error ? err.message : "Analysis failed");
-    } finally {
-      setUploading(false);
-    }
+    } catch (error) { setActionError(error instanceof Error ? error.message : 'Analysis failed.'); }
+    finally { setUploading(false); }
   };
-
-  const handleFileDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) handleUpload(file);
+  const demo = async () => {
+    setDemoLoading(true); setActionError(undefined);
+    try { await loadReviewDemo(); await refresh(); }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'Demo scenarios could not be loaded.'); }
+    finally { setDemoLoading(false); }
   };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleUpload(file);
+  const remove = async (event: React.MouseEvent, id: string) => {
+    event.stopPropagation();
+    if (!window.confirm('Delete this stored call?')) return;
+    setDeleting(id); setActionError(undefined);
+    try { await deleteRun(id); await refresh(); if (selected?.run_id === id) close(); }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'The call could not be deleted.'); }
+    finally { setDeleting(null); }
   };
+  const id = detail.kind === 'ready' ? detail.run.run_id : detail.kind !== 'closed' ? detail.id : '';
 
-  const handleDemoSeed = async () => {
-    setDemoLoading(true);
-    try {
-      await seedDemo();
-      await fetchRuns();
-    } catch (err) {
-      setStreamError(err instanceof Error ? err.message : "Failed to load demo data");
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
-  const openRun = async (run: Run, trigger: HTMLTableRowElement) => {
-    triggerRef.current = trigger;
-    try {
-      const detail = await getRun(run.run_id);
-      setSelectedRun(detail);
-    } catch {
-      setSelectedRun({ ...run, transcript_preview: "Transcript unavailable" } as Run);
-    }
-    setDrawerTab("harness");
-    setDrawerOpen(true);
-  };
-
-  const handleDelete = async (e: React.MouseEvent, runId: string) => {
-    e.stopPropagation();
-    if (!confirm("Delete this run?")) return;
-    setDeleting(runId);
-    try {
-      await deleteRun(runId);
-      setRuns((prev) => prev.filter((r) => r.run_id !== runId));
-    } catch (err) {
-      console.error("Delete failed:", err);
-    } finally {
-      setDeleting(null);
-    }
-  };
-
-  const scoreColor = (score: number | null) => {
-    if (score == null) return "text-muted";
-    if (score >= 0.8) return "text-success";
-    if (score >= 0.5) return "text-warning";
-    return "text-danger";
-  };
-
-  function harnessScoresForRun(run: Run): number[] {
-    if (!run.layer_scores) return Array(HARNESS_KEYS.length).fill(0);
-    return HARNESS_KEYS.map((k) => {
-      const v = run.layer_scores?.[k];
-      return v != null ? Math.round(v * 100) : 0;
-    });
-  }
-
-  return (
-    <>
-      <div className="page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-        <div>
-          <h1 className="page-title">Runs</h1>
-          <p className="page-subtitle">Analyze audio files and review call transcripts</p>
-        </div>
-        <button className="btn btn-ghost" onClick={handleDemoSeed} disabled={demoLoading}>
-          {demoLoading ? "Loading..." : "Load demo data"}
-        </button>
-      </div>
-
-      {/* Upload */}
-      <div
-        className="upload-area"
-        role="button"
-        tabIndex={0}
-        aria-label="Upload audio file for analysis"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleFileDrop}
-        onClick={() => document.getElementById("file-input")?.click()}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); document.getElementById("file-input")?.click(); } }}
-      >
-        <input
-          id="file-input"
-          type="file"
-          accept="audio/*"
-          style={{ display: "none" }}
-          onChange={handleFileSelect}
-        />
-        <div className="upload-area-icon">
-          <UploadIcon />
-        </div>
-        <div className="upload-area-text">{uploading ? "Analyzing..." : "Drop audio file or click to analyze"}</div>
-        <div className="upload-area-sub">WAV, MP3, M4A — up to 100 MB</div>
-      </div>
-
-      <UploadProgress events={streamEvents} error={streamError} />
-
-      {/* Filters */}
-      <div className="filter-row">
-        <div className="f-row" style={{ position: "relative" }}>
-          <SearchIcon />
-          <input
-            className="filter-input"
-            placeholder="Search runs..."
-            aria-label="Search runs"
-            style={{ paddingLeft: 4 }}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select className="filter-input" style={{ minWidth: 90 }} aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All status</option>
-          <option value="completed">Completed</option>
-          <option value="partial">Partial</option>
-          <option value="failed">Failed</option>
-        </select>
-        <div className="filter-sep" />
-        <span className="text-muted" style={{ fontSize: 12 }}>{runs.length} runs</span>
-      </div>
-
-      {/* Table */}
-      <div className="table-wrap">
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Run ID</th>
-                <th>Intent</th>
-                <th>Time</th>
-                <th>Hallucination</th>
-                <th>Score</th>
-                <th>Harness</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>Loading...</td></tr>
-              ) : runs.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 24px" }}>
-                  <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 8 }}>
-                    No calls yet. Drop an audio file above to analyze your first call.
-                  </div>
-                  <div style={{ color: "var(--muted-foreground)", fontSize: 12, opacity: 0.7 }}>
-                    WAV, MP3, M4A supported — results stream in real time
-                  </div>
-                </td></tr>
-              ) : (
-                runs.map((run) => (
-                  <tr
-                    key={run.run_id}
-                    ref={(el) => { if (el) el.onclick = () => openRun(run, el); }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Run ${run.intent || "unknown"}, score ${run.truth_score != null ? `${(run.truth_score * 100).toFixed(0)}%` : "none"}`}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRun(run, e.currentTarget); } }}
-                  >
-                    <td><span className="mono text-accent">{run.run_id.slice(0, 12)}</span></td>
-                    <td><span className="text-secondary">{run.intent || "—"}</span></td>
-                    <td><span className="mono text-muted">{relativeTime(run.created_at)}</span></td>
-                    <td>
-                      <span className={`badge ${run.hallucination_detected ? "badge-fail" : "badge-pass"}`}>
-                        {run.hallucination_detected ? "Detected" : "Clean"}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`mono ${run.truth_score != null ? (run.hallucination_detected || run.escalation_signal ? "text-danger" : scoreColor(run.truth_score)) : "text-muted"}`}>
-                        {run.truth_score != null ? `${(Math.min(run.truth_score, (run.hallucination_detected || run.escalation_signal) ? 0.60 : 1) * 100).toFixed(1)}%` : "—"}
-                      </span>
-                    </td>
-                    <td>
-                      <HarnessBar scores={harnessScoresForRun(run)} mini />
-                    </td>
-                    <td><span className="mono text-secondary">{formatDuration(run.duration_seconds)}</span></td>
-                    <td>
-                      <span className={`badge ${run.status === "completed" ? "badge-pass" : run.status === "failed" ? "badge-fail" : "badge-flag"}`}>
-                        {run.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        onClick={(e) => handleDelete(e, run.run_id)}
-                        disabled={deleting === run.run_id}
-                        aria-label="Delete run"
-                        style={{ background: "none", border: "none", color: "var(--muted-foreground)", cursor: "pointer", fontSize: 14, padding: "2px 6px", opacity: deleting === run.run_id ? 0.5 : 1 }}
-                        title="Delete"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Drawer overlay */}
-      <div className={`drawer-overlay ${drawerOpen ? "open" : ""}`} onClick={() => setDrawerOpen(false)} />
-
-      {/* Drawer */}
-      <div
-        className={`drawer ${drawerOpen ? "open" : ""}`}
-        ref={drawerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Run detail: ${selectedRun?.run_id?.slice(0, 12) || ""}`}
-      >
-        <div className="drawer-header">
-          <span className="drawer-title mono">{selectedRun?.run_id?.slice(0, 12) || ""}</span>
-          <span className={`badge ${selectedRun?.status === "completed" ? "badge-pass" : selectedRun?.status === "failed" ? "badge-fail" : "badge-flag"}`}>
-            {selectedRun?.status || ""}
-          </span>
-          <button
-            className="drawer-close"
-            ref={closeButtonRef}
-            onClick={() => setDrawerOpen(false)}
-            aria-label="Close drawer"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-
-        <div className="drawer-tabs" role="tablist">
-          {(["harness", "transcript", "report", "evidence"] as const).map((tab) => (
-            <button
-              key={tab}
-              className={`drawer-tab ${drawerTab === tab ? "active" : ""}`}
-              role="tab"
-              aria-selected={drawerTab === tab}
-              aria-controls={`drawer-panel-${tab}`}
-              onClick={() => setDrawerTab(tab)}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div className="drawer-body">
-          {drawerTab === "harness" && selectedRun && (
-            <div id="drawer-panel-harness" role="tabpanel">
-              <div className="detail-grid">
-                <div className="detail-cell">
-                  <div className="detail-label">Score</div>
-                  <div className="detail-value" style={{ color: (selectedRun.hallucination_detected || selectedRun.escalation_signal) ? "var(--destructive)" : "var(--primary)" }}>
-                    {selectedRun.truth_score != null ? `${(Math.min(selectedRun.truth_score, (selectedRun.hallucination_detected || selectedRun.escalation_signal) ? 0.60 : 1) * 100).toFixed(1)}%` : "—"}
-                    {!!selectedRun.hallucination_detected || !!selectedRun.escalation_signal ? (
-                      <span className="badge badge-fail" style={{ marginLeft: 8, fontSize: 10 }}>
-                        {selectedRun.hallucination_detected ? "HALLUCINATION" : "ESCALATED"}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="detail-cell">
-                  <div className="detail-label">Duration</div>
-                  <div className="detail-value">{formatDuration(selectedRun.duration_seconds)}</div>
-                </div>
-                <div className="detail-cell">
-                  <div className="detail-label">Provider</div>
-                  <div className="detail-value">{selectedRun.provider || "—"}</div>
-                </div>
-                <div className="detail-cell">
-                  <div className="detail-label">Started</div>
-                  <div className="detail-value">{relativeTime(selectedRun.created_at)}</div>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <div className="section-title" style={{ marginBottom: 8 }}>Validation Harness</div>
-                <HarnessBar scores={harnessScoresForRun(selectedRun)} />
-              </div>
-
-              <div className="harness-layers">
-                {HARNESS_NAMES.map((name, i) => {
-                  const score = harnessScoresForRun(selectedRun)[i] || 0;
-                  const status = score >= 80 ? "pass" : score >= 50 ? "warning" : score === 0 ? "na" : "fail";
-                  const color = status === "pass" ? "var(--success)" : status === "warning" ? "var(--warning)" : status === "na" ? "var(--muted-foreground)" : "var(--destructive)";
-                  return (
-                    <div key={i} className="harness-layer">
-                      <span className="harness-layer-name">{name}</span>
-                      <div className="harness-layer-bar">
-                        <div className="harness-layer-fill" style={{ width: `${score}%`, background: color }} />
-                      </div>
-                      <span className={`harness-layer-score text-${status === "pass" ? "success" : status === "warning" ? "warning" : status === "na" ? "muted" : "danger"}`}>{score === 0 ? "N/A" : score}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {drawerTab === "transcript" && selectedRun && (
-            <div id="drawer-panel-transcript" role="tabpanel">
-              {selectedRun.hallucination_detected ? (
-                <div className="transcript-hallucination-banner" role="alert">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width={14} height={14} aria-hidden="true">
-                    <path d="M8 2L1.5 13h13L8 2zM8 7v3M8 12h.01" />
-                  </svg>
-                  <span>Hallucination detected — review flagged claims in the Harness tab</span>
-                </div>
-              ) : null}
-              {selectedRun.transcript_speakers && selectedRun.transcript_speakers.length > 1 ? (
-                <div className="transcript-speakers">
-                  {selectedRun.transcript_speakers.map((seg, i) => (
-                    <div key={i} className="transcript-turn">
-                      <span className={`speaker-badge speaker-${seg.role || "other"}`}>
-                        {seg.label || seg.role || `Speaker ${seg.speaker}`}
-                      </span>
-                      <span className="transcript-text">{seg.text}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : selectedRun.transcript_preview ? (
-                <div className="transcript-text" style={{ whiteSpace: "pre-wrap" }}>
-                  {selectedRun.transcript_preview}
-                </div>
-              ) : (
-                <div className="empty-state">No transcript available</div>
-              )}
-            </div>
-          )}
-
-          {drawerTab === "report" && selectedRun && (
-            <div id="drawer-panel-report" role="tabpanel">
-              {selectedRun.intent ? (
-                <>
-                  {/* Quality Verdict */}
-                  <div className="report-verdict">
-                    {selectedRun.hallucination_detected ? (
-                      <div className="verdict-box verdict-bad">
-                        <div className="verdict-icon">⚠</div>
-                        <div>
-                          <div className="verdict-title">Hallucination Detected</div>
-                          <div className="verdict-sub">The AI agent made claims not supported by the transcript</div>
-                        </div>
-                      </div>
-                    ) : selectedRun.escalation_signal ? (
-                      <div className="verdict-box verdict-warn">
-                        <div className="verdict-icon">↑</div>
-                        <div>
-                          <div className="verdict-title">Escalation Required</div>
-                          <div className="verdict-sub">The customer asked to speak with a human agent</div>
-                        </div>
-                      </div>
-                    ) : selectedRun.truth_score != null && selectedRun.truth_score >= 0.8 ? (
-                      <div className="verdict-box verdict-good">
-                        <div className="verdict-icon">✓</div>
-                        <div>
-                          <div className="verdict-title">Clean Call</div>
-                          <div className="verdict-sub">No issues detected — agent followed policy</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="verdict-box verdict-ok">
-                        <div className="verdict-icon">~</div>
-                        <div>
-                          <div className="verdict-title">Minor Issues</div>
-                          <div className="verdict-sub">Some areas need review but no critical problems</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Call Summary */}
-                  <div className="detail-grid">
-                    <div className="detail-cell">
-                      <div className="detail-label">Intent</div>
-                      <div className="detail-value">{selectedRun.intent}</div>
-                    </div>
-                    <div className="detail-cell">
-                      <div className="detail-label">Sentiment</div>
-                      <div className="detail-value">{selectedRun.sentiment || "—"}</div>
-                    </div>
-                    <div className="detail-cell">
-                      <div className="detail-label">Call Resolution</div>
-                      <div className="detail-value">
-                        {selectedRun.outcome || "—"}
-                        {selectedRun.hallucination_detected && selectedRun.outcome === "resolved" && (
-                          <span style={{ display: "block", fontSize: 11, color: "var(--destructive)", marginTop: 4, fontFamily: "var(--font-sans)" }}>
-                            Agent resolved the issue but made unsupported claims during the call
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="detail-cell">
-                      <div className="detail-label">Duration</div>
-                      <div className="detail-value">{formatDuration(selectedRun.duration_seconds)}</div>
-                    </div>
-                  </div>
-
-                  {/* Issues Found */}
-                  {(() => {
-                    const issues: { label: string; detail: string; severity: "bad" | "warn" | "info" }[] = [];
-                    const ls = selectedRun.layer_scores || {};
-
-                    if (selectedRun.hallucination_detected) {
-                      issues.push({ label: "Hallucination", detail: "Agent made claims not found in the transcript or knowledge base", severity: "bad" });
-                    }
-                    if (selectedRun.escalation_signal) {
-                      issues.push({ label: "Escalation needed", detail: "Customer requested a human agent or supervisor", severity: "warn" });
-                    }
-                    if (ls.citations != null && ls.citations < 0.7) {
-                      issues.push({ label: "Weak citations", detail: `Only ${Math.round(ls.citations * 100)}% of agent claims were backed by transcript evidence`, severity: "warn" });
-                    }
-                    if (ls.facts != null && ls.facts < 0.7) {
-                      issues.push({ label: "Fact mismatch", detail: `Agent stated facts that contradict the transcript (${Math.round(ls.facts * 100)}% accuracy)`, severity: "bad" });
-                    }
-                    if (ls.sentiment_consistency != null && ls.sentiment_consistency < 0.6) {
-                      issues.push({ label: "Sentiment flip", detail: "Agent tone shifted abruptly (e.g. positive to negative)", severity: "warn" });
-                    }
-                    if (ls.outcome_evidence != null && ls.outcome_evidence === 0) {
-                      issues.push({ label: "No outcome evidence", detail: "Call outcome recorded but transcript doesn't support it", severity: "info" });
-                    }
-                    if (selectedRun.outcome === "escalated" && !selectedRun.escalation_signal) {
-                      issues.push({ label: "Unexpected escalation", detail: "Call was escalated but no escalation signal was detected in transcript", severity: "info" });
-                    }
-
-                    if (issues.length === 0) return null;
-
-                    return (
-                      <div style={{ marginTop: 16 }}>
-                        <div className="section-title" style={{ marginBottom: 8 }}>Issues Found ({issues.length})</div>
-                        <div className="report-issues">
-                          {issues.map((issue, i) => (
-                            <div key={i} className={`report-issue report-issue-${issue.severity}`}>
-                              <div className="report-issue-label">{issue.label}</div>
-                              <div className="report-issue-detail">{issue.detail}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* What went well */}
-                  {(() => {
-                    const good: string[] = [];
-                    const ls = selectedRun.layer_scores || {};
-
-                    if (ls.schema != null && ls.schema >= 0.9) good.push("Response schema valid");
-                    if (ls.citations != null && ls.citations >= 0.8) good.push("Claims backed by evidence");
-                    if (ls.facts != null && ls.facts >= 0.8) good.push("Facts accurate");
-                    if (ls.sentiment_consistency != null && ls.sentiment_consistency >= 0.8) good.push("Consistent tone");
-                    if (!selectedRun.hallucination_detected) good.push("No hallucinations");
-                    if (!selectedRun.escalation_signal) good.push("No escalation needed");
-
-                    if (good.length === 0) return null;
-
-                    return (
-                      <div style={{ marginTop: 16 }}>
-                        <div className="section-title" style={{ marginBottom: 8 }}>Passed Checks</div>
-                        <div className="report-passed">
-                          {good.map((item, i) => (
-                            <span key={i} className="badge badge-pass" style={{ margin: "0 4px 4px 0" }}>{item}</span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div className="empty-state">No report data available</div>
-              )}
-            </div>
-          )}
-
-          {drawerTab === "evidence" && selectedRun && (
-            <div id="drawer-panel-evidence" role="tabpanel">
-              {!selectedRun.hallucination_detected && !selectedRun.hallucination_evidence ? (
-                <div className="empty-state">
-                  No hallucinations detected in this call. The evidence panel shows
-                  the claim-versus-policy contradiction when the agent violates your policy.
-                </div>
-              ) : (
-                <>
-                  {selectedRun.hallucination_evidence && (
-                    <div className="evidence-block">
-                      <div className="evidence-label">Hallucination Evidence</div>
-                      <div className="evidence-quote">
-                        {selectedRun.hallucination_evidence}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedRun.policy_evidence && (
-                    <div className="evidence-block">
-                      <div className="evidence-label">Policy Contradiction</div>
-                      <pre className="evidence-policy">{selectedRun.policy_evidence}</pre>
-                    </div>
-                  )}
-
-                  {selectedRun.hallucination_detected &&
-                    !selectedRun.hallucination_evidence &&
-                    !selectedRun.policy_evidence && (
-                      <div className="evidence-block">
-                        <div className="evidence-label">Hallucination Detected</div>
-                        <div className="evidence-quote">
-                          The agent made claims not supported by the transcript or knowledge base.
-                        </div>
-                      </div>
-                    )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
+  return <div className="calls-page">
+    <div className="review-page-header"><div><div className="review-eyebrow">Your workspace</div><h1 className="page-title">Calls</h1><p className="page-subtitle">Listen to the recording. Read the conversation. Review what needs attention.</p></div><button className="btn btn-ghost" onClick={demo} disabled={demoLoading}>{demoLoading ? 'Loading scenarios…' : 'Explore sample calls'}</button></div>
+    <div className="review-upload" role="button" tabIndex={uploading ? -1 : 0} aria-disabled={uploading} aria-label="Upload audio file for analysis" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void upload(file); }} onClick={() => { if (!uploading) document.getElementById('file-input')?.click(); }} onKeyDown={event => { if (!uploading && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); document.getElementById('file-input')?.click(); } }}>
+      <input id="file-input" type="file" accept="audio/*" hidden disabled={uploading} onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} />
+      <div className="review-upload-icon"><Upload size={21} /></div><div><strong>{uploading ? 'Processing your recording…' : 'Drop a recording here or choose a file'}</strong><p>WAV, MP3 or M4A · up to 25 MB</p></div><span className="review-upload-action">Choose audio <ArrowUpRight size={15} /></span>
+    </div>
+    <UploadProgress events={uploading ? events : []} error={uploading ? actionError : undefined} />
+    {!uploading && actionError && <div className="review-error" role="alert">{actionError}</div>}
+    <div className="review-toolbar"><label className="review-search"><Search size={16} /><input aria-label="Search calls" placeholder="Search calls…" value={search} onChange={event => { setLoading(true); setListError(null); setSearch(event.target.value); }} /></label><select className="filter-input" aria-label="Filter by processing status" value={status} onChange={event => { setLoading(true); setListError(null); setStatus(event.target.value); }}><option value="">All statuses</option><option value="completed">Processed</option><option value="partial">Review required</option><option value="failed">Processing failed</option></select><span>{loading ? 'Loading calls…' : `${total} ${total === 1 ? 'call' : 'calls'}`}</span></div>
+    {listError ? <div className="review-error" role="alert"><strong>Calls are unavailable</strong><p>{listError}</p><button className="btn btn-ghost" onClick={() => void refresh()}>Retry loading</button></div> : <div className="table-wrap"><div className="table-scroll"><table className="review-calls-table"><thead><tr><th>Call</th><th>Assessment</th><th>Source</th><th>Duration</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{loading ? <tr><td colSpan={5} className="review-table-empty">Loading stored calls…</td></tr> : !runs.length ? <tr><td colSpan={5}><div className="review-empty"><AudioLines size={28} /><h3>{search || status ? 'No calls match these filters' : 'Your first call starts here'}</h3><p>Upload a recording or load the three synthetic scenarios to inspect an evidence-backed finding.</p></div></td></tr> : runs.map(run => <tr key={run.run_id} role="button" tabIndex={0} aria-label={`Review ${run.intent || run.run_id}`} onClick={event => void openRun(run, event.currentTarget)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openRun(run, event.currentTarget); } }}><td><strong className="call-intent">{run.intent || 'Untitled call'}</strong><span className="call-id">{run.run_id.slice(0, 16)} · {relativeTime(run.created_at)}</span></td><td><ReviewBadge run={run} />{run.status !== 'completed' && <span className="call-processing-label">{run.status === 'failed' ? 'Processing failed' : run.status === 'partial' ? 'Review required' : run.status}</span>}</td><td><span className={`source-label ${run.run_id.startsWith('demo-') ? 'source-synthetic' : ''}`}>{run.run_id.startsWith('demo-') ? 'Synthetic demo' : 'Real input'}</span></td><td className="mono">{formatDuration(run.duration_seconds)}</td><td><button className="review-delete" disabled={deleting === run.run_id} onClick={event => void remove(event, run.run_id)} aria-label={`Delete call ${run.run_id}`} title="Delete stored call">{deleting === run.run_id ? '…' : '×'}</button></td></tr>)}</tbody></table></div></div>}
+    <p className="calls-footer-note">Policy reviews cover configured checks. A call without findings is not a guarantee of compliance.</p>
+    <div className={`drawer-overlay ${open ? 'open' : ''}`} onClick={close} />
+    <div className={`drawer review-drawer ${open ? 'open' : ''}`} ref={drawerRef} role="dialog" aria-modal="true" aria-hidden={!open} inert={!open} aria-label={`Call detail: ${id.slice(0, 12)}`}>
+      <div className="drawer-header"><div className="review-drawer-title"><strong>{selected?.intent || 'Call review'}</strong><span>{selected ? `${formatDuration(selected.duration_seconds)} · ${relativeTime(selected.created_at)}` : 'Loading call…'}</span></div>{selected && <span className={`source-label ${selected.run_id.startsWith('demo-') ? 'source-synthetic' : ''}`}>{selected.run_id.startsWith('demo-') ? 'Synthetic' : 'Real input'}</span>}<button className="drawer-close" ref={closeRef} onClick={close} aria-label="Close drawer"><X size={18} /></button></div>
+      <div className="drawer-tabs" role="tablist" aria-label="Call inspection sections">{TABS.map(item => <button key={item.key} className={`drawer-tab ${tab === item.key ? 'active' : ''}`} role="tab" id={`call-tab-${item.key}`} aria-selected={tab === item.key} aria-controls={`drawer-panel-${item.key}`} onClick={() => setTab(item.key)}>{item.label}</button>)}</div>
+      <div className="drawer-body">{detail.kind === 'loading' ? <div className="review-empty" role="status">Loading the full evaluation and transcript…</div> : detail.kind === 'error' ? <div className="review-error" role="alert"><strong>Call details are unavailable</strong><p>{detail.message}</p><button className="btn btn-ghost" onClick={() => { const run = runs.find(item => item.run_id === detail.id); if (run) void openRun(run); }}>Retry</button></div> : selected && <div id={`drawer-panel-${tab}`} role="tabpanel" aria-labelledby={`call-tab-${tab}`}>
+        {tab === 'findings' && <><CallReport run={selected} onChecks={() => setTab('checks')} /><CallSummary run={selected} /><FindingsPanel run={selected} onEvidence={turn => { setHighlightedTurn(turn); setTab('transcript'); }} /></>}
+        {tab === 'stt' && <STTReviewPanel key={selected.run_id} runId={selected.run_id} />}
+        {tab === 'transcript' && <div className="call-conversation"><CallRecording key={selected.run_id} run={selected} /><div className="review-section-heading"><h3>Conversation</h3><span>Original transcript</span></div><TranscriptConversation run={selected} highlightedTurn={highlightedTurn} registerTurn={(index, element) => { if (element) turnRefs.current.set(index, element); else turnRefs.current.delete(index); }} /></div>}
+        {tab === 'speech' && <SpeechPanel run={selected} />}
+        {tab === 'checks' && <div className="review-stack"><p className="call-debug-id">Call ID: {selected.run_id}</p><section className="review-note">These checks validate the evaluator output. Their score is not a probability that the call is truthful or compliant.</section><div className="diagnostic-grid"><div className="diagnostic-card"><span>Processing</span><strong>{selected.status}</strong><p>{selected.evaluation?.evaluation_status || 'Historical evaluation'}</p></div><div className="diagnostic-card"><span>Heuristic consistency</span><strong>{validScore(selected.truth_score) == null ? 'Unavailable' : `${Math.round((selected.truth_score ?? 0) * 100)}%`}</strong><p>Applicable evaluator checks</p></div><div className="diagnostic-card"><span>Model</span><strong className="review-small-value">{selected.model || 'Unavailable'}</strong><p>{selected.provider || 'Provider unavailable'}</p></div><div className="diagnostic-card"><span>Call duration</span><strong>{formatDuration(selected.duration_seconds)}</strong><p>Reported duration</p></div></div><HarnessBar scores={HARNESS_KEYS.map(key => selected.layer_scores?.[key] != null ? Math.round(selected.layer_scores[key] * 100) : null)} /><div className="review-section-heading"><h3>Evaluator messages</h3></div>{[...(selected.evaluation?.errors || []), ...(selected.evaluation?.harness?.validation_errors || [])].length ? <ul className="review-messages">{[...(selected.evaluation?.errors || []), ...(selected.evaluation?.harness?.validation_errors || [])].map((error, index) => <li key={index}>{error}</li>)}</ul> : <p className="review-description">No evaluator messages are stored. Older runs may not contain full validation details.</p>}{selected.hallucination_evidence && <section className="finding-policy"><strong>Legacy model evidence</strong><p>{selected.hallucination_evidence}</p><small>This model-generated text is separate from structured policy findings.</small></section>}</div>}
+      </div>}</div>
+    </div>
+  </div>;
 }

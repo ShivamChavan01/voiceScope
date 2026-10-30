@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Overview",
-  "/runs": "Runs",
+  "/runs": "Calls",
   "/settings": "Settings",
 };
 

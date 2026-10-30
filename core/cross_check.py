@@ -18,24 +18,15 @@ class CrossChecker:
     def check(self, analysis: dict) -> CrossCheckResult:
         inconsistencies = []
 
-        sentiment = analysis.get("sentiment_arc", "")
-        outcome = analysis.get("outcome", "")
         hallucination = analysis.get("hallucination_detected", False)
         escalation = analysis.get("escalation_signal", False)
         findings = analysis.get("findings", [])
         quality_score = analysis.get("quality_score")
 
-        # Negative sentiment + resolved outcome is suspicious
-        if sentiment == "negative" and outcome == "resolved":
-            inconsistencies.append(
-                "sentiment is negative but outcome is resolved — unusual combination"
-            )
-
-        # Escalation + resolved is contradictory
-        if escalation and outcome == "resolved":
-            inconsistencies.append(
-                "escalation_signal=True but outcome=resolved — escalation implies unresolved"
-            )
+        if not hallucination and analysis.get("hallucination_evidence"):
+            inconsistencies.append("hallucination flag is false but hallucination evidence is present")
+        if hallucination and not analysis.get("hallucination_evidence"):
+            inconsistencies.append("hallucination flag is true but supporting evidence is missing")
 
         # Hallucination detected but no findings to base it on
         if hallucination and not findings:

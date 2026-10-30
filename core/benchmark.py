@@ -13,7 +13,6 @@ from core.facts import FactExtractor
 from core.harness import ValidationHarness
 from core.outcome_check import OutcomeCheck
 from core.sentiment_check import SentimentCheck
-from utils.logger import logger
 
 
 class BenchmarkResult(BaseModel):
@@ -23,23 +22,25 @@ class BenchmarkResult(BaseModel):
     layer_scores: dict[str, float] = Field(default_factory=dict)
     sentiment_correct: bool = False
     outcome_correct: bool = False
-    hallucination_correct: bool = False
+    hallucination_correct: bool | None = None
     escalation_correct: bool = False
     citation_coverage: float = 0.0
-    fact_accuracy: float = 0.0
+    fact_accuracy: float | None = None
     contradictions: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 
 
 class BenchmarkSummary(BaseModel):
+    benchmark_kind: str = "offline_harness_consistency"
+    hallucination_evaluated: int = 0
     total_tests: int = 0
     avg_truth_score: float = 0.0
     sentiment_accuracy: float = 0.0
     outcome_accuracy: float = 0.0
-    hallucination_accuracy: float = 0.0
+    hallucination_accuracy: float | None = None
     escalation_accuracy: float = 0.0
     avg_citation_coverage: float = 0.0
-    avg_fact_accuracy: float = 0.0
+    avg_fact_accuracy: float | None = None
     weakest_layer: str = ""
     strongest_layer: str = ""
     results: list[BenchmarkResult] = Field(default_factory=list)
@@ -49,7 +50,7 @@ class HarnessBenchmark:
     """Run labeled test data through harness, measure accuracy."""
 
     def __init__(self, test_data_path: str = ""):
-        self.test_data_path = test_data_path or "tests/test_data_labeled.json"
+        self.test_data_path = test_data_path or str(Path(__file__).parent / "data" / "labeled_calls.json")
         self.harness = ValidationHarness()
         self.sentiment_checker = SentimentCheck()
         self.outcome_checker = OutcomeCheck()
@@ -59,9 +60,11 @@ class HarnessBenchmark:
     def load_test_data(self) -> list[dict]:
         path = Path(self.test_data_path)
         if not path.exists():
-            logger.warning(f"[Benchmark] test data not found: {self.test_data_path}")
-            return []
-        return list(json.loads(path.read_text()))
+            raise FileNotFoundError("Labeled benchmark fixture is unavailable")
+        data = json.loads(path.read_text())
+        if not isinstance(data, list) or not data:
+            raise ValueError("Labeled benchmark fixture must be a nonempty list")
+        return data
 
     def run_benchmark(self) -> BenchmarkSummary:
         """Run all labeled tests through harness, return summary."""
@@ -69,6 +72,7 @@ class HarnessBenchmark:
         if not test_data:
             return BenchmarkSummary()
 
+        self.harness = ValidationHarness()
         results = []
         for case in test_data:
             result = self._run_single(case)
@@ -94,6 +98,11 @@ class HarnessBenchmark:
             "findings": expected.get("key_facts", []),
         }
 
+        # Only explicit independent predictions can measure hallucination accuracy.
+        prediction = case.get("analysis")
+        if prediction is not None:
+            mock_analysis = prediction
+
         # Run harness validation
         harness_result = self.harness.validate_analysis(mock_analysis, transcript)
 
@@ -113,10 +122,14 @@ class HarnessBenchmark:
             layer_scores=harness_result.layer_scores,
             sentiment_correct=sent_result.consistent,
             outcome_correct=out_result.has_evidence,
-            hallucination_correct=True,  # harness validates structure, not content
+            hallucination_correct=(
+                mock_analysis.get("hallucination_detected") == expected.get("hallucination_detected")
+                if prediction is not None and isinstance(mock_analysis.get("hallucination_detected"), bool)
+                else None
+            ),
             escalation_correct=esc_result.has_evidence or not expected.get("escalation_signal", False),
             citation_coverage=cite_result.coverage,
-            fact_accuracy=fact_result.accuracy,
+            fact_accuracy=fact_result.accuracy if fact_result.status == "assessed" else None,
             contradictions=fact_result.contradictions,
             errors=harness_result.validation_errors,
         )
@@ -130,10 +143,12 @@ class HarnessBenchmark:
         avg_truth = sum(r.truth_score for r in results) / n
         sentiment_acc = sum(1 for r in results if r.sentiment_correct) / n
         outcome_acc = sum(1 for r in results if r.outcome_correct) / n
-        hallucination_acc = sum(1 for r in results if r.hallucination_correct) / n
+        evaluated = [r.hallucination_correct for r in results if r.hallucination_correct is not None]
+        hallucination_acc = sum(evaluated) / len(evaluated) if evaluated else None
         escalation_acc = sum(1 for r in results if r.escalation_correct) / n
         avg_citation = sum(r.citation_coverage for r in results) / n
-        avg_facts = sum(r.fact_accuracy for r in results) / n
+        fact_scores = [r.fact_accuracy for r in results if r.fact_accuracy is not None]
+        avg_facts = sum(fact_scores) / len(fact_scores) if fact_scores else None
 
         # Find weakest and strongest layers
         layer_avgs: dict[str, list[float]] = {}
@@ -149,13 +164,14 @@ class HarnessBenchmark:
 
         return BenchmarkSummary(
             total_tests=n,
+            hallucination_evaluated=len(evaluated),
             avg_truth_score=round(avg_truth, 4),
             sentiment_accuracy=round(sentiment_acc, 4),
             outcome_accuracy=round(outcome_acc, 4),
-            hallucination_accuracy=round(hallucination_acc, 4),
+            hallucination_accuracy=round(hallucination_acc, 4) if hallucination_acc is not None else None,
             escalation_accuracy=round(escalation_acc, 4),
             avg_citation_coverage=round(avg_citation, 4),
-            avg_fact_accuracy=round(avg_facts, 4),
+            avg_fact_accuracy=round(avg_facts, 4) if avg_facts is not None else None,
             weakest_layer=weakest,
             strongest_layer=strongest,
             results=results,

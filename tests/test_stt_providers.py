@@ -166,3 +166,21 @@ class TestGeminiSTTProvider:
             provider = GeminiSTTProvider()
             with pytest.raises(Exception, match="Invalid API key"):
                 await provider.transcribe(b"fake audio", "test.mp3")
+
+
+@pytest.mark.asyncio
+async def test_deepgram_preserves_word_timestamps_and_speaker_metadata():
+    from stt_providers.deepgram_provider import DeepgramProvider
+    word = {'word': 'hello', 'start': 1.2, 'end': 1.8, 'speaker': 2, 'confidence': 0.91}
+    response = AsyncMock(status=200)
+    response.json.return_value = {'results': {'channels': [{'alternatives': [{'transcript': 'hello', 'words': [word]}]}]}}
+    context = AsyncMock()
+    context.__aenter__.return_value = response
+    session = MagicMock()
+    session.post.return_value = context
+    session.__aenter__ = AsyncMock(return_value=session)
+    session.__aexit__ = AsyncMock(return_value=False)
+    with patch('stt_providers.deepgram_provider.aiohttp.ClientSession', return_value=session):
+        result = await DeepgramProvider().transcribe(b'audio', 'call.wav')
+    assert result.words == [word]
+    assert result.speakers[0]['speaker'] == 2

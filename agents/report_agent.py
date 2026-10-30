@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 
 from core.context import PipelineContext
+from core.harness import ReportOutput
 from llm_providers.registry import ProviderRegistry
 from storage.chroma_store import ChromaStore
 from utils.logger import logger
@@ -10,6 +11,10 @@ REPORT_PROMPT = """
 You are a technical writer for a voice AI observability platform.
 
 Given this analysis data, generate a concise structured report with an executive summary and recommendations.
+Keep policy findings, unverified claims, and factual hallucinations separate.
+The structured reliability findings are authoritative for the supported policy checks.
+Do not override their uncertainty, invent evidence, or describe missing tool results as a failed action.
+No matches in supported checks does not establish overall compliance.
 
 Data:
 {analysis_data}
@@ -48,6 +53,7 @@ class ReportAgent:
             "outcome": ctx.outcome,
             "escalation_signal": ctx.escalation_signal,
             "findings": raw.get("findings", []),
+            "reliability": ctx.reliability,
             "language": ctx.language_detected,
             "audio_duration_seconds": ctx.audio_duration_seconds,
         }
@@ -61,6 +67,7 @@ class ReportAgent:
             )
 
             report_data = json.loads(response.content)
+            ReportOutput.model_validate(report_data)
 
             ctx.report = {
                 "run_id": ctx.run_id,

@@ -6,6 +6,30 @@ from stt_providers.base import STTProvider, TranscriptionResult
 from utils.logger import logger
 
 
+def speaker_segments(alternative: dict) -> list[dict]:
+    """Keep real diarization; absence of speaker IDs is not a single-speaker call."""
+    paragraphs = (alternative.get("paragraphs") or {}).get("paragraphs", [])
+    if paragraphs and all(isinstance(para.get("speaker"), int) for para in paragraphs):
+        turns = [
+            {"speaker": para["speaker"], "text": " ".join(sentence.get("text", "") for sentence in para.get("sentences", []))}
+            for para in paragraphs
+        ]
+        if all(turn["text"].strip() for turn in turns):
+            return turns
+    words = alternative.get("words") or []
+    if words and all(isinstance(word.get("speaker"), int) for word in words):
+        turns = []
+        for word in words:
+            text = word.get("punctuated_word") or word.get("word", "")
+            if turns and turns[-1]["speaker"] == word["speaker"]:
+                turns[-1]["text"] += " " + text
+            else:
+                turns.append({"speaker": word["speaker"], "text": text})
+        return turns
+    transcript = alternative.get("transcript", "")
+    return [{"speaker": 0, "text": transcript, "diarization_source": "unavailable"}] if transcript else []
+
+
 class DeepgramProvider(STTProvider):
     name = "deepgram"
 
@@ -16,6 +40,7 @@ class DeepgramProvider(STTProvider):
             "model": "nova-2",
             "smart_format": "true",
             "diarize": "true",
+            "paragraphs": "true",
             "punctuate": "true",
             "language": "en",
         }
@@ -29,8 +54,7 @@ class DeepgramProvider(STTProvider):
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, data=audio_bytes, params=params, headers=headers) as resp:
                 if resp.status != 200:
-                    body = await resp.text()
-                    raise Exception(f"Deepgram API error {resp.status}: {body}")
+                    raise RuntimeError(f"Deepgram API error {resp.status}")
                 data = await resp.json()
 
         channels = data.get("results", {}).get("channels", [])
@@ -42,16 +66,7 @@ class DeepgramProvider(STTProvider):
         language = data.get("results", {}).get("channels", [{}])[0].get("detected_language", "unknown")
         duration = data.get("metadata", {}).get("duration")
 
-        speakers = []
-        paragraphs = alt.get("paragraphs", {}).get("paragraphs", [])
-        if paragraphs:
-            for para in paragraphs:
-                speaker_id = para.get("speaker", 0)
-                text = " ".join(s.get("text", "") for s in para.get("sentences", []))
-                if text.strip():
-                    speakers.append({"speaker": speaker_id, "text": text.strip()})
-        else:
-            speakers = [{"speaker": 0, "text": transcript}]
+        speakers = speaker_segments(alt)
 
         logger.info(f"[STT:deepgram] done — {len(transcript)} chars, lang={language}")
-        return TranscriptionResult(transcript=transcript, speakers=speakers, language=language, duration_seconds=duration)
+        return TranscriptionResult(transcript=transcript, speakers=speakers, words=alt.get("words") or [], language=language, duration_seconds=duration)

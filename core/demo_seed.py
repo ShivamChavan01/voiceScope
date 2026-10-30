@@ -7,6 +7,7 @@ Seeding is idempotent (run_ids are fixed, log_run upserts).
 """
 
 from utils.logger import logger
+from core.harness import ValidationHarness
 
 
 def _run(
@@ -20,13 +21,11 @@ def _run(
     evidence: str = "",
     policy: str = "",
     findings: list[str] | None = None,
-    quality: int = 85,
-    truth: float = 0.9,
-    layer_scores: dict[str, float] | None = None,
+    quality: int | None = None,
     duration: float = 180,
-    provider: str = "groq",
-    model: str = "openai/gpt-oss-120b",
-    cost: float = 0.004,
+    provider: str = "synthetic",
+    model: str = "fixture-no-model",
+    cost: float = 0.0,
 ) -> dict:
     word_count = len(transcript.split())
     return {
@@ -53,8 +52,8 @@ def _run(
             "name": provider,
             "model": model,
             "cost_usd": cost,
-            "input_tokens": word_count * 2,
-            "output_tokens": 180,
+            "input_tokens": 0,
+            "output_tokens": 0,
         },
         "transcript_meta": {
             "language": "en",
@@ -63,19 +62,6 @@ def _run(
             "word_count": word_count,
             "chunk_count": None,
         },
-    }
-
-
-def _harness(truth: float, layer_scores: dict[str, float]) -> dict:
-    confidence = "high" if truth >= 0.85 else "medium" if truth >= 0.7 else "low"
-    return {
-        "truth_score": truth,
-        "confidence": confidence,
-        "validation_passed": truth >= 0.7,
-        "validation_errors": [],
-        "layer_scores": layer_scores,
-        "raw_output": {},
-        "validated_output": {},
     }
 
 
@@ -89,13 +75,6 @@ _SAMPLES: list[dict] = [
         "outcome": "resolved",
         "hallucination": False,
         "escalation": False,
-        "quality": 88,
-        "truth": 0.92,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.9, "cross_check": 0.95,
-            "facts": 0.9, "sentiment_consistency": 0.85, "outcome_evidence": 0.9,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "transcript": (
             "Agent: Thank you for calling. How can I help you today?\n"
             "Customer: I want to cancel my subscription. I keep getting charged.\n"
@@ -112,13 +91,6 @@ _SAMPLES: list[dict] = [
         "outcome": "resolved",
         "hallucination": False,
         "escalation": False,
-        "quality": 91,
-        "truth": 0.94,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.95, "cross_check": 0.95,
-            "facts": 0.95, "sentiment_consistency": 0.9, "outcome_evidence": 0.95,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "transcript": (
             "Customer: I was charged $49.99 twice for my subscription. This is unacceptable.\n"
             "Agent: I apologize. I can see the duplicate charge and I've processed a refund of $49.99.\n"
@@ -134,13 +106,6 @@ _SAMPLES: list[dict] = [
         "outcome": "unresolved",
         "hallucination": True,
         "escalation": False,
-        "quality": 58,
-        "truth": 0.62,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.5, "cross_check": 0.7,
-            "facts": 0.45, "sentiment_consistency": 0.8, "outcome_evidence": 0.5,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "evidence": (
             "Agent promised 'I can guarantee a same-day refund.' This contradicts the "
             "refund policy that agents cannot guarantee same-day refunds under any circumstances."
@@ -169,13 +134,6 @@ _SAMPLES: list[dict] = [
         "outcome": "escalated",
         "hallucination": False,
         "escalation": True,
-        "quality": 72,
-        "truth": 0.78,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.8, "cross_check": 0.9,
-            "facts": 0.85, "sentiment_consistency": 0.8, "outcome_evidence": 0.9,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "transcript": (
             "Customer: This is the third time I'm calling about the same issue.\n"
             "Agent: I understand your frustration.\n"
@@ -190,13 +148,6 @@ _SAMPLES: list[dict] = [
         "outcome": "unresolved",
         "hallucination": True,
         "escalation": False,
-        "quality": 61,
-        "truth": 0.6,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.45, "cross_check": 0.7,
-            "facts": 0.4, "sentiment_consistency": 0.8, "outcome_evidence": 0.5,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "evidence": (
             "Agent promised free express shipping on a $30 order. The policy states free "
             "shipping applies only to orders over $50."
@@ -224,13 +175,6 @@ _SAMPLES: list[dict] = [
         "outcome": "resolved",
         "hallucination": False,
         "escalation": False,
-        "quality": 93,
-        "truth": 0.96,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.95, "cross_check": 1.0,
-            "facts": 0.95, "sentiment_consistency": 0.95, "outcome_evidence": 1.0,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "transcript": (
             "Customer: My router won't connect to the internet.\n"
             "Agent: Let's walk through this. Can you power cycle the router?\n"
@@ -246,13 +190,6 @@ _SAMPLES: list[dict] = [
         "outcome": "escalated",
         "hallucination": False,
         "escalation": True,
-        "quality": 66,
-        "truth": 0.74,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.7, "cross_check": 0.9,
-            "facts": 0.8, "sentiment_consistency": 0.75, "outcome_evidence": 0.9,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "transcript": (
             "Customer: If this isn't resolved today I'm taking legal action.\n"
             "Agent: I understand. Let me escalate this to our legal team right away.\n"
@@ -267,13 +204,6 @@ _SAMPLES: list[dict] = [
         "outcome": "resolved",
         "hallucination": False,
         "escalation": False,
-        "quality": 89,
-        "truth": 0.9,
-        "layer_scores": {
-            "schema": 1.0, "citations": 0.9, "cross_check": 0.95,
-            "facts": 0.9, "sentiment_consistency": 0.85, "outcome_evidence": 0.9,
-            "escalation": 1.0, "duplicate": 1.0,
-        },
         "transcript": (
             "Customer: Where is my order?\n"
             "Agent: Let me check. It shipped yesterday and should arrive within 5 to 7 business days.\n"
@@ -303,31 +233,15 @@ async def seed_demo_runs(store=None, reset: bool = False) -> dict:
             evidence=s.get("evidence", ""),
             policy=s.get("policy", ""),
             findings=s.get("findings"),
-            quality=s["quality"],
-            truth=s["truth"],
-            layer_scores=s["layer_scores"],
-            provider="groq",
-            model="llama-3.3-70b-versatile",
-            cost=0.004,
         )
-        harness = _harness(s["truth"], s["layer_scores"])
+        harness = ValidationHarness().validate_analysis(result["analysis"], s["transcript"])
+        result["harness"] = harness.model_dump()
+        result["data_source"] = "synthetic_demo"
+        result["score_contract"] = "heuristic_consistency_v2"
+        if not harness.validation_passed:
+            result["status"] = "partial"
         await store.log_run(result, harness)
-        await store.log_call(result)
         seeded += 1
-
-    # Seed one alert rule so the Overview "Active Incidents" section has content.
-    try:
-        existing = await store.list_rules()
-        if not existing:
-            await store.create_rule(
-                name="High hallucination rate",
-                metric="hallucination_rate",
-                comparator="gt",
-                threshold=0.05,
-                window_minutes=1440,
-            )
-    except Exception as e:
-        logger.warning(f"[DemoSeed] alert rule seed failed: {e}")
 
     logger.info(f"[DemoSeed] seeded {seeded} demo runs")
     return {"seeded": seeded, "total_runs": seeded}

@@ -1,16 +1,17 @@
 import json
 import os
 from functools import lru_cache
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from api.schemas import HealthResponse, detect_and_parse_webhook
 from api.sse import stream_analysis
+from api.stt_routes import router as stt_router
 from core.batch import BatchProcessor
 from core.demo_seed import reset_demo_runs, seed_demo_runs
 from core.extractions import ExtractionField, ExtractionSchema, ExtractionStore
@@ -25,6 +26,7 @@ from utils.logger import logger
 from utils.security import hash_api_key, sanitize_log_input, validate_callback_url_async
 
 router = APIRouter()
+router.include_router(stt_router)
 
 BOLNA_API_KEY = os.getenv("BOLNA_API_KEY") or ""
 BOLNA_RECORDINGS_API = "https://api.bolna.ai/recordings"
@@ -207,6 +209,58 @@ async def demo_reset():
     return await reset_demo_runs(get_monitoring_store())
 
 
+class PolicyRuleRequest(BaseModel):
+    id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,80}$")
+    title: str = Field(min_length=1, max_length=200)
+    kind: Literal["no_same_day_refund_guarantee", "honor_escalation_request"]
+    text: str = Field(min_length=1, max_length=5000)
+    enabled: bool = Field(default=True, strict=True)
+
+
+@router.get("/policies/rules")
+async def list_policy_rules():
+    from core.policy_store import PolicyStore
+
+    return [rule.model_dump() for rule in await PolicyStore().list_rules()]
+
+
+@router.post("/policies/rules")
+async def save_policy_rule(req: PolicyRuleRequest):
+    from pydantic import ValidationError
+    from core.policy_store import PolicyStore
+    from core.reliability import PolicyRule
+
+    try:
+        rule = PolicyRule(**req.model_dump())
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="Policy text must explicitly express the selected supported rule")
+    saved = await PolicyStore().upsert_rule(rule)
+    return saved.model_dump()
+
+
+@router.delete("/policies/rules/{rule_id}")
+async def remove_policy_rule(rule_id: str):
+    from core.policy_store import PolicyStore
+
+    if not await PolicyStore().delete_rule(rule_id):
+        raise HTTPException(status_code=404, detail="Policy rule not found")
+    return {"status": "deleted"}
+
+
+@router.post("/demo/reliability")
+async def seed_reliability_demo():
+    from core.reliability_demo import demo_scenarios
+    from core.speech_diagnostics import SpeechDiagnostics
+
+    scenarios = demo_scenarios()
+    for result in scenarios:
+        result.setdefault("speech_diagnostics", SpeechDiagnostics(
+            limitations=["Synthetic transcript scenario; speech timings were not measured."]
+        ).model_dump())
+        await get_monitoring_store().log_run(result)
+    return {"seeded": len(scenarios), "run_ids": [result["run_id"] for result in scenarios]}
+
+
 @router.post("/analyze")
 async def analyze_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
@@ -244,6 +298,43 @@ async def analyze_audio_stream(file: UploadFile = File(...)):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
+
+
+class TranscriptRequest(BaseModel):
+    transcript: str = Field(min_length=1, max_length=60000)
+
+
+@router.post("/analyze-text")
+async def analyze_transcript(body: TranscriptRequest):
+    """Transcript-only analysis — no audio/STT needed (UI testing, debugging)."""
+    logger.info(f"[API] /analyze-text — chars={len(body.transcript)}")
+
+    result = await get_pipeline().run_from_transcript(body.transcript)
+
+    harness_data = result.get("harness")
+    await _log_cost(result)
+    await _log_metrics(result)
+    await _log_run(result, harness_data)
+
+    if result.get("errors"):
+        result["pipeline_errors"] = result["errors"]
+
+    return result
+
+
+@router.get("/status")
+async def backend_status():
+    """Backend + LLM provider status for the UI (no secrets)."""
+    from llm_providers.registry import ProviderRegistry
+
+    primary = os.getenv("LLM_PROVIDER", "openai")
+    return {
+        "service": "voicescope",
+        "llm_provider": primary,
+        "llm_model": os.getenv("LLM_MODEL") or None,
+        "llm_backups_configured": ProviderRegistry._backup_names(primary),
+        "providers": ProviderRegistry.list_providers(),
+    }
 
 
 @router.post("/batch")
@@ -325,6 +416,11 @@ async def get_runs(
     )
 
 
+@router.get("/runs/summary")
+async def get_run_summary():
+    return await get_monitoring_store().get_run_summary()
+
+
 @router.get("/runs/history")
 async def get_run_history(limit: int = 12):
     scores = await get_monitoring_store().get_truth_history(limit=limit)
@@ -332,11 +428,14 @@ async def get_run_history(limit: int = 12):
 
 
 @router.get("/runs/{run_id}")
-async def get_run(run_id: str):
+async def get_run(run_id: str, request: Request, response: Response):
     run = await get_monitoring_store().get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-    return run
+    from api.stt_routes import attach_stt_report
+    if request.headers.get('X-STT-Review') == '1':
+        response.headers['Cache-Control'] = 'no-store'
+    return attach_stt_report(run, request)
 
 
 @router.delete("/runs/{run_id}")
@@ -344,6 +443,8 @@ async def delete_run(run_id: str):
     deleted = await get_monitoring_store().delete_run(run_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    from storage.stt_reviews import STTReviewStore
+    STTReviewStore().delete_run(run_id)
     return {"status": "deleted", "run_id": run_id}
 
 
@@ -384,6 +485,14 @@ async def webhook_call_completed(request: Request):
             status_code=400,
             detail=f"Event '{event.event_type}' not supported — expected one of: {completed_events}",
         )
+
+    if event.platform == "bolna" and event.transcript and event.transcript.strip():
+        result = await get_pipeline().run_from_transcript(event.transcript)
+        result.setdefault("transcript_meta", {})["duration_seconds"] = (
+            event.duration_ms / 1000 if event.duration_ms is not None else None
+        )
+        result["transcript_source"] = "bolna"
+        return await _save_webhook_result(event, result)
 
     candidates = _recording_candidates(event)
     if not candidates:
@@ -455,6 +564,19 @@ async def webhook_call_completed(request: Request):
     filename = f"webhook_{event.call_id}.{ext}"
     result = await get_pipeline().run(audio_bytes, filename)
 
+    return await _save_webhook_result(event, result)
+
+
+async def _save_webhook_result(event, result: dict):
+    from core.speech_diagnostics import bolna_speech_diagnostics
+
+    if event.platform == "bolna":
+        from core.stt_sources import bolna_transcript
+        if event.transcript and event.transcript.strip():
+            result["stt_source"] = bolna_transcript(event.transcript).model_dump(mode="json")
+        result["speech_diagnostics"] = bolna_speech_diagnostics(event.raw).model_dump()
+    result["platform"] = event.platform
+    result["source_call"] = {"call_id": event.call_id, "platform": event.platform, **event.metadata}
     harness_data = result.get("harness")
     await _log_cost(result)
     await _log_metrics(result)
@@ -792,19 +914,20 @@ async def run_improvement_loop():
 async def get_benchmark():
     from core.benchmark import HarnessBenchmark
     bench = HarnessBenchmark()
-    summary = bench.run_benchmark()
-    return {
-        "total_tests": summary.total_tests,
-        "avg_truth_score": summary.avg_truth_score,
-        "sentiment_accuracy": summary.sentiment_accuracy,
-        "outcome_accuracy": summary.outcome_accuracy,
-        "hallucination_accuracy": summary.hallucination_accuracy,
-        "escalation_accuracy": summary.escalation_accuracy,
-        "avg_citation_coverage": summary.avg_citation_coverage,
-        "avg_fact_accuracy": summary.avg_fact_accuracy,
-        "weakest_layer": summary.weakest_layer,
-        "strongest_layer": summary.strongest_layer,
-    }
+    try:
+        summary = bench.run_benchmark()
+    except (OSError, ValueError):
+        raise HTTPException(status_code=503, detail="Labeled benchmark data unavailable or invalid")
+    return summary.model_dump(exclude={"results"})
+
+
+@router.get("/loop/benchmark/reliability")
+async def get_reliability_benchmark():
+    from core.reliability_benchmark import run_reliability_benchmark
+    try:
+        return run_reliability_benchmark().model_dump()
+    except (OSError, ValueError):
+        raise HTTPException(status_code=503, detail="Policy benchmark data unavailable or invalid")
 
 
 @router.get("/loop/suggestions")

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_KEY = process.env.API_KEY || "";
+// Enable only behind operator authentication; the shared public proxy is not an identity boundary.
+const STT_REVIEW_ENABLED = process.env.STT_REVIEW_PROXY_ENABLED === "true";
 
 const ALLOWED_PREFIXES = [
   "/api/v1/runs",
@@ -11,6 +13,7 @@ const ALLOWED_PREFIXES = [
   "/api/v1/qa",
   "/api/v1/guardrails",
   "/api/v1/health",
+  "/api/v1/status",
   "/api/v1/costs",
   "/api/v1/harness",
   "/api/v1/loop",
@@ -18,6 +21,7 @@ const ALLOWED_PREFIXES = [
   "/api/v1/webhooks",
   "/api/v1/demo",
   "/api/v1/knowledge",
+  "/api/v1/policies",
 ];
 
 const ALLOWED_RESPONSE_HEADERS = new Set([
@@ -29,9 +33,23 @@ async function proxyRequest(
   request: NextRequest,
   path: string[]
 ) {
-  const targetPath = `/api/${path.join("/")}`;
-  if (!ALLOWED_PREFIXES.some((p) => targetPath.startsWith(p))) {
+  let segments: string[];
+  try {
+    segments = path.map((part) => decodeURIComponent(part));
+  } catch {
     return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
+  }
+  // Validate before URL normalization or the backend's percent decoding can
+  // turn an unchecked path into a private recording route.
+  if (segments.some((part) => !part || part === "." || part === ".." || /[/\\?#%\u0000-\u0020]/.test(part))) {
+    return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
+  }
+  const targetPath = `/api/${segments.map(encodeURIComponent).join("/")}`;
+  if (!ALLOWED_PREFIXES.some((p) => targetPath === p || targetPath.startsWith(`${p}/`))) {
+    return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
+  }
+  if (/^\/api\/v1\/runs\/[^/]+\/stt-review(?:\/|$)/.test(targetPath) && !STT_REVIEW_ENABLED) {
+    return NextResponse.json({ detail: "Private STT review requires an access-controlled frontend. This public proxy is disabled for recordings." }, { status: 403 });
   }
   const targetUrl = new URL(targetPath, BACKEND_URL);
 
@@ -41,6 +59,7 @@ async function proxyRequest(
 
   const headers = new Headers();
   headers.set("X-API-Key", API_KEY);
+  if (STT_REVIEW_ENABLED) headers.set("X-STT-Review", "1");
   headers.set("Content-Type", request.headers.get("Content-Type") || "application/json");
 
   const init: RequestInit = {
@@ -70,10 +89,11 @@ async function proxyRequest(
               if (done) break;
               controller.enqueue(value);
             }
+            controller.close();
           } catch (err) {
             controller.error(err);
           } finally {
-            controller.close();
+            reader.releaseLock();
           }
         },
       });
@@ -95,6 +115,11 @@ async function proxyRequest(
         responseHeaders[key] = value;
       }
     });
+
+    if (contentType.startsWith("audio/")) {
+      // The proxy buffers the full recording; expose its actual length for media metadata.
+      responseHeaders["Content-Length"] = String(body.byteLength);
+    }
 
     return new NextResponse(body, {
       status: res.status,

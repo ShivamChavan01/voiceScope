@@ -1,4 +1,5 @@
 from core.context import PipelineContext
+from core.speakers import parse_speaker_turns
 from stt_providers.registry import STTRegistry
 from utils.logger import logger
 
@@ -21,6 +22,10 @@ class TranscriptionAgent:
             result = await provider.transcribe(audio_bytes, filename)
             ctx.raw_transcript = result.transcript
             ctx.transcript_speakers = result.speakers
+            if provider.name in ("whisper", "gemini"):
+                ctx.transcript_speakers = parse_speaker_turns(result.transcript) or [
+                    {"speaker": 0, "text": result.transcript, "diarization_source": "unavailable"}
+                ]
             ctx.language_detected = result.language
             ctx.audio_duration_seconds = result.duration_seconds
             ctx.mark_stage("transcription")

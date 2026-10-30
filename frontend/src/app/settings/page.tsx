@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { PolicyRulesPanel } from "@/components/policy-rules";
 import {
   getAlerts,
   createAlertRule,
@@ -429,7 +430,7 @@ function KnowledgeTab() {
       <div className="settings-group">
         <div className="settings-group-title">Knowledge Base</div>
         <div className="settings-group-subtitle">
-          Policies the harness checks agent claims against. Entries merge with the default{" "}
+          Reference text used for model context. Deterministic policy checks are configured in the Policies tab. Entries merge with the bundled reference{" "}
           <code style={{ color: "var(--primary)" }}>knowledge/business_policy.md</code> seed.
         </div>
       </div>
@@ -469,7 +470,7 @@ function KnowledgeTab() {
               <tr><td colSpan={4} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>Loading...</td></tr>
             ) : entries.length === 0 ? (
               <tr><td colSpan={4} style={{ textAlign: "center", padding: "32px 0", color: "var(--muted-foreground)" }}>
-                No custom policies yet. The default policy file is active. Add your own policies above.
+                No custom reference entries yet. Bundled reference text does not activate supported policy rules.
               </td></tr>
             ) : (
               entries.map((e) => (
@@ -513,7 +514,7 @@ function IntegrationsTab() {
       <div className="settings-group">
         <div className="settings-group-title">Bolna AI</div>
         <div className="settings-group-subtitle">
-          VoiceScope auto-parses Bolna webhooks. No code changes needed — just set the webhook URL in your Bolna agent.
+          Bolna payload parsing is available. Live end-to-end delivery, deduplication, and durable processing are not yet verified.
         </div>
 
         <div className="f-panel">
@@ -528,16 +529,16 @@ function IntegrationsTab() {
           <div className="f-label" style={{ marginBottom: 8 }}>Setup Steps</div>
           <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--secondary-foreground)", lineHeight: 1.8 }}>
             <li>Go to <span className="mono" style={{ color: "var(--primary)" }}>bolna.ai</span> → Dashboard → Your Agent</li>
-            <li>Click the <strong>Tools</strong> tab or <strong>Settings</strong></li>
+            <li>Open the <strong>Extractions</strong> tab and Webhook Configuration</li>
             <li>Paste the Webhook URL above into the <strong>Webhook URL</strong> field</li>
-            <li>Save — Bolna will POST call data here after every call</li>
+            <li>Configure the authentication header and completed status, then test delivery before relying on this connection</li>
           </ol>
         </div>
 
         <div className="f-panel" style={{ marginTop: 12 }}>
           <div className="f-label" style={{ marginBottom: 8 }}>What VoiceScope receives</div>
           <div style={{ fontSize: 12, color: "var(--secondary-foreground)", lineHeight: 1.6 }}>
-            After each Bolna call, VoiceScope automatically extracts: transcript, sentiment, intent, hallucination detection, escalation signals, and a truth score. All data appears in the <strong>Runs</strong> tab.
+            The parser accepts execution metadata and transcript fields. The handler preserves a supplied Bolna transcript and uses recording transcription as a fallback. Evaluation is synchronous. Successful ingestion must be checked in <strong>Runs</strong>; this page does not verify the connection.
           </div>
         </div>
       </div>
@@ -575,7 +576,7 @@ function IntegrationsTab() {
 }
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState("integrations");
+  const [tab, setTab] = useState("policies");
 
   return (
     <>
@@ -585,13 +586,14 @@ export default function SettingsPage() {
       </div>
 
       <div className="settings-tabs">
-        {(["integrations", "providers", "guardrails", "alerts", "schemas", "cohorts", "knowledge"] as const).map((t) => (
+        {(["policies", "integrations", "providers", "guardrails", "alerts", "schemas", "cohorts", "knowledge"] as const).map((t) => (
           <button key={t} className={`settings-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === "knowledge" ? "Reference knowledge" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
+      {tab === "policies" && <PolicyRulesPanel />}
       {tab === "integrations" && <IntegrationsTab />}
       {tab === "providers" && <ProvidersTab />}
       {tab === "guardrails" && <GuardrailsTab />}

@@ -221,3 +221,20 @@ class TestAuthMiddleware:
                 assert resp.status_code == 503
             finally:
                 middleware.auth._VALID_KEYS = old_keys
+
+
+def test_rate_limit_still_blocks_within_one_test(monkeypatch):
+    import middleware.rate_limit as rate_limit
+
+    monkeypatch.setattr(rate_limit, 'RATE_LIMIT', 5)
+    app = FastAPI()
+
+    @app.get('/test')
+    async def endpoint():
+        return {'ok': True}
+
+    app.add_middleware(rate_limit.RateLimitMiddleware)
+    client = TestClient(app)
+    for _ in range(5):
+        assert client.get('/test').status_code == 200
+    assert client.get('/test').status_code == 429

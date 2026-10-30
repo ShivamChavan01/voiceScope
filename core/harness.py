@@ -12,6 +12,7 @@ Layer 7: Escalation Signal Verification
 
 import hashlib
 import json
+import math
 import time
 from enum import Enum
 from typing import Optional
@@ -33,12 +34,12 @@ class OutcomeType(str, Enum):
 
 
 class AnalysisOutput(BaseModel):
-    intent: str = ""
-    sentiment_arc: str = ""
-    hallucination_detected: bool = False
+    intent: str = Field(min_length=1)
+    sentiment_arc: SentimentType
+    hallucination_detected: bool
     hallucination_evidence: Optional[str] = None
-    outcome: str = ""
-    escalation_signal: bool = False
+    outcome: OutcomeType
+    escalation_signal: bool = Field(strict=True)
     findings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
@@ -63,20 +64,10 @@ class AnalysisOutput(BaseModel):
 
 
 class ReportOutput(BaseModel):
-    quality_score: int = 50
+    quality_score: int = Field(ge=0, le=100)
     key_findings: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     summary: str = ""
-
-    @model_validator(mode="after")
-    def validate_quality_score(self):
-        if not isinstance(self.quality_score, (int, float)):
-            try:
-                self.quality_score = int(self.quality_score)
-            except (ValueError, TypeError):
-                self.quality_score = 50
-        self.quality_score = max(0, min(100, int(self.quality_score)))
-        return self
 
 
 class ValidationResult(BaseModel):
@@ -88,7 +79,7 @@ class ValidationResult(BaseModel):
 
 
 class HarnessResult(BaseModel):
-    truth_score: float = 0.0
+    truth_score: float = Field(default=0.0, ge=0.0, le=1.0)
     confidence: str = "unknown"
     validation_passed: bool = True
     validation_errors: list[str] = Field(default_factory=list)
@@ -99,6 +90,7 @@ class HarnessResult(BaseModel):
     token_usage: dict = Field(default_factory=dict)
     duplicate_hash: str = ""
     audio_quality_score: Optional[float] = None
+    fact_check_status: str = "not_assessed"
 
 
 class ValidationHarness:
@@ -119,6 +111,10 @@ class ValidationHarness:
         if not schema_result.passed:
             result.validation_errors.extend(schema_result.errors)
             result.validation_passed = False
+            result.layer_scores = {"schema": 0.0}
+            result.truth_score = 0.0
+            result.confidence = "very_low"
+            return result
 
         # Layer 2: Citation Verification (if transcript available)
         if transcript and raw_output.get("findings"):
@@ -141,7 +137,10 @@ class ValidationHarness:
         if transcript:
             from core.facts import FactExtractor
             fact_result = FactExtractor().verify(transcript, raw_output)
-            layer_scores["facts"] = fact_result.accuracy
+            result.fact_check_status = fact_result.status
+            if fact_result.status == "assessed":
+                layer_scores["facts"] = fact_result.accuracy
+            result.validation_errors.extend(fact_result.unsupported_claims)
             if fact_result.contradictions:
                 result.validation_errors.extend(
                     [f"contradiction: {c}" for c in fact_result.contradictions]
@@ -188,7 +187,7 @@ class ValidationHarness:
                     result.validation_errors.append(missed.missing_evidence)
 
         # Layer 10: Duplicate Detection
-        content_hash = hashlib.sha256(json.dumps(raw_output, sort_keys=True, default=str).encode()).hexdigest()
+        content_hash = hashlib.sha256(json.dumps([transcript, raw_output], sort_keys=True, default=str).encode()).hexdigest()
         result.duplicate_hash = content_hash
         if content_hash in self._seen_hashes:
             time_diff = time.time() - self._seen_hashes[content_hash]
@@ -211,7 +210,8 @@ class ValidationHarness:
         result.layer_scores = layer_scores
         result.truth_score = self._compute_truth_score(layer_scores)
         result.confidence = self._score_to_confidence(result.truth_score)
-        result.validated_output = raw_output
+        result.validation_passed = not result.validation_errors
+        result.validated_output = raw_output if result.validation_passed else {}
 
         return result
 
@@ -249,6 +249,14 @@ class ValidationHarness:
             if total_tokens > 10000:
                 result.validation_errors.append(f"abnormal token usage: {total_tokens} tokens")
 
+        report_result = self.validate_report(ctx.report.get("report", {}))
+        result.validation_errors.extend(report_result.validation_errors)
+        if not transcript.strip():
+            result.validation_errors.append("insufficient evidence: transcript is empty")
+        result.validation_passed = not result.validation_errors
+        if not result.validation_passed:
+            result.validated_output = {}
+
         # Store in context
         ctx.report["harness"] = result.model_dump()
         return result
@@ -267,7 +275,7 @@ class ValidationHarness:
         except Exception as e:
             return ValidationResult(
                 passed=False,
-                confidence=0.3,
+                confidence=0.0,
                 errors=[f"schema validation failed: {str(e)}"],
             )
 
@@ -279,7 +287,7 @@ class ValidationHarness:
         except Exception as e:
             return ValidationResult(
                 passed=False,
-                confidence=0.3,
+                confidence=0.0,
                 errors=[f"schema validation failed: {str(e)}"],
             )
 
@@ -300,6 +308,8 @@ class ValidationHarness:
         total_weight = 0.0
         weighted_sum = 0.0
         for layer, score in layer_scores.items():
+            if not math.isfinite(score) or not 0 <= score <= 1:
+                raise ValueError(f"invalid {layer} score: expected finite value in [0, 1]")
             w = weights.get(layer, 0.05)
             weighted_sum += score * w
             total_weight += w
