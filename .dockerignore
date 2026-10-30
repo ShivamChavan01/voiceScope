@@ -51,4 +51,3 @@ coverage.xml
 scripts/*
 !scripts/run_benchmark.py
 !scripts/run_reliability_benchmark.py
-!scripts/generate_showcase_audio.py

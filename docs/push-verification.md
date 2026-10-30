@@ -2,7 +2,7 @@
 
 October 31 follow-up: [merge-readiness.md](merge-readiness.md) supersedes the
 verification table below. Backend tests now pass 612 cases, frontend tests pass
-49, whole-repository Ruff and configured mypy pass, and the frontend builds on
+49, configured Ruff and mypy pass, and the frontend builds on
 Next.js 16.4.3. CI now also runs on this feature branch and checks the frontend.
 The Python dependency audit fails on three ChromaDB advisories. Main remains held;
 the user authorized merging only if verification succeeds. The remaining text is

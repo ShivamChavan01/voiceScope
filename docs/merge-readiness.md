@@ -30,12 +30,13 @@ formula, speaker identity or timestamp was invented to make the real call score.
 | Backend suite, working tree and clean staged-source snapshot | 612 passed |
 | Backend suite inside the non-root Python 3.11 production image | 612 passed, including cold embedding-cache initialization |
 | Frontend suite after fresh `npm ci` | 49 passed |
-| Ruff, whole repository | Passed |
+| Ruff, repository-configured scope | Passed; `.gitignore` excludes the local `scripts/` folder |
 | mypy, configured scope | Passed, 125 source files; untyped function bodies remain outside the configured check |
 | Frontend TypeScript and ESLint | Passed |
 | Next.js production build | Passed on 16.4.3 |
 | Existing harness benchmark, `--min-truth 0.7` | Passed on 10 fixtures; hallucination accuracy remains unmeasured |
 | Docker build and private-file exclusion | Passed locally; image runs as non-root |
+| Python 3.11 image type check and runtime lint | Passed, 125 source files checked by mypy; packaged runtime passes Ruff |
 | Container report persistence | Three synthetic runs survived restart and replacement with the same named volume |
 | Synthetic browser flow | Five tabs, evidence navigation, upload/error states, keyboard focus and mobile layout passed, zero page errors |
 | Real-call browser flow | Original audio, reference timestamp seeking, report reload and controlled expired-audio handling passed, zero page errors |
@@ -46,6 +47,12 @@ formula, speaker identity or timestamp was invented to make the real call score.
 Private evidence is under ignored `.gstack/merge-readiness/`. It contains sensitive
 call material and must not be published. Browser runs reused the prepared reference
 and submitted no additional recordings to providers.
+
+The runtime image excludes the optional showcase-audio generator. A separate image
+lint run found its pre-existing unused exception variable because the image has no
+Git directory and therefore lint did not apply Git's ignored-script exclusions.
+The generator is not part of the runtime service. The two benchmark CLIs remain
+packaged; no generator behavior was changed.
 
 ## Real-call acceptance evidence and limits
 

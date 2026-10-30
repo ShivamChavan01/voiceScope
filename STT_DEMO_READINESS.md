@@ -1,7 +1,7 @@
 # VoiceScope STT demo readiness — October 29, 2026
 
-**October 31 verification:** 612 backend and 49 frontend tests pass. Whole-repository
-Ruff, configured mypy, TypeScript, ESLint and the Next.js 16.4.3 production build
+**October 31 verification:** 612 backend and 49 frontend tests pass. Configured
+Ruff and mypy, TypeScript, ESLint and the Next.js 16.4.3 production build
 pass. A real completed execution replay, original audio, Deepgram reference,
 private report reload and browser seeking were checked locally. The real call
 remains unscored for missing Bolna timestamps and unconfirmed speaker roles.
