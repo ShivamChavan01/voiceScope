@@ -2,9 +2,8 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-
-load_dotenv()
+# Load .env before importing modules that cache authentication settings.
+import utils.environment  # noqa: F401
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware

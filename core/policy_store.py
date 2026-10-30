@@ -55,7 +55,7 @@ class PolicyStore:
     async def delete_rule(self, rule_id: str) -> bool:
         with self._connect() as conn:
             cursor = conn.execute('DELETE FROM policy_rules WHERE id = ?', (rule_id,))
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount > 0)
 
     def close(self):
         if self._memory is not None:

@@ -440,6 +440,7 @@ class MonitoringStore:
         import sqlite3
         data_dir = os.environ.get("DATA_DIR", ".")
         db_path = os.getenv("MONITORING_DB_PATH", str(Path(data_dir) / "monitoring.db"))
+        Path(db_path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("""

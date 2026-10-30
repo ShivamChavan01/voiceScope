@@ -37,6 +37,19 @@ def seed_recording():
         audio_info={'available': True, 'sha256': HASH, 'duration_seconds': 10, 'scope': 'unknown'})
 
 
+def test_reference_preparation_does_not_upload_audio_without_recording_hash():
+    STTReviewStore().save(OWNER, RUN['run_id'], audio=AUDIO, content_type='audio/wav',
+        audio_info={'available': True, 'duration_seconds': 10, 'scope': 'unknown'})
+    provider = AsyncMock()
+    with patch('core.stt_service.STTRegistry.get', return_value=provider):
+        response = TestClient(app).post('/api/v1/runs/run-stt/stt-review/reference', headers=HEADERS, json={})
+    assert response.status_code == 200
+    assert response.json()['review']['status'] == 'failed'
+    assert response.json()['review']['metric_value'] is None
+    assert response.json()['reference'] is None
+    provider.transcribe.assert_not_awaited()
+
+
 def human_body():
     original = bolna_transcript(RUN['evaluation']['raw_transcript'])
     original.segments[0].start, original.segments[0].end = 0, 3

@@ -81,6 +81,22 @@ def test_deepgram_reference_preserves_speaker_ids_without_guessing_caller():
     assert deepgram_reference(TranscriptionResult(transcript='Hello'), 'a' * 64).segments[0].start is None
 
 
+@pytest.mark.parametrize('start,end', [(None, 1), (0, None), (True, 1), (0, False), (-1, 1), (0, float('inf')), (float('nan'), 1), (2, 1)])
+def test_invalid_word_times_remain_unscored_without_breaking_adjacent_speech(start, end):
+    result = TranscriptionResult(transcript='First uncertain last', words=[
+        {'word': 'First', 'speaker': 0, 'start': 0, 'end': 0.4},
+        {'word': 'uncertain', 'speaker': 0, 'start': start, 'end': end},
+        {'word': 'last', 'speaker': 0, 'start': 1.5, 'end': 2},
+    ])
+    reference = deepgram_reference(result, 'a' * 64)
+    assert [segment.text for segment in reference.segments] == ['First', 'uncertain', 'last']
+    assert reference.segments[1].start is None
+    assert reference.segments[1].end is None
+    assert reference.segments[0].start == 0
+    assert reference.segments[2].start == 1.5
+    assert all(segment.role == 'unknown' for segment in reference.segments)
+
+
 def test_timing_annotations_cannot_rewrite_original_words_or_roles():
     original = bolna_transcript('user: I do not want a refund')
     annotated = original.model_copy(deep=True)

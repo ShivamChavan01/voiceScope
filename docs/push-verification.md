@@ -1,5 +1,13 @@
 # Review branch verification — October 30, 2026
 
+October 31 follow-up: [merge-readiness.md](merge-readiness.md) supersedes the
+verification table below. Backend tests now pass 612 cases, frontend tests pass
+49, whole-repository Ruff and configured mypy pass, and the frontend builds on
+Next.js 16.4.3. CI now also runs on this feature branch and checks the frontend.
+The Python dependency audit fails on three ChromaDB advisories. Main remains held;
+the user authorized merging only if verification succeeds. The remaining text is
+the historical October 30 snapshot.
+
 Branch: `feat/voicescope-reliability-stt-demo`.
 Starting commit: `f9d459c75e7152e370afed838bc547dde9d0a2d5`.
 

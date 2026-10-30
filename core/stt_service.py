@@ -130,6 +130,8 @@ async def _create_reference(run: dict, owner: str, store: STTReviewStore) -> dic
             data, content_type = await retrieve_bolna_recording(source['call_id'])
             info = inspect_recording(data)
             store.save(owner, run_id, audio=data, content_type=content_type, audio_info=info.model_dump())
+        if not info.sha256:
+            raise ValueError('Original recording hash is unavailable')
         result = await asyncio.wait_for(STTRegistry.get('deepgram').transcribe(data, 'completed-call.wav'), timeout=75)
         reference = deepgram_reference(result, info.sha256)
         if not reference.segments:

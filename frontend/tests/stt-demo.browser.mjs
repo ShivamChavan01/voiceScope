@@ -25,8 +25,7 @@ try {
   assert.ok(state.reference?.segments.length, 'Prepare the authorized reference before running this check');
   assert.equal(state.reference.human_verified, false);
   const open = async () => {
-    await page.goto(`${base}/runs`);
-    await page.getByRole('button', { name: `Review ${run}`, exact: true }).click();
+    await page.goto(`${base}/runs?call=${encodeURIComponent(run)}`);
     await page.getByRole('tab', { name: 'STT quality', exact: true }).click();
     await page.locator('.stt-transcript-panel').first().waitFor();
     assert.equal(await page.locator('.stt-transcript-panel').count(), 2);

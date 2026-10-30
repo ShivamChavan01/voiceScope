@@ -67,7 +67,7 @@ class VoiceScopePipeline:
                 }]
         if ctx.transcript_speakers:
             ctx = await self.speaker_agent.run(ctx)
-            ctx.attributed_transcript = attributed_transcript(ctx.transcript_speakers)
+            ctx.attributed_transcript = attributed_transcript(ctx.transcript_speakers or [])
         return ctx
 
     async def assess_reliability(self, ctx: PipelineContext) -> PipelineContext:

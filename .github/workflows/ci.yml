@@ -2,11 +2,29 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/voicescope-reliability-stt-demo]
   pull_request:
     branches: [main]
 
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -25,6 +43,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install mypy==2.1.0
+      - run: pip install -r requirements.txt
       - run: mypy . --ignore-missing-imports --exclude 'sdk/'
 
   test:
@@ -64,7 +83,25 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, audit, benchmark]
+    needs: [frontend, lint, typecheck, test, audit, benchmark]
     steps:
       - uses: actions/checkout@v4
+      - name: Add synthetic private-file canaries
+        run: |
+          mkdir -p .gstack logs private-context
+          for path in .gstack/canary.json logs/canary.log private-context/canary.sqlite3 private-context/.env.check .env.check canary.wav; do
+            printf '%s' 'synthetic build-exclusion canary' > "$path"
+          done
       - run: docker build -t voicescope .
+      - name: Verify private files are excluded and runtime fixtures are packaged
+        run: |
+          docker run --rm -i --entrypoint python voicescope - <<'PY'
+          from pathlib import Path
+          import os
+          private = ['.gstack/canary.json', 'logs/canary.log', 'private-context/canary.sqlite3', 'private-context/.env.check', '.env.check', 'canary.wav']
+          required = ['core/data/labeled_calls.json', 'core/data/reliability_cases.json', 'knowledge/business_policy.md']
+          assert not any(Path(path).exists() for path in private), 'Private canary leaked into image'
+          assert all(Path(path).is_file() for path in required), 'Runtime fixture missing from image'
+          assert os.geteuid() != 0, 'Application must run as a non-root user'
+          assert Path.home().is_dir() and os.access(Path.home(), os.W_OK), 'Application cache home must be writable'
+          PY

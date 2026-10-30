@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 os.environ["VALID_API_KEYS"] = "test-key"
 
 from fastapi.testclient import TestClient
@@ -7,6 +9,12 @@ from fastapi.testclient import TestClient
 from main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def authentication_key(monkeypatch):
+    import middleware.auth
+    monkeypatch.setattr(middleware.auth, '_VALID_KEYS', frozenset({'test-key'}))
 
 
 class TestHealthEndpoint:

@@ -1,5 +1,14 @@
 # VoiceScope STT demo readiness — October 29, 2026
 
+**October 31 verification:** 612 backend and 49 frontend tests pass. Whole-repository
+Ruff, configured mypy, TypeScript, ESLint and the Next.js 16.4.3 production build
+pass. A real completed execution replay, original audio, Deepgram reference,
+private report reload and browser seeking were checked locally. The real call
+remains unscored for missing Bolna timestamps and unconfirmed speaker roles.
+The Python dependency audit and unavailable hosted acceptance prevent a merge
+recommendation. See [docs/merge-readiness.md](docs/merge-readiness.md) for current
+fixes, evidence and deployment blockers. Earlier counts below describe prior runs.
+
 **UI follow-up — October 30:** Styling, recording access and spacing were improved.
 The original five tabs and default Findings view are retained: Findings, Transcript,
 Speech diagnostics, STT quality and Evaluation checks. Technical evaluation output

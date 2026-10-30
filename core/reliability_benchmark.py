@@ -139,7 +139,7 @@ def run_reliability_benchmark(path: str | Path | None = None) -> ReliabilityBenc
         for finding in prediction.findings:
             actual.append(FindingLabel(
                 category=finding.category, status=finding.status,
-                policy_kind=snapshots.get(finding.policy_id), severity=finding.severity,
+                policy_kind=snapshots.get(finding.policy_id) if finding.policy_id is not None else None, severity=finding.severity,
                 turn_indices=tuple(item.turn_index for item in finding.evidence),
                 missing_evidence=tuple(sorted(finding.missing_evidence)),
             ))
@@ -164,7 +164,7 @@ def run_reliability_benchmark(path: str | Path | None = None) -> ReliabilityBenc
         ))
     categories = ['policy_violation', 'unverified_claim', 'insufficient_evidence']
     expected = Counter((case.id, label.key()) for case in results for label in case.expected)
-    actual = Counter((case.id, label.key()) for case in results for label in case.actual)
+    actual_labels = Counter((case.id, label.key()) for case in results for label in case.actual)
     return ReliabilityBenchmarkResult(
         dataset_version=dataset.version, dataset_sha256=hashlib.sha256(raw).hexdigest(),
         total_cases=len(results), passed_cases=sum(case.passed for case in results),
@@ -173,7 +173,7 @@ def run_reliability_benchmark(path: str | Path | None = None) -> ReliabilityBenc
         supported_passed=sum(case.scope == 'supported_patterns' and case.passed for case in results),
         challenge_cases=sum(case.scope == 'challenge_paraphrases' for case in results),
         challenge_passed=sum(case.scope == 'challenge_paraphrases' and case.passed for case in results),
-        metrics=_metrics(expected, actual),
+        metrics=_metrics(expected, actual_labels),
         by_category={category: _metrics(
             Counter((case.id, label.key()) for case in results for label in case.expected if label.category == category),
             Counter((case.id, label.key()) for case in results for label in case.actual if label.category == category),

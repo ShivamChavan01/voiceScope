@@ -17,21 +17,24 @@ def bolna_transcript(text: str) -> Transcript:
 
 
 def deepgram_reference(result: TranscriptionResult, audio_sha256: str) -> Transcript:
-    segments = []
+    segments: list[Segment] = []
     for word in result.words:
         text = word.get('punctuated_word') or word.get('word')
         if not isinstance(text, str) or not text.strip():
             continue
         speaker = f"dg_{word['speaker']}" if isinstance(word.get('speaker'), int) else 'dg_unknown'
         # Missing or invalid provider timing remains absent; the comparison cannot score it.
-        start, end = word.get('start'), word.get('end')
-        valid = all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0 for value in (start, end)) and end > start
-        if segments and segments[-1].speaker == speaker and (segments[-1].start is not None) == valid and (not valid or start - segments[-1].end <= 0.75) and not segments[-1].text.endswith(('.', '?', '!')):
+        raw_start, raw_end = word.get('start'), word.get('end')
+        start = raw_start if isinstance(raw_start, (int, float)) and not isinstance(raw_start, bool) and math.isfinite(raw_start) and raw_start >= 0 else None
+        end = raw_end if isinstance(raw_end, (int, float)) and not isinstance(raw_end, bool) and math.isfinite(raw_end) and raw_end >= 0 else None
+        if start is None or end is None or end <= start:
+            start, end = None, None
+        previous = segments[-1] if segments else None
+        if previous and previous.speaker == speaker and (previous.start is not None) == (start is not None) and (start is None or previous.end is not None and start - previous.end <= 0.75) and not previous.text.endswith(('.', '?', '!')):
             segments[-1].text += ' ' + text
-            if valid:
-                segments[-1].end = end
+            segments[-1].end = end
         else:
-            segments.append(Segment(text=text, speaker=speaker, start=start if valid else None, end=end if valid else None))
+            segments.append(Segment(text=text, speaker=speaker, start=start, end=end))
     if not segments and result.transcript.strip():
         segments = [Segment(text=result.transcript, speaker='dg_unknown')]
     return Transcript(source='deepgram', scope='unknown', audio_sha256=audio_sha256, segments=segments)

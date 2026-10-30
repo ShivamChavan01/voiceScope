@@ -16,6 +16,7 @@ class KnowledgeStore:
     def __init__(self):
         data_dir = os.environ.get("DATA_DIR", ".")
         self.db_path = os.getenv("KNOWLEDGE_DB_PATH", str(Path(data_dir) / "knowledge.db"))
+        Path(self.db_path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_db()

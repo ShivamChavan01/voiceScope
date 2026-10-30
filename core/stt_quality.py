@@ -3,12 +3,18 @@
 import re
 import unicodedata
 from collections import Counter
-from typing import Literal
+from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Role = Literal['caller', 'agent', 'unknown']
 Scope = Literal['caller_only', 'mixed', 'unknown']
+
+
+class AlignedInterval(TypedDict):
+    start: float
+    end: float
+    segments: list[list['Segment']]
 
 
 class Segment(BaseModel):
@@ -193,7 +199,7 @@ def compare_transcripts(bolna: Transcript, reference: Transcript, audio: AudioIn
     if any(segment.role == 'unknown' for segment in bolna.segments + reference.segments):
         result.issues.append('Unknown speaker roles prevent comparison. A diarization ID is not a caller identity.')
         return result
-    target = {'caller'} if bolna.scope == 'caller_only' else {'caller', 'agent'}
+    target: set[Role] = {'caller'} if bolna.scope == 'caller_only' else {'caller', 'agent'}
     if bolna.scope == 'mixed' and reference.scope != 'mixed':
         result.issues.append('Unsegmented mixed-speaker speech cannot be compared with a caller-only reference.')
         return result
@@ -202,21 +208,28 @@ def compare_transcripts(bolna: Transcript, reference: Transcript, audio: AudioIn
     if not original or not independent:
         result.issues.append('No speech for the requested speaker scope is available on both sides.')
         return result
-    if any(segment.start is None for segment in original + independent):
+    if any(segment.start is None or segment.end is None for segment in original + independent):
         result.status = 'partial'
         result.issues.append('Timestamps are missing. Only an unaligned text discrepancy is shown; no aggregate rate or confirmed error is available.')
         old, new = '\n'.join(segment.text for segment in original), '\n'.join(segment.text for segment in independent)
         if words(old) != words(new):
             result.findings.append(_finding(old, new, 'caller' if target == {'caller'} else 'unknown', None, None, None, False))
         return result
-    if audio.duration_seconds and any(segment.end > audio.duration_seconds + 0.25 for segment in original + independent):
+    if audio.duration_seconds and any(segment.end is not None and segment.end > audio.duration_seconds + 0.25 for segment in original + independent):
         result.issues.append('Transcript timestamps exceed the original recording duration.')
         return result
     # Intervals are grouped independently per role. Disjoint unmatched intervals remain insertions/deletions.
     totals = EditCounts()
     for role in sorted(target):
-        events = sorted([(segment.start, segment.end, side, segment) for side, segments in enumerate((original, independent)) for segment in segments if segment.role == role], key=lambda item: (item[0], item[1], item[2]))
-        groups = []
+        events: list[tuple[float, float, int, Segment]] = []
+        for side, segments in enumerate((original, independent)):
+            for segment in segments:
+                if segment.role == role:
+                    start, end = segment.start, segment.end
+                    assert start is not None and end is not None  # Validated before interval construction.
+                    events.append((start, end, side, segment))
+        events.sort(key=lambda item: (item[0], item[1], item[2]))
+        groups: list[AlignedInterval] = []
         for start, end, side, segment in events:
             if groups and start < groups[-1]['end']:
                 groups[-1]['end'] = max(groups[-1]['end'], end)

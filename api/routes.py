@@ -862,12 +862,12 @@ async def get_calibration():
 @router.post("/harness/validate")
 async def validate_text(req: GuardrailCheckRequest):
     """Run harness validation on arbitrary text (for testing)."""
-    from core.harness import AnalysisOutput
+    from core.harness import AnalysisOutput, OutcomeType, SentimentType
     try:
         validated = AnalysisOutput(
             intent=req.text[:200],
-            sentiment_arc="neutral",
-            outcome="unresolved",
+            sentiment_arc=SentimentType.NEUTRAL,
+            outcome=OutcomeType.UNRESOLVED,
             hallucination_detected=False,
             hallucination_evidence="",
             escalation_signal=False,

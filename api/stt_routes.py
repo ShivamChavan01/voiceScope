@@ -21,7 +21,7 @@ def owner_for(request: Request) -> str:
 
 async def load_run(run_id: str) -> dict:
     from api.routes import get_monitoring_store
-    run = await get_monitoring_store().get_run(run_id)
+    run: dict | None = await get_monitoring_store().get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail='Run not found')
     return run

@@ -67,6 +67,7 @@ class CostStore:
         import sqlite3
         data_dir = os.environ.get("DATA_DIR", ".")
         db_path = os.getenv("COST_DB_PATH", str(Path(data_dir) / "costs.db"))
+        Path(db_path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         conn = sqlite3.connect(db_path)
         conn.execute(
             "CREATE TABLE IF NOT EXISTS cost_logs ("
