@@ -1,17 +1,19 @@
 # Independent release verification — October 31, 2026
 
+**Current refresh:** Runtime code at `08bc91c5366ac8050e10d42a01b9b9aeaf744bea` now has all seven required GitHub CI jobs green. The repeat local-verification results and current decisions appear in the refresh section below; the initial-pass evidence is retained as history.
+
 ## Four separate decisions
 
 | Gate | Decision | Scope and evidence |
 | --- | --- | --- |
 | **A. Safe to commit locally?** | **GO** | Current code passes the fresh functional, type, lint, build, browser and container checks. Private identifiers found in documentation were redacted. Preserve this reviewed candidate on the feature branch. This is not production approval. |
-| **B. Safe to push the feature branch?** | **GO, after explicit user approval** | Push only the reviewed feature commit for CI/review. No push was executed. A feature push can run CI and create a hosting Preview; it must not merge main or change production. |
-| **C. Safe to merge main?** | **NO-GO** | Main is production-linked. The new candidate has no exact-commit GitHub CI result, and production access/data-path/rollback prerequisites remain unverified. Known benchmark misses must remain an explicit product limitation. |
+| **B. Safe to push the feature branch?** | **GO, after explicit user approval** | The user-approved push of `08bc91c` completed and its CI passed. Any new report-only commit still requires separate push approval. A feature push can run CI and create a hosting Preview; it must not merge main or change production. |
+| **C. Safe to merge main?** | **NO-GO** | Main is production-linked. Runtime candidate `08bc91c` has exact-commit CI success. Production access/data-path/rollback prerequisites remain unverified; a subsequent report-only commit has not yet run CI. Known benchmark misses must remain an explicit product limitation. |
 | **D. Safe to deploy production?** | **NO-GO** | Hosted authentication, reverse-proxy/TLS behavior, backend volume/database bindings, backup/restore and rollback are not verified. One measured local restart exceeded the repository's 30-second Railway health-check setting; verify the actual deployment's startup budget before deployment. |
 
 The three documented paraphrase misses and raw dependency advisories are **not** called passing checks. Local commit/feature-push GO means the bounded candidate is safe to save and submit for review, with these limitations visible. It does not assert general detection accuracy, a vulnerability-free dependency graph, or production readiness.
 
-## Exact tested artifact and starting state
+## Initial-pass artifact and starting state
 
 - Repository: `ShivamChavan01/voiceScope`.
 - Branch: `feat/voicescope-reliability-stt-demo` throughout verification.
@@ -26,7 +28,7 @@ The three documented paraphrase misses and raw dependency advisories are **not**
 
 Repository/ancestor `AGENTS.md` searches found no filesystem instruction files; the user's supplied instructions applied. Review traced authentication/proxy paths, webhook receipt lifecycle, recording retrieval, STT source/alignment/cache handling, evaluation contracts, storage, logging, UI states, deployment files and tests. The complete changed-file inventory was inspected for unassessed skips, audit waivers and unsafe additions. Existing functional source was not modified during this verification pass.
 
-## Environment and exact fresh checks
+## Initial-pass environment and checks
 
 Host Python **3.12.3**, container Python **3.11.18**, Node **24.17.0**, npm **11.13.0**, pytest **9.1.0**, mypy **2.1.0**, Ruff **0.15.17**, Next.js **16.4.3**. Browser checks use the existing private Playwright installation and `/usr/bin/google-chrome`. No new application dependency was installed or upgraded by this pass.
 
@@ -140,9 +142,9 @@ An initial `git add` using the entire reviewed inventory returned 1 because unch
 
 Verification-only changes: the three documentation redactions and this report. No additional runtime bug was reproduced that required an application fix. Existing dirty source/test/configuration changes were preserved and tested as the release candidate. Final staging is restricted to the reviewed files and this report; ignored `.gstack`, dotenv, media and data stores are excluded. The final staged scan and `git diff --cached --check` must pass before the authorized local commit.
 
-## GitHub workflow and remaining release gates
+## Initial-pass GitHub workflow and remaining release gates
 
-Fresh GitHub reads show the latest remote run **41174064636**, on the old feature commit: frontend/lint/typecheck/test/legacy benchmark succeeded, **audit failed**, **Docker skipped**. These results do not approve the new local commit. No remote CI was started or rerun during this pass.
+At the initial verification, GitHub reads showed remote run **41174064636**, on the old feature commit: frontend/lint/typecheck/test/legacy benchmark succeeded, **audit failed**, **Docker skipped**. These results do not approve the new local commit. No remote CI was started or rerun during this pass.
 
 After an approved feature push, these jobs must run on the **exact pushed SHA**:
 
@@ -159,3 +161,94 @@ The feature push trigger is present; main remains production-linked and is not a
 **Unverified / not executed:** fresh paid transcription or LLM analysis, fresh Bolna-originated webhook delivery/retry scheduling, real-call scored WER without timing/identity evidence, external hosted authentication/TLS routing, actual backend host/image/volume/database configuration, production backup/restore or rollback rehearsal, real PostgreSQL recovery, distributed replicas, and OS-level vulnerability scanning. Prior hosting claims were not treated as current proof. No production endpoint/data mutation, credential change, deployment or merge was performed.
 
 Proceed with the authorized local feature commit after the staged checks; **stop before push and request approval**. Merge/deployment require a separate decision after exact-commit CI and the hosted prerequisites are established.
+
+
+## Repeat verification after the approved feature push
+
+This section supersedes the initial-pass GitHub/push status above. The initial tables remain evidence of the previous independent run, not claims that those commands ran again unchanged.
+
+**Current tested code:** `08bc91c5366ac8050e10d42a01b9b9aeaf744bea`, branch `feat/voicescope-reliability-stt-demo`. Both remote and local feature heads match. Local/remote main remains `f9d459c75e7152e370afed838bc547dde9d0a2d5`. The working tree was clean at the start of this refresh. The complete diff against main contains 144 paths. Its runtime/test/configuration fingerprint is unchanged: `bb9bcada5a3eb535eabef6fcdc5a90ca7cac46c2dca56374f78be8339620388a`.
+
+The repeat checks use a fresh Git-visible source snapshot, a fresh `npm ci`, a new production frontend build, a rebuilt Docker image and a new synthetic data volume. Evidence and exact commands are in ignored `.gstack/release-refresh/`; no evidence containing private calls is staged. No new runtime defect was reproduced. The only versioned change in this refresh is this report; no source fix or dependency change was needed.
+
+### Current GitHub evidence
+
+Freshly retrieved [CI run 41199410601](https://github.com/ShivamChavan01/voiceScope/actions/runs/41199410601) is complete on **exact SHA `08bc91c5366ac8050e10d42a01b9b9aeaf744bea`**:
+
+| Job | Result |
+| --- | --- |
+| frontend | **Passed** |
+| lint | **Passed** |
+| typecheck | **Passed** |
+| test | **Passed** |
+| audit | **Passed with the documented Chroma exception** |
+| benchmark | **Passed — legacy benchmark only** |
+| docker | **Passed**, including installed-image audit and context/runtime checks |
+
+**Zero failed jobs; zero skipped jobs.** Old run 41174064636 is historical failure evidence, not current CI status. The approved push of `08bc91c` occurred before this repeat verification. No additional push, merge or deployment is performed by this refresh. A subsequent report-only commit is not covered by an exact-SHA CI run until separately approved for push.
+
+### Fresh command results
+
+Snapshot-root commands below use `PYTHON_DOTENV_DISABLED=1 DATABASE_URL=` and the existing project virtualenv. Frontend commands run in the new snapshot's `frontend` directory. Python audit commands use the existing isolated audit environment, not a newly installed application dependency.
+
+| Check | Actual exit | Result |
+| --- | --- | --- |
+| `.venv/bin/python -m ruff check .` | **0** | Pass |
+| `docker build -t voicescope-release-refresh:local .` | **0** | Pass, rebuilt image |
+| `.venv/bin/python -m pytest -q` | **0** | 715 passed, one Starlette/httpx deprecation warning; 84.85 seconds |
+| `.venv/bin/python -m mypy . --ignore-missing-imports --exclude sdk/` | **0** | Pass, 135 source files; existing untyped-body notes remain |
+| `npm ci` | **0** | Fresh lockfile install passed |
+| `npm test` | **0** | 56 passed; zero failures/skips |
+| `npx tsc --noEmit` | **0** | Pass |
+| `npm run lint` | **0** | Pass |
+| `npm run build` | **0** | Production build passed |
+| `npm audit --json` | **1** | 21 findings: 19 moderate, 2 low, zero high/critical |
+| `npm audit --audit-level=high` | **0** | Configured high threshold passes; lower findings remain |
+| `.venv/bin/python scripts/run_benchmark.py --min-truth 0.7` | **0** | 10 cases; 0.8500 heuristic consistency, not hallucination accuracy |
+| `.venv/bin/python scripts/run_reliability_benchmark.py --json .gstack/release-refresh/policy-benchmark.json` | **1** | FAIL: unchanged 25/28 exact; details below |
+| `AUDIT_PYTHON -m pip_audit -r requirements.txt --format json --progress-spinner off --timeout 20` | **1** | Five Chroma records/four distinct IDs; raw audit NOT clean |
+| `AUDIT_PYTHON -m tools.dependency_audit` | **0** | Pass with the exact version-bound, expiring Chroma exceptions |
+| Full backend pytest, mypy and Ruff inside the rebuilt image | **0** | 715 passed in 107.86 seconds; mypy 134 files and Ruff pass. |
+| `PYTHON_DOTENV_DISABLED=1 DATABASE_URL= .venv/bin/python -m pytest -q .gstack/independent-qa/probes/test_adversarial.py .gstack/independent-qa/probes/test_additional.py .gstack/independent-qa/probes/test_startup_privacy.py .gstack/independent-qa/probes/test_knowledge_refresh.py .gstack/independent-qa/probes/test_webhook_independent.py` | **0** | 15 independent correctness/privacy/index/webhook failure probes pass; provider work is mocked. |
+| `.venv/bin/python .gstack/release-refresh/security-probe.py` | **0** | All 59 HTTP checks pass; all 59 responses have `Cache-Control: no-store`; actual client key/password scan passes. |
+| `.venv/bin/python .gstack/release-refresh/run-browser.py` | **0** | `private-access`, `calls-ui`, `stt-demo`: each exit 0. Calls UI mocks API responses; other suites use actual isolated services. |
+| `node .gstack/release-refresh/extended.browser.mjs` | **0** | 9/9 real-service journeys, zero page errors. Its one console error is the intentionally injected 503; navigation aborts retained in private evidence. |
+| `.venv/bin/python .gstack/release-refresh/container-run.py` | **0** | New volume, container replacement/restart, SQLite/report/receipt persistence, expiry and unauthorized/missing-provider states pass. |
+| `.venv/bin/python .gstack/release-refresh/container-boundary.py` | **0** | 11 private canaries excluded, three fixtures packaged; non-root, writable home, forced embedded Rust API and no Chroma server routes. Sequential rerun also exit 0. |
+| `.venv/bin/python .gstack/release-refresh/receipt-restart.py` | **0** | Three completed-receipt HTTP replays return the same acknowledgment across restart; authenticated persisted-run readiness measured 16.06 seconds. |
+| `AUDIT_PYTHON -m pip_audit -r .gstack/release-refresh/image-inventory.txt --no-deps --disable-pip --format json --progress-spinner off --timeout 20` | **1** | Complete 109-package image inventory: same five Chroma records, no installer advisories. |
+| `AUDIT_PYTHON -m tools.dependency_audit --inventory .gstack/release-refresh/image-inventory.txt` | **0** | Same bounded exception; no new advisory waived. |
+| `PYTHON_DOTENV_DISABLED=1 .venv/bin/python .gstack/release-refresh/privacy-scan.py` | **0** | 242 tracked files; no configured credential/private-ID matches, media, databases, logs, private-key markers or files over 5 MB. `.env.example` is an allowed template. |
+| `git diff --check main` and final staged checks | **0** | No whitespace errors; only this reviewed report is included in the new commit. |
+
+Container command: `docker run --rm --entrypoint sh -v /mnt/nvme0n1p10/voicescope/.gstack/release-refresh/source/tests:/app/tests:ro -e PYTHON_DOTENV_DISABLED=1 -e DATABASE_URL= -e PYTHONPATH=/tmp/devtools:/app voicescope-release-refresh:local -c 'python -m pip install --target /tmp/devtools pytest==9.1.0 pytest-asyncio mypy==2.1.0 ruff==0.15.17 > /tmp/install.log 2>&1 && python -m pytest -q && python -m mypy . --ignore-missing-imports --exclude sdk/ && python -m ruff check .'`. Test dependencies are temporary container tools. The image itself retains its production dependency inventory.
+
+Fresh frontend build ID: `t7A41AbNURFIzxnnPM5vz`. Fresh image: `voicescope-release-refresh:local`, `sha256:eb6f31c6a7a0dbe2630e8f28ceddc85af71069cfe9f3ec407e502b1ab35d8247`. No paid provider submission occurred.
+
+### Reproduced limits and security review
+
+- **All three challenge misses remain:** `challenge-assure`, `challenge-lead`, `challenge-returned`. Exact cases 25/28 (89.29%), supported 24/24, challenge 1/4. TP=10, FP=0, FN=3; precision 100%, recall 76.92%, F1 86.96% on this synthetic set only. The full benchmark exits 1; no label, threshold or assertion was changed. It is not executed by the green legacy CI benchmark job.
+- Fresh regressions cover localhost/IPv6 authority/origin handling, actual font responses and policy CRUD/reload, financial transfers, `100` versus `-100`, missing timing/roles, malformed-source/API/startup privacy, retired knowledge and duplicate webhook delivery. Their implementation and root-cause mappings in `RELEASE_FIXES.md` agree with current code. The older report's uncommitted/pre-CI status is historical and superseded here.
+- Operator Basic authentication protects pages, assets and proxy/data boundaries, fails closed with absent/weak configuration, retains exact-origin checks, and keeps backend credentials server-side. Webhook credentials are restricted to the exact POST route and acknowledge persisted outcomes without authorizing operator reads. No multi-company or user-level isolation claim is made.
+- Recording download review still enforces public HTTPS/443, validated/pinned DNS, bounded streaming and redirects, with credentials stripped across hosts. Private errors avoid source/credential payloads. STT private routes remain disabled by default at the frontend proxy; that flag is not authentication.
+- Receipt persistence and failure regressions pass. Crash windows, the 600-second processing lease, same-worker-only reference submission sharing, and separate replica filesystems still preclude exactly-once claims. No durable background queue or distributed coordination was added.
+- Fresh official PyPI metadata reports Chroma **1.5.9**; refreshed [OSV records](https://osv.dev/vulnerability/PYSEC-2026-3814) still list no fixed release. The exception is limited to `PYSEC-2026-311`, `PYSEC-2026-3813`, `PYSEC-2026-3814`, `PYSEC-2026-3815`, exact version 1.5.9, only before **2026-11-07 UTC**, and no available fix. Runtime embedded-only enforcement was retested. This is an applicability exception, not a vulnerability fix. Npm's 21 lower-severity findings remain; no new advisory appeared in either dependency audit. OS-package CVEs were not scanned.
+- Cached authorized real audio plays and seeks using independent-reference timestamps; reload preserves 20 original turns and 39 independent segments. Zero new reference submissions, zero browser page errors, metric remains null/**Not scored**. Missing trustworthy Bolna timestamps and caller identity are not fabricated. Real aligned-finding navigation and scored human-reference WER on that call remain unverified. Synthetic human-reference WER and signed-amount findings pass tests.
+- No fresh Bolna-originated webhook, recording download, Deepgram/LLM call, hosted access test, production backup restoration, PostgreSQL recovery or rollback rehearsal was performed. Cached real-call playback is not a fresh integration test. Expiry/browser failure cases using injected 404/503 remain labeled simulated.
+- The fresh 16.06-second local restart does not invalidate the previous 41.8-second sample. Hosted readiness budget, actual data mount, operator/TLS access and rollback still require direct evidence. Health alone does not prove provider readiness.
+- Private HTTP logs contain run identifiers. One diagnostic log read displayed a run identifier during this verification; no transcript, recording URL or credential was printed. Logs/screenshots/data remain ignored and outside the commit. Current-tree scans do not erase older Git history or guarantee every possible secret encoding is absent.
+
+### Harness failures and skipped checks
+
+The first privacy utility used system Python without `python-dotenv` (exit 1); rerunning with the project virtualenv corrected the environment. Its initial filename rule also flagged `.env.example` and failed (exit 1); the corrected scan explicitly permits the example template and still checks its contents against configured secrets. A redundant boundary probe overlapped the deliberate container restart, interrupting `docker exec` (exit 1); the original boundary check and a sequenced rerun both pass. These failed attempts are retained, not hidden or attributed to application source defects. No test assertions were weakened.
+
+Skipped/unverified external checks remain listed above. Fresh dependency audit and the full policy benchmark failures are disclosed explicitly. Only the isolated QA servers/container were stopped afterward; existing user services and production were preserved.
+
+### Final decisions for this refresh
+
+- **A — GO to commit locally:** report-only verification refresh on the feature branch; runtime code unchanged, staged privacy/whitespace checks required before commit.
+- **B — GO to push the feature branch after explicit approval:** push only the resulting reviewed report commit. Stop before pushing; obtain exact-SHA CI afterward. `08bc91c` is already pushed and green.
+- **C — NO-GO to merge main:** main is production-linked; current hosted private access, persistence and backup/rollback prerequisites are not verified. CI is no longer the blocker for `08bc91c`.
+- **D — NO-GO to deploy production:** verify operator/TLS behavior, STT proxy restrictions, the actual backend image/volume and startup budget, plus a restorable backup and rollback target, before deployment approval.
+
+Next priorities: establish those hosted prerequisites; address or explicitly accept the three bounded detector misses for the intended demo; replace/reassess Chroma before the exception expires. No new source changes are proposed on the strength of passing unit tests alone. The new report commit's SHA is returned in the handoff and is resolvable with `git log -1 -- FINAL_RELEASE_VERIFICATION.md`.
