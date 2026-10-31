@@ -23,11 +23,12 @@ class VoiceScopePipeline:
 
     def __init__(self):
         self.chroma = ChromaStore()
+        # Validate the configured provider before downloading or embedding policy data.
+        self.report_agent = ReportAgent(self.chroma)
         self.kb = KnowledgeBase()
         self.transcription_agent = TranscriptionAgent()
         self.speaker_agent = SpeakerAgent()
         self.analysis_agent = AnalysisAgent(self.chroma, self.kb)
-        self.report_agent = ReportAgent(self.chroma)
         self.harness = ValidationHarness()
         self.audio_checker = AudioQualityChecker()
 

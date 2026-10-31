@@ -39,6 +39,7 @@ def attach_stt_report(run: dict, request: Request) -> dict:
         if evaluation.get('report') is None:
             evaluation['report'] = {}
         evaluation['report']['stt_quality'] = {
+            'comparison_version': review.get('comparison_version'),
             'status': review['status'], 'metric_kind': review['metric_kind'],
             'metric_value': review['metric_value'], 'issues': review['issues'],
             'reference_source': review['reference_source'],
@@ -80,8 +81,8 @@ async def generate_reference(run_id: str, body: ReferenceRequest, request: Reque
         raise HTTPException(status_code=422, detail='Deepgram transcription was explicitly declined')
     try:
         return await create_reference(run, owner_for(request), STTReviewStore())
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=422, detail='Reference preparation is unavailable. Check provider configuration and the saved original transcript.')
 
 
 @router.post('/runs/{run_id}/stt-review')

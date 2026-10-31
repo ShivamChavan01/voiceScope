@@ -14,6 +14,13 @@ from core.pipeline import VoiceScopePipeline
 from core.harness import HarnessResult
 
 
+@pytest.fixture(autouse=True)
+def isolate_stream_storage(monkeypatch, tmp_path):
+    monkeypatch.setenv('DATA_DIR', str(tmp_path))
+    monkeypatch.setenv('MONITORING_DB_PATH', str(tmp_path / 'runs.db'))
+    monkeypatch.setenv('COST_DB_PATH', str(tmp_path / 'costs.db'))
+
+
 @pytest.mark.asyncio
 async def test_sse_started_event():
     mock_pipeline = MagicMock()
@@ -67,6 +74,27 @@ async def test_sse_complete_event():
     assert events[-1]["event"] == "complete"
     assert events[-1]["result"]["quality_score"] == 85
     assert events[-1]["result"]["harness"]["truth_score"] == 0.8
+    from storage.monitoring import MonitoringStore
+    saved = await MonitoringStore().get_run(events[-1]['result']['run_id'])
+    assert saved['evaluation']['quality_score'] == 85
+
+
+async def test_stream_storage_failure_emits_error_instead_of_complete():
+    pipeline = MagicMock()
+    context = PipelineContext(stages_completed=['transcription', 'analysis', 'report'])
+    pipeline.transcription_agent.run = AsyncMock(return_value=context)
+    pipeline.attribute_speakers = AsyncMock(return_value=context)
+    pipeline.assess_reliability = AsyncMock(return_value=context)
+    pipeline.analysis_agent.run = AsyncMock(return_value=context)
+    pipeline.report_agent.run = AsyncMock(return_value=context)
+    pipeline.finalize_result.return_value = {'run_id': context.run_id}
+    with patch('api.sse.VoiceScopePipeline', return_value=pipeline), patch('api.sse.MonitoringStore') as store:
+        store.return_value.log_run = AsyncMock(side_effect=OSError('synthetic-private-recording-token'))
+        events = [json.loads(line[6:]) async for line in stream_analysis(b'synthetic', 'fixture.wav')]
+    assert events[-1]['event'] == 'error'
+    assert 'could not be saved' in events[-1]['detail']
+    assert not any(event['event'] == 'complete' for event in events)
+    assert 'synthetic-private-recording-token' not in str(events)
 
 
 @pytest.mark.asyncio

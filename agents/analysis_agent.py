@@ -201,7 +201,7 @@ class AnalysisAgent:
                     kb_context = "No agent claims found in transcript."
                     logger.info("[AnalysisAgent] KB check: no claims extracted")
             except Exception as e:
-                logger.warning(f"[AnalysisAgent] KB extraction failed — {e}")
+                logger.warning(f"[AnalysisAgent] KB extraction failed — {type(e).__name__}")
             ctx.policy_evidence = kb_context
 
         prompt = ANALYSIS_PROMPT.format(
@@ -231,11 +231,11 @@ class AnalysisAgent:
             ctx.raw_analysis = result
             ctx.mark_stage("analysis")
 
-            logger.info(f"[AnalysisAgent] done — intent={ctx.intent}, outcome={ctx.outcome}")
+            logger.info("[AnalysisAgent] analysis completed")
 
         except Exception as e:
-            ctx.add_error("analysis", str(e))
-            logger.error(f"[AnalysisAgent] failed — {e}")
+            ctx.add_error("analysis", "Analysis provider failed. Check configuration or retry.")
+            logger.error(f"[AnalysisAgent] failed — {type(e).__name__}")
 
         return ctx
 
@@ -285,7 +285,7 @@ class AnalysisAgent:
                     logger.info(f"[AnalysisAgent] chunk {idx}/{len(chunks)} summarized")
                     return idx, summary
                 except Exception as e:
-                    logger.warning(f"[AnalysisAgent] chunk {idx} summarization failed — {e}")
+                    logger.warning(f"[AnalysisAgent] chunk {idx} summarization failed — {type(e).__name__}")
                     return idx, chunk
 
         results = await asyncio.gather(
@@ -326,5 +326,5 @@ class AnalysisAgent:
                 return ""
             return "\n---\n".join(results)
         except Exception as e:
-            logger.warning(f"[AnalysisAgent] RAG query failed — {e}")
+            logger.warning(f"[AnalysisAgent] RAG query failed — {type(e).__name__}")
             return ""

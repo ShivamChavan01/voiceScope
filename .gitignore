@@ -23,6 +23,19 @@ scripts/
 *.wav
 
 stt_reviews/
+/data/
+/recordings/
+.env*
+**/.env*
+!.env.example
+!**/.env.example
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.webm
 *.sqlite
 *.sqlite3
 /pytest-of-*/

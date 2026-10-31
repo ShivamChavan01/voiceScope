@@ -154,14 +154,20 @@ def test_auth_and_missing_run_are_enforced():
     assert client.get('/api/v1/runs/missing/stt-review', headers=HEADERS).status_code == 404
 
 
-def test_webhook_preserves_original_bolna_transcript_without_sending_audio(monkeypatch):
+def test_webhook_preserves_original_bolna_transcript_without_sending_audio(monkeypatch, tmp_path):
+    from storage.monitoring import MonitoringStore
+    monkeypatch.setenv('DATABASE_URL', '')
+    monkeypatch.setenv('MONITORING_DB_PATH', str(tmp_path / 'webhook-runs.db'))
+    monkeypatch.setattr('api.routes.get_monitoring_store', MonitoringStore)
     pipeline = AsyncMock()
     pipeline.run_from_transcript.return_value = {'run_id': 'webhook-stt', 'analysis': {}, 'report': {}}
     monkeypatch.setattr('api.routes.get_pipeline', lambda: pipeline)
-    with patch('api.routes._log_cost', new_callable=AsyncMock), patch('api.routes._log_metrics', new_callable=AsyncMock), patch('api.routes._log_run', new_callable=AsyncMock) as save:
+    with patch('api.routes._log_cost', new_callable=AsyncMock), patch('api.routes._log_metrics', new_callable=AsyncMock):
         response = TestClient(app).post('/api/v1/webhooks/call-completed', headers=HEADERS, json={'id': 'call', 'agent_id': 'agent', 'status': 'completed', 'transcript': 'user: Original words', 'telephony_data': {}, 'conversation_duration': 5})
         assert response.status_code == 200
-        source = save.call_args.args[0]['stt_source']
+        loaded = TestClient(app).get('/api/v1/runs/webhook-stt', headers=HEADERS)
+        assert loaded.status_code == 200
+        source = loaded.json()['evaluation']['stt_source']
         assert source['segments'][0]['text'] == 'Original words'
         assert source['segments'][0]['start'] is None
         pipeline.run.assert_not_awaited()
@@ -373,3 +379,38 @@ def test_saved_annotations_are_rejected_when_source_words_change():
     assert saved['review']['metric_value'] is None
     assert saved['review']['findings'] == []
     assert report['evaluation']['report']['stt_quality']['metric_value'] is None
+
+
+def test_invalid_saved_original_source_is_not_echoed_by_reference_endpoint():
+    corrupted = copy.deepcopy(RUN)
+    canary = 'SYNTHETIC_PRIVATE_SAVED_SOURCE'
+    corrupted['evaluation']['stt_source'] = {'source': 'bolna', 'segments': [
+        {'speaker': 'source', 'text': {'x': canary}},
+    ]}
+    store = AsyncMock()
+    store.get_run.return_value = corrupted
+    with patch('api.routes.get_monitoring_store', return_value=store):
+        response = TestClient(app).post('/api/v1/runs/run-stt/stt-review/reference', headers=HEADERS, json={})
+    assert response.status_code == 422
+    assert canary not in response.text
+    assert 'input_value' not in response.text
+
+
+def test_old_scored_review_is_withheld_until_recompared_without_losing_reference():
+    seed_recording()
+    client = TestClient(app)
+    scored = client.post('/api/v1/runs/run-stt/stt-review', headers=HEADERS, json=human_body())
+    assert scored.status_code == 200
+    stored = STTReviewStore().read(OWNER, RUN['run_id'])
+    legacy = copy.deepcopy(stored['review'])
+    legacy.pop('comparison_version', None)
+    STTReviewStore().save(OWNER, RUN['run_id'], review=legacy)
+    reloaded = client.get('/api/v1/runs/run-stt/stt-review', headers=HEADERS).json()
+    assert reloaded['review']['metric_value'] is None
+    assert not reloaded['review']['findings']
+    assert reloaded['reference'] == stored['reference']
+    assert reloaded['audio']['available']
+    assert any('scoring rules' in issue for issue in reloaded['review']['issues'])
+    refreshed = client.post('/api/v1/runs/run-stt/stt-review', headers=HEADERS, json=human_body()).json()
+    assert refreshed['review']['metric_value'] == 1 / 6
+    assert refreshed['review']['comparison_version'] == 'signed_numbers_v2'

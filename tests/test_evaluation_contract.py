@@ -147,3 +147,16 @@ def test_benchmark_cli_emits_unmeasured_instead_of_fake_accuracy(tmp_path):
     )
     assert 'not measured (no independent predictions)' in result.stdout
     assert json.loads(artifact.read_text())['hallucination_accuracy'] is None
+
+
+@pytest.mark.parametrize('transcript,claim,expected', [
+    ('Balance -100 dollars', 'Balance 100 dollars', 0),
+    ('Balance 100 dollars', 'Balance -100 dollars', 0),
+    ('Balance −100 dollars', 'Balance -100 dollars', 1),
+    ('Balance -$1,000.00', 'Balance $-1000', 1),
+    ('Order 123-456', 'Order 123 and 456', 1),
+])
+def test_numeric_support_retains_signs(transcript, claim, expected):
+    result = FactExtractor().verify(transcript, {'findings': [claim]})
+    assert result.accuracy == expected
+    assert bool(result.unsupported_claims) == (expected == 0)

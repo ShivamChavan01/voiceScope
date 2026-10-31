@@ -1,5 +1,17 @@
 # Post-call STT quality review
 
+## Signed-number comparison contract
+Current comparisons identify their rules as `signed_numbers_v2`. Leading numeric signs, Unicode minus and currency/sign placement are preserved; for example, `100` and `-100` differ, while `-$100` and `$-100` normalize together. Hyphens inside dates/identifiers remain separators. Written numeric-sign changes are also flagged for review. These are bounded token/meaning checks, not complete semantic understanding.
+
+Previously cached scored comparisons or findings without the current rule version are withheld until an operator compares again. Audio, reference and annotations are retained subject to their existing expiry; reading does not submit audio or extend retention. The real call still requires trustworthy timing and speaker attribution before scoring. Original unscored evidence is not converted into accuracy.
+
+Release follow-up: [RELEASE_READINESS.md](../RELEASE_READINESS.md) supersedes the
+older counts and access assumptions below. The frontend now has standard HTTP
+Basic operator authentication, plus independent backend API-key protection.
+STT proxy access still defaults to disabled. This is a single-company boundary;
+API-key artifact hashing is not per-user authorization. See
+[private deployment](private-operator-deployment.md) for secure configuration.
+
 This module compares a completed call's original Bolna transcript with a separate transcription pass or a human-verified reference. It never monitors live calls or changes agent speech, network behavior, or the calling pipeline. It identifies possible transcription problems; it cannot repair an ongoing call.
 
 ## Latest demo-readiness pass — October 29, 2026

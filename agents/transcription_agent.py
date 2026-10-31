@@ -16,7 +16,7 @@ class TranscriptionAgent:
 
     async def run(self, ctx: PipelineContext, audio_bytes: bytes, filename: str) -> PipelineContext:
         provider = STTRegistry.get(self._provider_name)
-        logger.info(f"[TranscriptionAgent] run_id={ctx.run_id} file={filename} provider={provider.name}")
+        logger.info(f"[TranscriptionAgent] run_id={ctx.run_id} provider={provider.name}")
 
         try:
             result = await provider.transcribe(audio_bytes, filename)
@@ -30,7 +30,7 @@ class TranscriptionAgent:
             ctx.audio_duration_seconds = result.duration_seconds
             ctx.mark_stage("transcription")
         except Exception as e:
-            ctx.add_error("transcription", str(e))
-            logger.error(f"[TranscriptionAgent] {provider.name} failed — {e}")
+            ctx.add_error("transcription", "Transcription provider failed. Check configuration or retry.")
+            logger.error(f"[TranscriptionAgent] {provider.name} failed — {type(e).__name__}")
 
         return ctx

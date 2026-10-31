@@ -142,3 +142,19 @@ def test_zero_token_reference_withholds_rate_and_marks_partial():
     assert result.metric_kind is None
     assert result.metric_value is None
     assert result.edits.reference_words == 0
+
+
+@pytest.mark.parametrize('human', [False, True])
+@pytest.mark.parametrize('amount', ['-100', '−100', '-$100', '$-100', 'negative 100', '-100.50'])
+def test_signed_amount_disagreement_is_preserved(amount, human):
+    original = document('The balance is 100 dollars')
+    reference = document(f'The balance is {amount} dollars', 'human' if human else 'deepgram', human)
+    result = compare_transcripts(original, reference, audio())
+    assert result.metric_value > 0
+    assert 'amount' in result.findings[0].category
+    assert result.findings[0].status == ('confirmed_error' if human else 'needs_review')
+
+
+def test_hyphens_in_dates_are_not_negative_signs():
+    from core.stt_quality import words
+    assert words('Date 2026-10-31') == ['date', '2026', '10', '31']

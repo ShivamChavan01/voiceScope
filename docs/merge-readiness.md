@@ -1,5 +1,8 @@
 # Merge verification, October 31, 2026
 
+Superseded by [RELEASE_READINESS.md](../RELEASE_READINESS.md) for the current
+private single-company release review. The table below records the preceding pass.
+
 Decision: push the tested hardening changes to the feature branch. Hold the merge
 into `main`. The Python dependency audit fails and hosted end-to-end acceptance
 has not been established. A passing local demo does not establish production safety.

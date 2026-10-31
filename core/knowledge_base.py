@@ -4,9 +4,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-import chromadb
-
 from core.knowledge_store import KnowledgeStore
+from storage.chroma_client import embedded_client
 from utils.logger import logger
 
 
@@ -46,32 +45,33 @@ class KnowledgeBase:
             user_chunks = self.store.get_chunks()
             self.chunks = file_chunks + user_chunks
 
-            if not self.chunks:
-                logger.warning("[KnowledgeBase] no policy chunks — KB disabled")
-                self.available = False
-                return
-
             persist_dir = os.getenv("CHROMA_PERSIST_DIR", "/tmp/chroma_db")
-            self._client = chromadb.PersistentClient(path=persist_dir)
+            self._client = embedded_client(persist_dir)
             self.collection = self._client.get_or_create_collection(
                 name="policy_kb", metadata={"hnsw:space": "cosine"}
             )
 
             ids = [f"policy_{i}" for i in range(len(self.chunks))]
-            self.collection.upsert(
-                ids=ids,
-                documents=self.chunks,
-                metadatas=[{"chunk_index": i} for i in range(len(self.chunks))],
-            )
+            if self.chunks:
+                self.collection.upsert(
+                    ids=ids,
+                    documents=self.chunks,
+                    metadatas=[{"chunk_index": i} for i in range(len(self.chunks))],
+                )
+            # Remove retired chunks only after a successful upsert. Empty sources
+            # also reconcile a previously populated collection.
+            obsolete = sorted(set(self.collection.get()['ids']) - set(ids))
+            if obsolete:
+                self.collection.delete(ids=obsolete)
 
-            self.available = True
+            self.available = bool(self.chunks)
             logger.info(
                 f"[KnowledgeBase] loaded {len(file_chunks)} file + "
                 f"{len(user_chunks)} user chunks from {self.path}"
             )
 
         except Exception as e:
-            logger.error(f"[KnowledgeBase] initialization failed: {e}")
+            logger.error(f"[KnowledgeBase] initialization failed: {type(e).__name__}")
             self.available = False
 
     async def query(self, claim: str, n_results: int = 3) -> list[str]:
@@ -90,9 +90,9 @@ class KnowledgeBase:
             )
             docs_data = results.get("documents", [[]])
             docs: list[str] = docs_data[0] if docs_data else []
-            logger.debug(f"[KnowledgeBase] query returned {len(docs)} results for '{claim[:50]}'")
+            logger.debug(f"[KnowledgeBase] query returned {len(docs)} results")
             return docs
 
         except Exception as e:
-            logger.warning(f"[KnowledgeBase] query failed: {e}")
+            logger.warning(f"[KnowledgeBase] query failed: {type(e).__name__}")
             return []

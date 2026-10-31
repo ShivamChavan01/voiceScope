@@ -1,13 +1,15 @@
+import asyncio
 import json
 import os
+import re
 from functools import lru_cache
 from typing import Literal, Optional
 from urllib.parse import urlparse
 
-import httpx
+import aiohttp
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from api.schemas import HealthResponse, detect_and_parse_webhook
 from api.sse import stream_analysis
@@ -17,6 +19,7 @@ from core.demo_seed import reset_demo_runs, seed_demo_runs
 from core.extractions import ExtractionField, ExtractionSchema, ExtractionStore
 from core.knowledge_store import KnowledgeStore
 from core.pipeline import VoiceScopePipeline
+from core.stt_recording import download_recording
 from core.qa import QACohort, QAStore, ResolutionCriterion
 from core.test_harness import TestHarness
 from storage.cost_store import CostStore
@@ -136,9 +139,13 @@ async def _log_run(result: dict, harness_result=None):
             else:
                 harness_obj = harness_result
         await get_monitoring_store().log_run(result, harness_obj)
-        await _create_incidents_for_run(result)
     except Exception:
         logger.exception("[Routes] failed to log run")
+        raise HTTPException(status_code=503, detail='Evaluation completed but the report could not be saved. Check storage before retrying.')
+    try:
+        await _create_incidents_for_run(result)
+    except Exception:
+        logger.exception('[Routes] failed to create incidents for saved run')
 
 
 async def _create_incidents_for_run(result: dict):
@@ -267,7 +274,7 @@ async def analyze_audio(file: UploadFile = File(...)):
     size_mb = _validate_audio(file, audio_bytes)
 
     logger.info(
-        f"[API] /analyze — file={sanitize_log_input(file.filename or 'unknown')}, size={size_mb:.2f}MB"
+        f"[API] /analyze — size={size_mb:.2f}MB"
     )
 
     result = await get_pipeline().run(audio_bytes, file.filename or "upload.mp3")
@@ -290,7 +297,7 @@ async def analyze_audio_stream(file: UploadFile = File(...)):
     size_mb = _validate_audio(file, audio_bytes)
 
     logger.info(
-        f"[API] /analyze/stream — file={sanitize_log_input(file.filename or 'unknown')}, size={size_mb:.2f}MB"
+        f"[API] /analyze/stream — size={size_mb:.2f}MB"
     )
 
     return StreamingResponse(
@@ -455,21 +462,30 @@ async def run_harness():
 
 @router.post("/webhooks/call-completed")
 async def webhook_call_completed(request: Request):
-    raw_body = await request.body()
-    if len(raw_body) > MAX_WEBHOOK_BODY_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Webhook payload too large (max {MAX_WEBHOOK_BODY_BYTES} bytes)",
-        )
+    raw_body = bytearray()
+    async for chunk in request.stream():
+        if len(raw_body) + len(chunk) > MAX_WEBHOOK_BODY_BYTES:
+            raise HTTPException(status_code=413, detail=f'Webhook payload too large (max {MAX_WEBHOOK_BODY_BYTES} bytes)')
+        raw_body.extend(chunk)
     try:
-        body = json.loads(raw_body)
-    except json.JSONDecodeError:
+        body = json.loads(raw_body, parse_constant=_reject_json_constant)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Webhook payload is not valid JSON")
-    event = detect_and_parse_webhook(body)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail='Webhook payload must be an object')
+    try:
+        event = detect_and_parse_webhook(body)
+    except (ValidationError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail='Invalid webhook execution fields')
+    if event.platform == 'bolna':
+        source_id = body.get('id')
+        if isinstance(source_id, bool) or not isinstance(source_id, (str, int)) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', str(source_id)) or str(source_id).lower() in ('none', 'null'):
+            raise HTTPException(status_code=400, detail='A valid Bolna execution ID is required')
+    if request.headers.get('X-Webhook-Key') and event.platform != 'bolna':
+        raise HTTPException(status_code=403, detail='This webhook credential is restricted to Bolna events')
 
     logger.info(
-        f"[API] webhook received — platform={event.platform}, "
-        f"call_id={event.call_id}, event={event.event_type}"
+        f"[API] webhook received — platform={event.platform}"
     )
 
     completed_events = {
@@ -486,6 +502,44 @@ async def webhook_call_completed(request: Request):
             detail=f"Event '{event.event_type}' not supported — expected one of: {completed_events}",
         )
 
+    if event.platform == 'bolna':
+        from storage.webhook_receipts import WebhookReceipts
+        receipts = WebhookReceipts()
+        state, value = receipts.claim(event.call_id)
+        if state == 'completed':
+            run = await get_monitoring_store().get_run(value)
+            if not run:
+                raise HTTPException(status_code=409, detail='Previously processed call report is unavailable. Inspect storage before retrying.')
+            result = {'platform': event.platform, 'call_id': event.call_id, 'pipeline_result': run['evaluation']}
+            return _webhook_response(result, request)
+        if state == 'processing':
+            raise HTTPException(status_code=409, detail='Call evaluation is already processing. Retry later.', headers={'Retry-After': '10'})
+        try:
+            result = await _process_webhook(event)
+            run_id = result['pipeline_result'].get('run_id')
+            if not run_id or not await get_monitoring_store().get_run(run_id):
+                raise HTTPException(status_code=503, detail='Call report could not be persisted. Retry later.')
+            receipts.complete(event.call_id, value, run_id)
+            return _webhook_response(result, request)
+        except (Exception, asyncio.CancelledError):
+            receipts.release(event.call_id, value)
+            raise
+    return await _process_webhook(event)
+
+
+def _reject_json_constant(value: str):
+    raise ValueError('Non-finite JSON numbers are not supported')
+
+
+def _webhook_response(result: dict, request: Request) -> dict:
+    if getattr(request.state, 'operator_authenticated', False):
+        return result
+    evaluation = result['pipeline_result']
+    return {'platform': result['platform'], 'call_id': result['call_id'],
+            'run_id': evaluation['run_id'], 'status': evaluation.get('status')}
+
+
+async def _process_webhook(event):
     if event.platform == "bolna" and event.transcript and event.transcript.strip():
         result = await get_pipeline().run_from_transcript(event.transcript)
         result.setdefault("transcript_meta", {})["duration_seconds"] = (
@@ -504,34 +558,21 @@ async def webhook_call_completed(request: Request):
     validation_rejected = 0
     for url, headers in candidates:
         if not await validate_callback_url_async(url):
-            logger.warning(f"[Webhook] recording URL rejected by SSRF validation: {url}")
+            logger.warning("[Webhook] recording URL rejected by SSRF validation")
             validation_rejected += 1
             continue
         try:
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as http_client:
-                head_resp = await http_client.head(url, headers=headers)
-                try:
-                    content_length = int(head_resp.headers.get("content-length", 0))
-                except (ValueError, TypeError):
-                    content_length = 0
-                if content_length > 25 * 1024 * 1024:
-                    raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
-                resp = await http_client.get(url, headers=headers)
-                resp.raise_for_status()
-                audio_bytes = b""
-                async for chunk in resp.aiter_bytes(chunk_size=8192):
-                    audio_bytes += chunk
-                    if len(audio_bytes) > 25 * 1024 * 1024:
-                        raise HTTPException(status_code=400, detail="Recording too large (max 25MB)")
-                content_type = resp.headers.get("content-type", "")
-                break
-        except httpx.HTTPStatusError as exc:
-            logger.warning(
-                f"[Webhook] recording download failed for {url}: HTTP {exc.response.status_code}"
-            )
+            audio_bytes, content_type = await download_recording(url, headers)
+            break
+        except ValueError as exc:
+            if 'not audio' in str(exc):
+                raise HTTPException(status_code=400, detail='Recording is not audio')
+            if '25 MB' in str(exc):
+                raise HTTPException(status_code=400, detail='Recording too large (max 25MB)')
+            logger.warning('[Webhook] recording download rejected')
             continue
-        except httpx.RequestError as exc:
-            logger.warning(f"[Webhook] recording download failed for {url}: {exc}")
+        except (aiohttp.ClientError, OSError, asyncio.TimeoutError) as exc:
+            logger.warning(f'[Webhook] recording download failed: {type(exc).__name__}')
             network_error = True
             continue
     else:
@@ -582,12 +623,12 @@ async def _save_webhook_result(event, result: dict):
     await _log_metrics(result)
     await _log_run(result, harness_data)
 
-    if result.get("errors") and not result.get("report"):
+    if result.get("status") == 'failed' or result.get("errors") and not result.get("report"):
         raise HTTPException(status_code=500, detail="Webhook analysis failed")
 
     logger.info(
         f"[API] webhook processed — platform={event.platform}, "
-        f"call_id={event.call_id}, run_id={result.get('run_id')}"
+        f"run_id={result.get('run_id')}"
     )
     return {
         "platform": event.platform,
@@ -873,8 +914,8 @@ async def validate_text(req: GuardrailCheckRequest):
             escalation_signal=False,
         )
         return {"valid": True, "truth_score": 1.0, "validated": validated.model_dump()}
-    except Exception as e:
-        return {"valid": False, "truth_score": 0.0, "errors": [str(e)]}
+    except Exception:
+        return {"valid": False, "truth_score": 0.0, "errors": ['Validation failed; check the supplied text and schema']}
 
 
 # ─── Self-Improvement Loop ──────────────────────────────────────────

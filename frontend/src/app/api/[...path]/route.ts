@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { operatorAccess } from "@/lib/operator-auth";
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_KEY = process.env.API_KEY || "";
@@ -33,6 +34,9 @@ async function proxyRequest(
   request: NextRequest,
   path: string[]
 ) {
+  // Check at the data boundary too, independently of Next.js Proxy routing.
+  const denied = operatorAccess(request);
+  if (denied) return denied;
   let segments: string[];
   try {
     segments = path.map((part) => decodeURIComponent(part));
@@ -65,6 +69,7 @@ async function proxyRequest(
   const init: RequestInit = {
     method: request.method,
     headers,
+    cache: "no-store",
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -102,7 +107,7 @@ async function proxyRequest(
         status: res.status,
         headers: {
           "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
+          "Cache-Control": "no-store",
           "Connection": "keep-alive",
         },
       });
@@ -115,6 +120,7 @@ async function proxyRequest(
         responseHeaders[key] = value;
       }
     });
+    responseHeaders["cache-control"] = "no-store";
 
     if (contentType.startsWith("audio/")) {
       // The proxy buffers the full recording; expose its actual length for media metadata.
@@ -126,10 +132,10 @@ async function proxyRequest(
       statusText: res.statusText,
       headers: responseHeaders,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { detail: `Proxy error: ${error instanceof Error ? error.message : "unknown"}` },
-      { status: 502 }
+      { detail: "Backend request failed. Check service availability and retry." },
+      { status: 502, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

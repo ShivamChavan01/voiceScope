@@ -34,7 +34,7 @@ async def get_pool() -> Optional[asyncpg.Pool]:
                 )
                 logger.info("[DB] PostgreSQL pool connected")
             except Exception as e:
-                logger.warning(f"[DB] PostgreSQL unavailable — using SQLite fallback: {e}")
+                logger.warning(f"[DB] PostgreSQL unavailable — using SQLite fallback: {type(e).__name__}")
                 _pool = None
     return _pool
 

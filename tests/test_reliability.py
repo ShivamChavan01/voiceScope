@@ -262,3 +262,55 @@ def test_alternative_nonhuman_department_does_not_erase_explicit_supervisor_refu
     ], [escalation_policy()])
     assert report.findings[0].category == 'policy_violation'
     assert report.findings[0].status == 'confirmed'
+
+
+@pytest.mark.parametrize('statement', [
+    'I cannot transfer money between accounts.',
+    'I cannot transfer funds.',
+    'I cannot connect the payment system.',
+    'I cannot transfer your balance to a supervisor.',
+])
+def test_escalation_refusal_does_not_include_unrelated_transfer_objects(statement):
+    result = evaluate_reliability([
+        turn('Please transfer me to a supervisor.', 'customer'), turn(statement),
+    ], [escalation_policy()])
+    assert not result.findings
+
+
+@pytest.mark.parametrize('statement', [
+    'I guarantee your refund today, not tomorrow.',
+    'I promise your refund today, not next week.',
+    'Your refund is guaranteed today, not tomorrow.',
+])
+def test_unrelated_negated_time_does_not_erase_affirmative_refund_guarantee(statement):
+    result = evaluate_reliability([turn(statement)], [refund_policy()])
+    assert len(result.findings) == 1
+    assert result.findings[0].status == 'confirmed'
+
+
+@pytest.mark.parametrize('statement', [
+    'I cannot transfer money, but I cannot transfer you to a supervisor either.',
+    'I cannot connect the payment system; I cannot connect you to a supervisor.',
+])
+def test_unrelated_refusal_does_not_hide_a_later_actual_escalation_refusal(statement):
+    result = evaluate_reliability([
+        turn('Please transfer me to a supervisor.', 'customer'), turn(statement),
+    ], [escalation_policy()])
+    assert len(result.findings) == 1
+    assert result.findings[0].status == 'confirmed'
+
+
+def test_transfer_you_money_is_not_a_refusal_to_transfer_the_caller():
+    result = evaluate_reliability([
+        turn('Please transfer me to a supervisor.', 'customer'),
+        turn('I cannot transfer you money.'),
+    ], [escalation_policy()])
+    assert not result.findings
+
+
+@pytest.mark.parametrize('statement', [
+    'I guarantee your refund today, said the previous agent.',
+    'Your refund is guaranteed today, as an example.',
+])
+def test_reported_or_example_suffix_does_not_become_a_confirmed_guarantee(statement):
+    assert not evaluate_reliability([turn(statement)], [refund_policy()]).findings

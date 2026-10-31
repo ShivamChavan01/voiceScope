@@ -5,6 +5,13 @@ import pytest
 from core.pipeline import VoiceScopePipeline
 
 
+def test_missing_provider_fails_before_loading_policy_embeddings():
+    with patch('core.pipeline.ChromaStore'), patch('core.pipeline.KnowledgeBase') as knowledge, patch('core.pipeline.ReportAgent', side_effect=ValueError('Provider not configured')):
+        with pytest.raises(ValueError, match='Provider not configured'):
+            VoiceScopePipeline()
+    knowledge.assert_not_called()
+
+
 @pytest.fixture
 def pipeline():
     with patch("core.pipeline.ChromaStore"), \

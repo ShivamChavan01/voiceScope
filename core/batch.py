@@ -57,7 +57,7 @@ class BatchProcessor:
             except Exception as e:
                 batch["results"].append({"filename": filename, "error": "processing failed"})
                 batch["failed"] += 1
-                logger.error(f"[BatchProcessor] batch={batch_id} file={filename} error={e}")
+                logger.error(f"[BatchProcessor] batch={batch_id} error={type(e).__name__}")
 
         batch["status"] = "completed"
         batch["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -80,7 +80,7 @@ class BatchProcessor:
                 )
                 logger.info(f"[BatchProcessor] callback sent batch={batch['batch_id']}")
         except Exception as e:
-            logger.error(f"[BatchProcessor] callback failed batch={batch['batch_id']} error={e}")
+            logger.error(f"[BatchProcessor] callback failed batch={batch['batch_id']} error={type(e).__name__}")
 
     def get_batch(self, batch_id: str, owner_key: Optional[str] = None) -> Optional[dict]:
         batch = batches.get(batch_id)

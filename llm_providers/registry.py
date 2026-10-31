@@ -81,14 +81,14 @@ class ProviderRegistry:
                     exc = ValueError(
                         f"Provider '{backend}' not configured — missing {provider_cls.required_env}"
                     )
-                    logger.warning(f"[ProviderRegistry] skipping '{backend}': {exc}")
+                    logger.warning(f"[ProviderRegistry] skipping '{backend}': {type(exc).__name__}")
                     last_exc = exc
                     continue
 
                 cb = cls._circuit_breakers.get(backend)
                 if cb and cb.is_open():
                     last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
-                    logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
+                    logger.warning(f"[ProviderRegistry] failover '{backend}': {type(last_exc).__name__}")
                     continue
 
                 try:
@@ -96,14 +96,14 @@ class ProviderRegistry:
                 except Exception as exc:
                     if cb:
                         cb.record_failure()
-                    logger.warning(f"[ProviderRegistry] init '{backend}' failed: {exc}")
+                    logger.warning(f"[ProviderRegistry] init '{backend}' failed: {type(exc).__name__}")
                     last_exc = exc
                     continue
             else:
                 cb = cls._circuit_breakers.get(backend)
                 if cb and cb.is_open():
                     last_exc = CircuitBreakerOpenError(f"Circuit breaker open for provider '{backend}'")
-                    logger.warning(f"[ProviderRegistry] failover '{backend}': {last_exc}")
+                    logger.warning(f"[ProviderRegistry] failover '{backend}': {type(last_exc).__name__}")
                     continue
 
             try:
@@ -117,7 +117,7 @@ class ProviderRegistry:
                 if cb:
                     cb.record_failure()
                 if backend != name:
-                    logger.warning(f"[ProviderRegistry] failover '{backend}' failed: {exc}")
+                    logger.warning(f"[ProviderRegistry] failover '{backend}' failed: {type(exc).__name__}")
                 last_exc = exc
 
         assert last_exc is not None

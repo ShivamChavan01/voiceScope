@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import utils.environment  # noqa: F401
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -28,7 +29,7 @@ async def lifespan(app: FastAPI):
             logger.info("[Startup] PostgreSQL connected")
         except Exception as e:
             logger.warning(
-                f"[Startup] PostgreSQL unavailable — falling back to SQLite: {e}"
+                f"[Startup] PostgreSQL unavailable — falling back to SQLite: {type(e).__name__}"
             )
     yield
     try:
@@ -87,8 +88,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     from utils.logger import logger
 
-    logger.error("Unhandled exception: {}", exc, exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    logger.error("Unhandled exception type: {}", type(exc).__name__)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"}, headers={'Cache-Control': 'no-store'})
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, exc: RequestValidationError):
+    errors = [{key: error[key] for key in ('type', 'loc', 'msg')} for error in exc.errors()]
+    return JSONResponse(status_code=422, content={'detail': errors}, headers={'Cache-Control': 'no-store'})
 
 
 app.include_router(router, prefix="/api/v1")

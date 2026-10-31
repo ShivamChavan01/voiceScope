@@ -20,6 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm test
       - run: npx tsc --noEmit
       - run: npm run lint
@@ -67,9 +68,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install pip-audit
+      - run: pip install pip-audit==2.10.1
       - run: pip install -r requirements.txt
-      - run: pip-audit -r requirements.txt --ignore-vuln CVE-2026-45829
+      - run: python -m tools.dependency_audit
 
   benchmark:
     runs-on: ubuntu-latest
@@ -86,19 +87,27 @@ jobs:
     needs: [frontend, lint, typecheck, test, audit, benchmark]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Add synthetic private-file canaries
         run: |
-          mkdir -p .gstack logs private-context
-          for path in .gstack/canary.json logs/canary.log private-context/canary.sqlite3 private-context/.env.check .env.check canary.wav; do
+          mkdir -p .gstack logs private-context data recordings
+          for path in .gstack/canary.json logs/canary.log private-context/canary.sqlite3 private-context/canary.sqlite-wal private-context/canary.db-shm private-context/.env.check .env.check canary.wav private-context/canary.webm data/canary.json recordings/canary.json; do
             printf '%s' 'synthetic build-exclusion canary' > "$path"
           done
       - run: docker build -t voicescope .
+      - name: Audit the complete installed Python image inventory
+        run: |
+          pip install pip-audit==2.10.1
+          docker run --rm --entrypoint python voicescope -c 'from importlib.metadata import distributions; print("\n".join(sorted(d.metadata["Name"] + "==" + d.version for d in distributions())))' > /tmp/voicescope-image-packages.txt
+          python -m tools.dependency_audit --inventory /tmp/voicescope-image-packages.txt
       - name: Verify private files are excluded and runtime fixtures are packaged
         run: |
           docker run --rm -i --entrypoint python voicescope - <<'PY'
           from pathlib import Path
           import os
-          private = ['.gstack/canary.json', 'logs/canary.log', 'private-context/canary.sqlite3', 'private-context/.env.check', '.env.check', 'canary.wav', 'scripts/generate_showcase_audio.py']
+          private = ['.gstack/canary.json', 'logs/canary.log', 'private-context/canary.sqlite3', 'private-context/canary.sqlite-wal', 'private-context/canary.db-shm', 'private-context/.env.check', '.env.check', 'canary.wav', 'private-context/canary.webm', 'data/canary.json', 'recordings/canary.json', 'scripts/generate_showcase_audio.py']
           required = ['core/data/labeled_calls.json', 'core/data/reliability_cases.json', 'knowledge/business_policy.md']
           assert not any(Path(path).exists() for path in private), 'Private canary leaked into image'
           assert all(Path(path).is_file() for path in required), 'Runtime fixture missing from image'

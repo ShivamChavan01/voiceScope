@@ -16,6 +16,8 @@ The historical field name `truth_score` is retained for API compatibility. It do
 
 The numeric layer evaluates distinct numeric values in analysis `findings`. Its numerator is the count of values found in the transcript; its denominator is the count of distinct claimed values. Currency is part of the value. Metadata, policy excerpts, quality scores, and duration are excluded. Numeric formatting such as `$1,000.00` and `$1000` normalizes to the same value.
 
+Leading numeric signs are part of the value: `-100` does not support a claim of `100`. Unicode minus and either dollar/sign order normalize consistently. Date/identifier hyphens remain separators. Numeric support still does not establish complete semantic correctness or prove a voice-agent hallucination.
+
 An absent value becomes an unsupported **analysis claim**. It does not establish a voice-agent hallucination. If the transcript or numeric claims are absent, the fact layer is omitted from the weighted mean and marked `not_assessed`. No-claim calls receive no perfect fact layer as a substitute for evidence.
 
 ## Failure states

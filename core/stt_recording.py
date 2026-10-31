@@ -53,13 +53,19 @@ async def retrieve_bolna_recording(call_id: str) -> tuple[bytes, str]:
     if not key:
         raise ValueError('Bolna recording credentials unavailable')
     url = f'https://api.bolna.ai/recordings/call/{execution}'
+    return await download_recording(url, {'Authorization': f'Bearer {key}'})
+
+
+async def download_recording(url: str, headers: dict[str, str] | None = None) -> tuple[bytes, str]:
+    """Stream bounded audio, pin public DNS and strip credentials across hosts."""
+    credential_host = urlparse(url).hostname
     connector = aiohttp.TCPConnector(resolver=PublicResolver(), use_dns_cache=False)
     async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=60)) as session:
         for _ in range(5):
             if not valid_recording_url(url):
                 raise ValueError('Recording redirect rejected')
-            headers = {'Authorization': f'Bearer {key}'} if urlparse(url).hostname == 'api.bolna.ai' else {}
-            async with session.get(url, headers=headers, allow_redirects=False) as response:
+            request_headers = (headers or {}) if urlparse(url).hostname == credential_host else {}
+            async with session.get(url, headers=request_headers, allow_redirects=False) as response:
                 if response.status in (301, 302, 303, 307, 308):
                     location = response.headers.get('Location')
                     if not location:

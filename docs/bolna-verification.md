@@ -1,12 +1,14 @@
 # Real Bolna call verification
 
+Execution and run identifiers are redacted in this document. Uppercase ID placeholders refer to values retained only in private verification evidence.
+
 Verified at 2026-10-25T13:48:40.405577+00:00 against the local working tree.
 
 ## What ran
 
 The existing configured Bolna key retrieved the account's agent and four completed executions from its August 19 history. No new phone call was placed and no agent or webhook configuration was changed.
 
-Selected execution: `74c12d45-d85f-4fe2-b5a6-4d48a8d861aa`. Duration: 72.0 seconds.
+Selected execution: `AUTHORIZED_TEST_EXECUTION_ID`. Duration: 72.0 seconds.
 
 The full execution payload was fetched from Bolna's Get Execution API and replayed through the actual FastAPI `POST /api/v1/webhooks/call-completed` handler. The run used the configured real Deepgram and Groq services. Database and Chroma paths were isolated under a private temporary directory; production storage was not changed.
 
@@ -19,7 +21,7 @@ The full execution payload was fetched from Bolna's Get Execution API and replay
 | Deepgram STT | Completed; 852 transcript characters |
 | Groq analysis and report | Completed using `openai/gpt-oss-120b` |
 | Webhook response | HTTP 200 |
-| Run ID | `cd1f8afd-e88c-4285-80b0-b224289f5b95` |
+| Run ID | `AUTHORIZED_TEST_RUN_ID` |
 | Persisted run reload | HTTP 200 |
 | Transcript, report, and harness after reload | Exact matches to the evaluation response |
 | Status | `partial` / `needs_review` |

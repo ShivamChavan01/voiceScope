@@ -31,7 +31,7 @@ class FactExtractor:
     """Extract concrete facts from transcript and verify against analysis."""
 
     # Patterns for common facts
-    NUMBER_PATTERN = re.compile(r"\$?\d[\d,]*\.?\d*")
+    NUMBER_PATTERN = re.compile(r"(?<!\w)(?:(?:[+\-−]\s*)?\$\s*|\$\s*[+\-−]?\s*|[+\-−]\s*)?\d[\d,]*\.?\d*")
     DATE_PATTERN = re.compile(
         r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)"
         r"\s+\d{1,2}(?:,?\s*\d{4})?\b",
@@ -82,10 +82,11 @@ class FactExtractor:
             return FactVerificationResult(facts_found=facts)
 
         def values(text: str) -> set[tuple[bool, Decimal]]:
-            return {
-                (match.group().startswith("$"), Decimal(match.group().lstrip("$").replace(",", "")))
-                for match in self.NUMBER_PATTERN.finditer(text)
-            }
+            result = set()
+            for match in self.NUMBER_PATTERN.finditer(text):
+                value = re.sub(r'\s+', '', match.group()).replace('−', '-')
+                result.add(('$' in value, Decimal(value.replace('$', '').replace(',', ''))))
+            return result
 
         findings = analysis.get("findings", [])
         claims = set()

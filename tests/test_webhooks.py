@@ -1,5 +1,6 @@
 import json
 import os
+import pytest
 
 os.environ["VALID_API_KEYS"] = "test-key"
 os.environ["DATABASE_URL"] = ""
@@ -8,7 +9,7 @@ import middleware.auth
 
 middleware.auth._VALID_KEYS = frozenset(["test-key"])
 
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
+from unittest.mock import AsyncMock, patch  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -16,6 +17,11 @@ from main import app  # noqa: E402
 
 client = TestClient(app)
 HEADERS = {"X-API-Key": "test-key"}
+
+
+@pytest.fixture(autouse=True)
+def isolate_webhook_receipts(monkeypatch, tmp_path):
+    monkeypatch.setenv('DATA_DIR', str(tmp_path))
 
 VAPI_PAYLOAD = {
     "message": {
@@ -106,43 +112,15 @@ MOCK_PIPELINE_RESULT = {
 }
 
 
-def _mock_httpx_response(status_code=200, content=b"fake-audio-data", content_type="audio/mpeg"):
-    mock_resp = MagicMock()
-    mock_resp.status_code = status_code
-    mock_resp.content = content
-    mock_resp.headers = {"content-type": content_type}
-    mock_resp.raise_for_status = MagicMock()
-    if status_code >= 400:
-        import httpx
-
-        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            message=f"HTTP {status_code}",
-            request=MagicMock(),
-            response=mock_resp,
-        )
-    return mock_resp
-
-
-def _mock_httpx_client(response=None):
-    if response is None:
-        response = _mock_httpx_response()
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(return_value=response)
-    mock_client.head = AsyncMock(return_value=response)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
-    return mock_client
-
-
 class TestVapiWebhook:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_vapi_end_of_call_report(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=VAPI_PAYLOAD, headers=HEADERS
@@ -155,28 +133,28 @@ class TestVapiWebhook:
 
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_vapi_uses_mono_url(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         client.post("/api/v1/webhooks/call-completed", json=VAPI_PAYLOAD, headers=HEADERS)
 
-        call_args = mock_httpx_cls.return_value.get.call_args
+        call_args = mock_httpx_cls.call_args
         assert "mono.mp3" in call_args[0][0]
 
 
 class TestRetellWebhook:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_retell_call_ended(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=RETELL_PAYLOAD, headers=HEADERS
@@ -188,28 +166,28 @@ class TestRetellWebhook:
 
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_retell_uses_recording_url(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         client.post("/api/v1/webhooks/call-completed", json=RETELL_PAYLOAD, headers=HEADERS)
 
-        call_args = mock_httpx_cls.return_value.get.call_args
+        call_args = mock_httpx_cls.call_args
         assert "retellai.s3" in call_args[0][0]
 
 
 class TestGenericWebhook:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_generic_payload(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=GENERIC_PAYLOAD, headers=HEADERS
@@ -304,9 +282,9 @@ class TestWebhookNoRecordingUrl:
 
 class TestWebhookDownloadFailure:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_download_404(self, mock_httpx_cls, mock_validate):
-        mock_httpx_cls.return_value = _mock_httpx_client(_mock_httpx_response(status_code=404))
+        mock_httpx_cls.side_effect = ValueError("Original recording could not be retrieved")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=GENERIC_PAYLOAD, headers=HEADERS
@@ -315,11 +293,9 @@ class TestWebhookDownloadFailure:
         assert "download" in response.json()["detail"].lower()
 
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_non_audio_content_type(self, mock_httpx_cls, mock_validate):
-        mock_httpx_cls.return_value = _mock_httpx_client(
-            _mock_httpx_response(content_type="text/html")
-        )
+        mock_httpx_cls.side_effect = ValueError("Recording response is not audio")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=GENERIC_PAYLOAD, headers=HEADERS
@@ -335,6 +311,23 @@ class TestWebhookNoAuth:
 
 
 class TestWebhookInvalidPayload:
+    @pytest.mark.parametrize('body', [[], None, True, {'agent_id': 'agent', 'telephony_data': {}, 'status': 'completed', 'transcript': []}])
+    def test_nonobject_and_invalid_execution_fields_are_rejected(self, body):
+        response = client.post('/api/v1/webhooks/call-completed', content=json.dumps(body), headers={**HEADERS, 'Content-Type': 'application/json'})
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize('source_id', [None, '', ' ', True, {}, 'None', '../other', 'call?token=private'])
+    @patch('api.routes.get_pipeline')
+    def test_invalid_bolna_id_cannot_claim_receipt_or_start_analysis(self, get_pipeline, source_id):
+        response = client.post('/api/v1/webhooks/call-completed', json={**BOLNA_WEBHOOK, 'id': source_id}, headers=HEADERS)
+        assert response.status_code == 400
+        get_pipeline.assert_not_called()
+
+    @pytest.mark.parametrize('number', ['NaN', 'Infinity', '-Infinity'])
+    def test_nonfinite_json_is_rejected(self, number):
+        response = client.post('/api/v1/webhooks/call-completed', content='{"metadata":'+number+'}', headers=HEADERS)
+        assert response.status_code == 400
+
     def test_empty_body(self):
         response = client.post(
             "/api/v1/webhooks/call-completed",
@@ -365,12 +358,12 @@ BLAND_WEBHOOK = {
 class TestBlandWebhook:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_bland_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=BLAND_WEBHOOK, headers=HEADERS
@@ -403,14 +396,48 @@ BOLNA_WEBHOOK = {
 
 
 class TestBolnaWebhook:
+    @patch('api.routes.get_pipeline')
+    def test_completed_replay_reuses_saved_report_without_duplicate_provider_submission(self, get_pipeline, monkeypatch):
+        import middleware.auth
+        monkeypatch.setattr(middleware.auth, '_WEBHOOK_KEY', 'synthetic-bolna-webhook-secret')
+        pipeline = AsyncMock()
+        pipeline.run_from_transcript.return_value = {**MOCK_PIPELINE_RESULT, 'run_id': 'deduplicated-bolna-call'}
+        get_pipeline.return_value = pipeline
+        headers = {'X-Webhook-Key': 'synthetic-bolna-webhook-secret'}
+        first = client.post('/api/v1/webhooks/call-completed', json=BOLNA_WEBHOOK, headers=headers)
+        assert first.status_code == 200
+        second = client.post('/api/v1/webhooks/call-completed', json=BOLNA_WEBHOOK, headers=headers)
+        assert second.status_code == 200
+        assert first.json()['run_id'] == second.json()['run_id']
+        assert set(second.json()) == {'platform', 'call_id', 'run_id', 'status'}
+        confused = client.post('/api/v1/webhooks/call-completed', json=BOLNA_WEBHOOK, headers={**headers, 'X-API-Key': 'invalid'})
+        assert confused.status_code == 200
+        assert 'pipeline_result' not in confused.json()
+        operator = client.post('/api/v1/webhooks/call-completed', json=BOLNA_WEBHOOK, headers=HEADERS)
+        assert operator.json()['pipeline_result']['stt_source']['segments']
+        pipeline.run_from_transcript.assert_awaited_once_with(BOLNA_WEBHOOK['transcript'])
+        assert client.get('/api/v1/runs', headers=headers).status_code == 401
+
+    @patch('api.routes.get_pipeline')
+    def test_failed_evaluation_can_be_retried(self, get_pipeline):
+        pipeline = AsyncMock()
+        pipeline.run_from_transcript.side_effect = [RuntimeError('synthetic outage'), {**MOCK_PIPELINE_RESULT, 'run_id': 'retry-bolna-call'}]
+        get_pipeline.return_value = pipeline
+        unsafe_client = TestClient(app, raise_server_exceptions=False)
+        first = unsafe_client.post('/api/v1/webhooks/call-completed', json=BOLNA_WEBHOOK, headers=HEADERS)
+        assert first.status_code == 500
+        second = client.post('/api/v1/webhooks/call-completed', json=BOLNA_WEBHOOK, headers=HEADERS)
+        assert second.status_code == 200
+        assert pipeline.run_from_transcript.await_count == 2
+
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_bolna_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json={**BOLNA_WEBHOOK, "transcript": None}, headers=HEADERS
@@ -422,7 +449,7 @@ class TestBolnaWebhook:
 
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     @patch("api.routes.BOLNA_API_KEY", "")
     def test_bolna_prefers_stable_endpoint_without_api_key(
         self, mock_httpx_cls, mock_get_pipeline, mock_validate
@@ -438,15 +465,14 @@ class TestBolnaWebhook:
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_client = _mock_httpx_client()
-        mock_httpx_cls.return_value = mock_client
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json={**BOLNA_WEBHOOK, "transcript": None}, headers=HEADERS
         )
         assert response.status_code == 200
-        assert mock_client.get.await_count == 1
-        requested = mock_client.get.call_args_list[0].args[0]
+        assert mock_httpx_cls.await_count == 1
+        requested = mock_httpx_cls.call_args_list[0].args[0]
         assert requested == "https://api.bolna.ai/recordings/call/7432382142914"
         assert "s3.amazonaws.com" not in requested
 
@@ -475,12 +501,12 @@ class TestSynthflowWebhook:
 
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_synthflow_with_recording(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         payload = {
             **SYNTHFLOW_WEBHOOK,
@@ -515,12 +541,12 @@ AIRAI_WEBHOOK = {
 class TestAiraiWebhook:
     @patch("api.routes.validate_callback_url_async", new_callable=AsyncMock, return_value=True)
     @patch("api.routes.get_pipeline")
-    @patch("api.routes.httpx.AsyncClient")
+    @patch("api.routes.download_recording", new_callable=AsyncMock)
     def test_airai_completed(self, mock_httpx_cls, mock_get_pipeline, mock_validate):
         mock_pipeline = AsyncMock()
         mock_pipeline.run = AsyncMock(return_value=MOCK_PIPELINE_RESULT)
         mock_get_pipeline.return_value = mock_pipeline
-        mock_httpx_cls.return_value = _mock_httpx_client()
+        mock_httpx_cls.return_value = (b"fake-audio-data", "audio/mpeg")
 
         response = client.post(
             "/api/v1/webhooks/call-completed", json=AIRAI_WEBHOOK, headers=HEADERS

@@ -2,7 +2,7 @@ import asyncio
 import os
 from functools import partial
 
-import chromadb
+from storage.chroma_client import embedded_client
 
 from utils.logger import logger
 
@@ -17,13 +17,13 @@ class ChromaStore:
         data_dir = os.environ.get("DATA_DIR", "/tmp")
         persist_dir = os.getenv("CHROMA_PERSIST_DIR", os.path.join(data_dir, "chroma_db"))
         try:
-            self.client = chromadb.PersistentClient(path=persist_dir)
+            self.client = embedded_client(persist_dir)
             self.collection = self.client.get_or_create_collection(
                 name="voice_calls", metadata={"hnsw:space": "cosine"}
             )
             logger.info(f"[ChromaStore] initialized — collection=voice_calls, path={persist_dir}")
         except Exception as e:
-            logger.warning(f"[ChromaStore] init failed (non-critical): {e}")
+            logger.warning(f"[ChromaStore] init failed (non-critical): {type(e).__name__}")
             self.client = None
             self.collection = None
 
@@ -41,7 +41,7 @@ class ChromaStore:
             )
             logger.info(f"[ChromaStore] stored doc_id={doc_id}")
         except Exception as e:
-            logger.warning(f"[ChromaStore] store failed (non-critical): {e}")
+            logger.warning(f"[ChromaStore] store failed (non-critical): {type(e).__name__}")
 
     async def query(self, text: str, n_results: int = 3) -> list[str]:
         """Retrieve similar past transcripts."""
@@ -56,5 +56,5 @@ class ChromaStore:
             logger.info(f"[ChromaStore] query returned {len(docs)} results")
             return docs
         except Exception as e:
-            logger.warning(f"[ChromaStore] query failed (non-critical): {e}")
+            logger.warning(f"[ChromaStore] query failed (non-critical): {type(e).__name__}")
             return []

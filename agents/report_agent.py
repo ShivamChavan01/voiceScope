@@ -103,13 +103,13 @@ class ReportAgent:
             logger.info(f"[ReportAgent] done — quality_score={report_data.get('quality_score')}")
 
         except Exception as e:
-            ctx.add_error("report", str(e))
+            ctx.add_error("report", "Report generation failed. Check configuration or retry.")
             ctx.report = {
                 "run_id": ctx.run_id,
-                "error": str(e),
+                "error": "Report generation failed",
                 "quality_score": None,
                 "report": {"executive_summary": "Report generation failed", "key_findings": [], "recommendations": []},
             }
-            logger.error(f"[ReportAgent] failed — {e}")
+            logger.error(f"[ReportAgent] failed — {type(e).__name__}")
 
         return ctx

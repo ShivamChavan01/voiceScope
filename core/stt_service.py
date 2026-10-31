@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.stt_quality import AudioInfo, Scope, STTReview, Transcript, compare_transcripts
+from core.stt_quality import COMPARISON_VERSION, AudioInfo, Scope, STTReview, Transcript, compare_transcripts
 from core.stt_recording import inspect_recording, retrieve_bolna_recording
 from core.stt_sources import bolna_transcript, deepgram_reference, validate_bolna_annotations
 from storage.stt_reviews import STTReviewStore
@@ -50,6 +50,17 @@ def state_for_run(run: dict, stored: dict | None) -> dict:
     stored = stored or {}
     original = original_transcript(run)
     review = stored.get('review')
+    if (review and review.get('comparison_version') != COMPARISON_VERSION
+            and (review.get('metric_value') is not None or review.get('findings'))):
+        # Never keep displaying a cached rate computed with retired token rules.
+        # Reading does not invoke a provider, extend expiry, or invent alignment.
+        review = STTReview(
+            audio=AudioInfo.model_validate(stored.get('audio_info') or {}),
+            reference_source=review.get('reference_source'),
+            reference_human_verified=review.get('reference_human_verified', False),
+            verified_by=review.get('verified_by'),
+            issues=['This saved comparison uses earlier scoring rules. Compare again to refresh findings using the retained reference and recording.'],
+        ).model_dump(mode='json')
     if stored.get('annotations'):
         try:
             annotated = Transcript.model_validate(stored['annotations'])

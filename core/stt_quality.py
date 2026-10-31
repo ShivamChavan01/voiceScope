@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Role = Literal['caller', 'agent', 'unknown']
 Scope = Literal['caller_only', 'mixed', 'unknown']
+COMPARISON_VERSION: Literal['signed_numbers_v2'] = 'signed_numbers_v2'
 
 
 class AlignedInterval(TypedDict):
@@ -92,6 +93,7 @@ class STTFinding(BaseModel):
 
 class STTReview(BaseModel):
     schema_version: Literal['1'] = '1'
+    comparison_version: Literal['signed_numbers_v2'] = COMPARISON_VERSION
     status: Literal['completed', 'partial', 'blocked', 'failed'] = 'blocked'
     reference_source: str | None = None
     reference_human_verified: bool = False
@@ -111,11 +113,18 @@ class STTReview(BaseModel):
     ])
 
 
-_TOKEN = re.compile(r"(?:[$€£₹]\s*)?\d+(?:[.,/]\d+)*|[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
+_TOKEN = re.compile(r"(?<!\w)(?:(?:[+-]\s*)?[$€£₹]\s*|[$€£₹]\s*[+-]?\s*|[+-]\s*)?\d+(?:[.,/]\d+)*|[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
 
 
 def words(text: str) -> list[str]:
-    return [token.replace(' ', '') for token in _TOKEN.findall(unicodedata.normalize('NFKC', text).casefold().replace('’', "'"))]
+    normalized = unicodedata.normalize('NFKC', text).casefold().replace('’', "'").replace('−', '-')
+    tokens = []
+    for token in _TOKEN.findall(normalized):
+        token = re.sub(r'\s+', '', token)
+        if len(token) > 1 and token[0] in '+-' and token[1] in '$€£₹':
+            token = token[1] + token[0] + token[2:]
+        tokens.append(token)
+    return tokens
 
 
 def edit_counts(reference: str, hypothesis: str) -> EditCounts:
@@ -152,7 +161,9 @@ def meaning_changes(reference: str, hypothesis: str) -> list[str]:
         categories.append('negation')
     if changed & {'cancel', 'book', 'renew', 'refund', 'accept', 'decline', 'stop', 'transfer', 'approve', 'reject'}:
         categories.append('user_intent')
-    numbers = any(re.search(r'\d', token) for token in changed)
+    numbers = any(re.search(r'\d', token) for token in changed) or (
+        bool(changed & {'negative', 'positive', 'minus', 'plus'}) and bool(re.search(r'\d', context))
+    )
     if (changed & set('january february march april may june july august september october november december monday tuesday wednesday thursday friday saturday sunday today tomorrow yesterday'.split())
             or numbers and re.search(r'\b(?:date|birthday|appointment|scheduled|month|year)\b', context)):
         categories.append('date')

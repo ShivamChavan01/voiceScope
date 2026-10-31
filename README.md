@@ -106,11 +106,26 @@ The new recording routes are disabled on the public frontend proxy by default. E
 
 ## Bolna integration status
 
-The existing endpoint is `POST /api/v1/webhooks/call-completed`. The parser recognizes the execution-shaped Bolna payload. The handler uses a nonempty supplied Bolna transcript first, preserving its assistant/user roles. Calls without a supplied transcript use recording download and STT. Evaluations remain synchronous. Source call/agent metadata and role attribution persist with the evaluation. Durable ingestion, deduplication, retry recovery, and complete source metadata handling remain unfinished.
+The existing endpoint is `POST /api/v1/webhooks/call-completed`. The parser recognizes the execution-shaped Bolna payload. The handler uses a nonempty supplied Bolna transcript first, preserving its assistant/user roles. Calls without a supplied transcript use the bounded, DNS-pinned recording downloader and STT. Evaluations remain synchronous. Source call/agent metadata and role attribution persist with the evaluation. Completed Bolna execution IDs now have persistent deduplication receipts on the deployment volume; active attempts return a retry response and failures release their claim. This is not a durable background queue or exactly-once provider execution after a process crash.
+
+Configure `BOLNA_WEBHOOK_SECRET` on the backend and the matching `X-Webhook-Key`
+custom header in Bolna. This ingestion-only credential returns an acknowledgment;
+it cannot retrieve report/transcript contents, including on completed-call replay.
+The existing operator `X-API-Key` replay path retains the full response. No agent
+or production configuration was changed by the release review.
 
 Bolna documents configurable webhook headers and execution-shaped payloads in its [webhook guide](https://www.bolna.ai/docs/post-call/polling-call-status-webhooks) and [Get Execution API](https://www.bolna.ai/docs/api-reference/executions/get_execution). Configure credentials securely on the backend; never paste them into a transcript or commit them. An existing completed execution has verified local replay and live-service processing. Fresh Bolna-originated delivery to production remains unverified.
 
 ## Deployment
+
+This release targets **one company in a trusted private operator environment**.
+The frontend requires standard HTTP Basic authentication, independently of the
+server-side backend API key. Configure `OPERATOR_AUTH_USER` and a random
+`OPERATOR_AUTH_PASSWORD` of at least 24 characters securely on the frontend.
+Missing credentials fail closed with 503. Use HTTPS outside loopback. No account
+database, signup, multi-company access or enterprise RBAC is implemented.
+See [private operator deployment](docs/private-operator-deployment.md) and
+[RELEASE_READINESS.md](RELEASE_READINESS.md) before configuring a release.
 
 The frontend uses Next.js and is deployed separately on Vercel. The backend Dockerfile starts Uvicorn and honors `PORT`. `railway.toml` specifies the health endpoint and a data volume. Docker Compose includes PostgreSQL and local data storage. Review the SSL limitation above before relying on Compose database persistence.
 

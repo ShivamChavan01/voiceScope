@@ -1,5 +1,10 @@
 # Live post-call Deepgram verification
 
+Execution and run identifiers are redacted in this document. Uppercase ID placeholders refer to values retained only in private verification evidence.
+
+Current release evidence is in [RELEASE_READINESS.md](../RELEASE_READINESS.md).
+The live-service checks and counts below record earlier snapshots.
+
 ## Fresh verification — October 29, 2026
 
 The completed execution documented below was retrieved again, with a fresh
@@ -43,7 +48,7 @@ Verified locally on October 26, 2026, after the workspace owner explicitly autho
 
 ## Actual services and recording
 
-Bolna's authenticated [Get Execution API](https://www.bolna.ai/docs/api-reference/executions/get_execution) returned HTTP 200 for the existing completed execution `74c12d45-d85f-4fe2-b5a6-4d48a8d861aa`. Its supplied transcript and original recording were used, without generating or rewriting source words.
+Bolna's authenticated [Get Execution API](https://www.bolna.ai/docs/api-reference/executions/get_execution) returned HTTP 200 for the existing completed execution `AUTHORIZED_TEST_EXECUTION_ID`. Its supplied transcript and original recording were used, without generating or rewriting source words.
 
 | Evidence | Observed result |
 | --- | --- |
@@ -97,6 +102,6 @@ The original isolated STT preview had only recording/transcription credentials. 
 
 The local preview now uses the existing configured Groq analysis provider, with isolated database, cost, knowledge, and Chroma paths. No production configuration or secret file was changed. Pipeline startup is inside the stream error handler. The frontend validates progress events and requires a terminal result or error, reports empty/truncated/malformed streams, and automatically opens the persisted result after upload. The proxy no longer closes an already errored stream controller.
 
-A real Chromium drag-and-drop of the original recording through `/api/v1/analyze/stream` verified Deepgram transcription, Groq analysis/report, persistence, automatic detail opening, and transcript rendering. The saved run `0883264d-c783-4d6b-b8a8-fdf3aa659d6b` contains 852 transcript characters and 12 attributed turns. Its status is `partial` / review required; successful processing is not a clean-call verdict. An injected HTTP-200 empty stream then produced an explicit UI error without creating a result or making another provider submission. Browser page errors: zero.
+A real Chromium drag-and-drop of the original recording through `/api/v1/analyze/stream` verified Deepgram transcription, Groq analysis/report, persistence, automatic detail opening, and transcript rendering. The saved run `AUTHORIZED_TEST_RUN_ID` contains 852 transcript characters and 12 attributed turns. Its status is `partial` / review required; successful processing is not a clean-call verdict. An injected HTTP-200 empty stream then produced an explicit UI error without creating a result or making another provider submission. Browser page errors: zero.
 
 Validation after this fix: 588 backend tests, 38 frontend tests, frontend lint, production build, changed Python Ruff checks, and diff whitespace checks passed. Private browser evidence is `/tmp/voicescope-stt-live/upload-summary.json`; it contains metadata rather than transcript content.

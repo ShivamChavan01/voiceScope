@@ -12,7 +12,8 @@ const browser = await chromium.launch({
   args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'],
 });
 try {
-  const page = await browser.newPage();
+  const page = await browser.newPage({ httpCredentials: process.env.OPERATOR_AUTH_USER && process.env.OPERATOR_AUTH_PASSWORD
+    ? { username: process.env.OPERATOR_AUTH_USER, password: process.env.OPERATOR_AUTH_PASSWORD } : undefined });
   const errors = [];
   let providerSubmissions = 0;
   page.on('pageerror', error => errors.push(error.message));

@@ -112,7 +112,7 @@ def test_bolna_webhook_preserves_labeled_transcript_and_source_after_reload(attr
     monkeypatch.setattr(api.routes, 'get_pipeline', lambda: attributed_pipeline.pipeline)
     monkeypatch.setattr(api.routes, 'get_monitoring_store', MonitoringStore)
     download = MagicMock(side_effect=AssertionError('Labeled Bolna transcript must not trigger audio download'))
-    monkeypatch.setattr(api.routes.httpx, 'AsyncClient', download)
+    monkeypatch.setattr(api.routes, 'download_recording', download)
     transcript = 'user: I need help.\nassistant: How can I assist?\nuser: It remains unresolved.'
     payload = {
         'id': '11111111-1111-4111-8111-111111111111',

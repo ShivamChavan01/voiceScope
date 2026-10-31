@@ -134,23 +134,26 @@ def _direct_statement(sentence: str) -> bool:
 
 
 def _same_day_guarantee(sentence: str) -> bool:
-    if not _direct_statement(sentence):
-        return False
     normalized = sentence.lower().replace('’', "'")
-    if re.search(r"\b(?:no|not|aren't|isn't|unavailable|impossible|fail|except)\b", normalized):
+    if '?' in sentence or _QUOTED.search(sentence) or re.search(
+        r"\b(?:if|unless|might|could|would|example|quoted?|said|says|told|aren't|isn't|unavailable|impossible|fail|except)\b", normalized,
+    ):
         return False
-    if re.search(r'\byour refund (?:is )?guaranteed (?:to arrive )?today\b', normalized):
-        return True
+    passive = re.search(r'\byour refund (?:is )?guaranteed (?:to arrive )?today\b', normalized)
+    if passive:
+        return _direct_statement(sentence[:passive.end()])
     match = re.search(r'\b(?:i|we) (?:can )?(?:guarantee|promise) (?:that )?', normalized)
     if not match:
         return False
     outcome = normalized[match.end():]
-    return bool(re.match(
+    promise = re.match(
         r'(?:(?:a|your|the) )?same[ -]day refunds?\b|'
         r'(?:(?:a|your|the) )?refund (?:today\b|will (?:arrive|be credited|be returned|be paid) today\b)|'
         r"you(?:'ll| will) (?:get|receive|have) (?:your |the |a )?refund\b.{0,45}\btoday\b",
         outcome,
-    ))
+    )
+    # Negation must apply to the promise, not a later contrasting time clause.
+    return bool(promise and _direct_statement(sentence[:match.end() + promise.end()]))
 
 
 def _refund_completion(sentence: str) -> bool:
@@ -177,14 +180,16 @@ def _refuses_requested_transfer(sentence: str) -> bool:
         r'\b(?:said|says|told|example|quote|if|unless|might|would|could)\b', sentence, re.IGNORECASE,
     )):
         return False
-    match = _REFUSAL.search(sentence)
-    if not match:
-        return False
-    refusal = sentence[match.end():].split(',')[0].split(';')[0]
-    target = re.search(r'\bto (?:a |the |our )?([a-z]+)', refusal, re.IGNORECASE)
-    if target and target.group(1).lower() not in {'human', 'supervisor', 'manager', 'person', 'representative'}:
-        return False
-    return True
+    for match in _REFUSAL.finditer(sentence):
+        refusal = sentence[match.end():].split(',')[0].split(';')[0]
+        if re.fullmatch(r'\s*(?:you(?:\s+(?:directly|now|today|right now))?)?\s*[.!]?', refusal, re.IGNORECASE):
+            return True
+        if re.match(
+            r'\s+(?:you\s+)?(?:directly\s+)?(?:to|with)\s+(?:a\s+|the\s+|our\s+)?'
+            r'(?:human|supervisor|manager|person|representative)\b', refusal, re.IGNORECASE,
+        ):
+            return True
+    return False
 
 
 def _evidence(index: int, turn: dict, quote: str) -> Evidence:

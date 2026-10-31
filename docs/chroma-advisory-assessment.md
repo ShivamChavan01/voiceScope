@@ -1,5 +1,45 @@
 # Chroma advisory assessment, October 31, 2026
 
+## Private single-company release follow-up
+
+The release review replaces the old unconditional CVE ignore with a temporary,
+version-bound policy in `tools/dependency_audit.py`. This section supersedes the
+earlier statement below that no exception exists. The exception is valid only
+before **2026-11-07 UTC**, only for **chromadb 1.5.9**, and only for
+`PYSEC-2026-311`, `PYSEC-2026-3813`, `PYSEC-2026-3814` and `PYSEC-2026-3815`.
+The raw audit currently returns five records because `PYSEC-2026-311` is duplicated.
+Its [official record](https://osv.dev/vulnerability/PYSEC-2026-311) describes the
+same server collection-configuration boundary as the later code-injection advisory.
+The earlier CI CVE ignore covered those two records without a version or expiry.
+
+Both dependency declarations now pin 1.5.9. At this review, PyPI reports 1.5.9
+as the latest release and the vulnerability records list no fixed release.
+Chroma is used for policy and transcript retrieval, so removing it would remove
+working behavior. No architecture change or downgrade is warranted by this review.
+
+`storage/chroma_client.py` now explicitly selects the embedded Rust API and disables
+server authentication/authorization providers for both application clients.
+Environment settings cannot select a different transport through those clients.
+No Chroma server process or collection-configuration endpoint is deployed by the
+repository's Docker, Compose or Railway configuration. Regression checks verify
+the actual transport, default embedding function and absent server routes. Runtime
+inspection in the Python 3.11 image checks listening sockets and exposed routes.
+
+The principal-engineer assessment is **not applicable to the tested embedded-only
+private application boundary**, with review due November 7. It does not assert
+that ChromaDB itself is patched. The exception must be withdrawn if a Chroma server
+is exposed, remote/model configuration is accepted, another version is installed,
+or another process accesses the private data volume. Hosted configuration remains
+subject to separate verification before deployment.
+
+The audit still scans the complete requirements and fails for unknown advisories,
+other packages or versions, a newly available fix, skipped dependencies, invalid
+scan output, or expiry. Every accepted exception is printed explicitly. Tests cover
+the negative cases. A package upgrade requires reassessment rather than inheriting
+this exception. CI must run these tests and the Docker boundary checks before merge.
+
+The remainder records the earlier assessment before runtime enforcement was added.
+
 For today's private demo, the inspected repository does not expose the entry
 points described in the three failing ChromaDB advisories. This is a scoped
 applicability assessment, not a patch to ChromaDB or a production security sign-off.

@@ -42,6 +42,8 @@ async def stream_analysis(audio_bytes: bytes, filename: str) -> AsyncGenerator[s
             await MonitoringStore().log_run(report, harness_result)
         except Exception:
             logger.exception("[SSE] failed to log run")
+            yield f"data: {json.dumps({'event': 'error', 'detail': 'Evaluation completed but the report could not be saved. Check storage before retrying.'})}\n\n"
+            return
         try:
             provider_obj = report.get("provider")
             provider_data = provider_obj if isinstance(provider_obj, dict) else {}

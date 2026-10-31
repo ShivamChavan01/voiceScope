@@ -1,5 +1,12 @@
 # VoiceScope STT demo readiness — October 29, 2026
 
+Execution and run identifiers are redacted in this document. Uppercase ID placeholders refer to values retained only in private verification evidence.
+
+The latest safe-release review is [RELEASE_READINESS.md](RELEASE_READINESS.md).
+It records the current uncommitted changes, fresh test counts, authenticated
+single-company boundary, real-call replay and the separate merge/deploy decision.
+Earlier counts and access recommendations below describe prior snapshots.
+
 **October 31 verification:** 612 backend and 49 frontend tests pass. Configured
 Ruff and mypy, TypeScript, ESLint and the Next.js 16.4.3 production build
 pass. A real completed execution replay, original audio, Deepgram reference,
@@ -116,7 +123,7 @@ The first browser launch failed because the root filesystem holding `/tmp` was f
 
 ## 6. Fresh real-call acceptance evidence
 
-The historical October 26 report is not the evidence for these results. On October 29 an existing authorized completed execution `74c12d45-d85f-4fe2-b5a6-4d48a8d861aa` was retrieved again. No new call was placed and no webhook delivery was tested.
+The historical October 26 report is not the evidence for these results. On October 29 an existing authorized completed execution `AUTHORIZED_TEST_EXECUTION_ID` was retrieved again. No new call was placed and no webhook delivery was tested.
 
 | Acceptance step | Observed result |
 | --- | --- |

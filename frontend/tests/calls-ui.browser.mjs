@@ -30,7 +30,8 @@ wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2,
 wav.write('data', 36); wav.writeUInt32LE(wav.length - 44, 40);
 let referenceUploads = 0, recordingLoads = 0, uploads = 0, failState = false, failAudio = false, failRetrieval = false, missingAudio = true, brokenStream = false;
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, httpCredentials: process.env.OPERATOR_AUTH_USER && process.env.OPERATOR_AUTH_PASSWORD
+    ? { username: process.env.OPERATOR_AUTH_USER, password: process.env.OPERATOR_AUTH_PASSWORD } : undefined });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', async route => {
