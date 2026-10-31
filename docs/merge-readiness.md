@@ -4,6 +4,12 @@ Decision: push the tested hardening changes to the feature branch. Hold the merg
 into `main`. The Python dependency audit fails and hosted end-to-end acceptance
 has not been established. A passing local demo does not establish production safety.
 
+Follow-up: [chroma-advisory-assessment.md](chroma-advisory-assessment.md) documents
+why the three advisory entry points are absent from the inspected embedded-only
+demo configuration. All 618 backend tests pass after adding six boundary tests.
+The audit is not bypassed and
+the hosted configuration remains outside that assessment.
+
 Starting feature commit: `80fef7a40f65ae5ad33aac813c9628ed682fc5b4`.
 Remote `main` at inspection: `f9d459c75e7152e370afed838bc547dde9d0a2d5`.
 No production secrets, provider configuration, infrastructure or deployment were changed.
