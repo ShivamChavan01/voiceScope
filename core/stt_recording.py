@@ -58,6 +58,8 @@ async def retrieve_bolna_recording(call_id: str) -> tuple[bytes, str]:
 
 async def download_recording(url: str, headers: dict[str, str] | None = None) -> tuple[bytes, str]:
     """Stream bounded audio, pin public DNS and strip credentials across hosts."""
+    from core.staging import require_live_services
+    require_live_services()
     credential_host = urlparse(url).hostname
     connector = aiohttp.TCPConnector(resolver=PublicResolver(), use_dns_cache=False)
     async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=60)) as session:

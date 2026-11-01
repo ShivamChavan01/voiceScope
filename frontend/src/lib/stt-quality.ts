@@ -6,7 +6,7 @@ export interface STTSegment {
   end: number | null;
 }
 export interface STTTranscript {
-  source: 'bolna' | 'deepgram' | 'human';
+  source: 'bolna' | 'deepgram' | 'human' | 'synthetic';
   scope: 'caller_only' | 'mixed' | 'unknown';
   segments: STTSegment[];
   audio_sha256: string | null;
@@ -66,7 +66,7 @@ function isSegment(value: unknown): value is STTSegment {
   return record(value) && typeof value.text === 'string' && Boolean(value.text.trim()) && typeof value.speaker === 'string' && ['caller', 'agent', 'unknown'].includes(String(value.role)) && time(value.start) && time(value.end) && timing(value.start, value.end);
 }
 function isTranscript(value: unknown): value is STTTranscript {
-  if (!record(value) || !['bolna', 'deepgram', 'human'].includes(String(value.source)) || !['caller_only', 'mixed', 'unknown'].includes(String(value.scope)) || !Array.isArray(value.segments) || !value.segments.every(isSegment) || !hash(value.audio_sha256) || typeof value.human_verified !== 'boolean' || !(value.verified_by === null || typeof value.verified_by === 'string')) return false;
+  if (!record(value) || !['bolna', 'deepgram', 'human', 'synthetic'].includes(String(value.source)) || !['caller_only', 'mixed', 'unknown'].includes(String(value.scope)) || !Array.isArray(value.segments) || !value.segments.every(isSegment) || !hash(value.audio_sha256) || typeof value.human_verified !== 'boolean' || !(value.verified_by === null || typeof value.verified_by === 'string')) return false;
   if (value.source === 'human') return value.human_verified && value.audio_sha256 !== null && typeof value.verified_by === 'string' && Boolean(value.verified_by.trim());
   return !value.human_verified;
 }
@@ -77,7 +77,7 @@ function isEdits(value: unknown): value is STTEdits {
   return record(value) && ['substitutions','deletions','insertions','reference_words'].every(key => typeof value[key] === 'number' && Number.isInteger(value[key]) && value[key] >= 0);
 }
 export function isSTTReview(value: unknown): value is STTReview {
-  if (!record(value) || value.schema_version !== '1' || !['completed', 'partial', 'blocked', 'failed'].includes(String(value.status)) || !(value.reference_source === null || ['bolna','human','deepgram'].includes(String(value.reference_source))) || typeof value.reference_human_verified !== 'boolean' || !(value.verified_by === null || typeof value.verified_by === 'string') || !(value.metric_kind === null || value.metric_kind === 'wer' || value.metric_kind === 'estimated_disagreement') || !time(value.metric_value) || !(value.edits === null || isEdits(value.edits)) || typeof value.compared_groups !== 'number' || !Number.isInteger(value.compared_groups) || value.compared_groups < 0 || !Array.isArray(value.findings) || !value.findings.every(isFinding) || !strings(value.issues) || !strings(value.limitations)) return false;
+  if (!record(value) || value.schema_version !== '1' || !['completed', 'partial', 'blocked', 'failed'].includes(String(value.status)) || !(value.reference_source === null || ['bolna','human','deepgram','synthetic'].includes(String(value.reference_source))) || typeof value.reference_human_verified !== 'boolean' || !(value.verified_by === null || typeof value.verified_by === 'string') || !(value.metric_kind === null || value.metric_kind === 'wer' || value.metric_kind === 'estimated_disagreement') || !time(value.metric_value) || !(value.edits === null || isEdits(value.edits)) || typeof value.compared_groups !== 'number' || !Number.isInteger(value.compared_groups) || value.compared_groups < 0 || !Array.isArray(value.findings) || !value.findings.every(isFinding) || !strings(value.issues) || !strings(value.limitations)) return false;
   const verified = value.reference_human_verified && value.reference_source === 'human' && typeof value.verified_by === 'string' && Boolean(value.verified_by.trim());
   if (value.reference_human_verified && !verified || value.metric_kind === 'wer' && !verified || value.metric_kind === 'estimated_disagreement' && value.reference_human_verified) return false;
   if (value.findings.some(finding => finding.status === 'confirmed_error' && (!verified || finding.start === null))) return false;
@@ -94,6 +94,7 @@ export function parseSTTState(value: unknown): STTState {
 }
 export function sttMetric(review: STTReview): { label: string; value: string } {
   if (review.metric_value === null || review.metric_kind === null) return {label:'Transcript quality',value:'Not scored'};
+  if (review.reference_source === 'synthetic') return {label:'Synthetic fixture disagreement',value:`${(review.metric_value * 100).toFixed(1)}%`};
   return {label:review.metric_kind === 'wer' ? 'WER · human-verified reference' : 'Estimated transcript disagreement',value:`${(review.metric_value * 100).toFixed(1)}%`};
 }
 export function audioTime(seconds: number | null): string {
@@ -113,7 +114,7 @@ export function savedSTTSetup(state: STTState) {
   for (const segment of segments) {
     if (segment.role !== 'unknown') mapping[segment.speaker] = segment.role;
   }
-  return { scope, scopeConfirmed: scope !== 'unknown', mapping,
+  return { scope, scopeConfirmed: scope !== 'unknown' && state.bolna.source !== 'synthetic', mapping,
     mappingConfirmed: segments.length > 0 && segments.every(segment => segment.role !== 'unknown') };
 }
 

@@ -268,6 +268,16 @@ async def seed_reliability_demo():
     return {"seeded": len(scenarios), "run_ids": [result["run_id"] for result in scenarios]}
 
 
+@router.post('/demo/staging')
+async def seed_free_staging():
+    from core.staging import demo_enabled
+    from core.staging_demo import seed_staging_demo
+
+    if not demo_enabled():
+        raise HTTPException(status_code=404, detail='Synthetic staging is not enabled')
+    return await seed_staging_demo()
+
+
 @router.post("/analyze")
 async def analyze_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()

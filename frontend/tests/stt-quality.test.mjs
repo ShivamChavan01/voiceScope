@@ -12,6 +12,14 @@ const finding={start:0,end:3,role:'caller',bolna_text:segment.text,reference_tex
 const review={schema_version:'1',status:'completed',reference_source:'deepgram',reference_human_verified:false,verified_by:null,metric_kind:'estimated_disagreement',metric_value:1/6,edits:{substitutions:0,deletions:1,insertions:0,reference_words:6},compared_groups:1,findings:[finding],issues:[],limitations:['Model agreement does not prove accuracy.']};
 const state={review,reference:null,bolna:transcript,audio:{available:true,sha256:'a'.repeat(64),channels:1,duration_seconds:10,scope:'unknown',scope_basis:'Not established'},provider:{name:'deepgram',configured:true,requires_consent:true}};
 
+test('synthetic transcript provenance is accepted without inventing human verification',()=>{
+  const synthetic={...transcript,source:'synthetic'};
+  const fixture={...state,bolna:synthetic,reference:synthetic,review:{...review,reference_source:'synthetic'}};
+  assert.equal(parseSTTState(fixture).reference.source,'synthetic');
+  assert.deepEqual(sttMetric(fixture.review),{label:'Synthetic fixture disagreement',value:'16.7%'});
+  assert.throws(()=>parseSTTState({...fixture,reference:{...synthetic,human_verified:true,verified_by:'Fake'}}),/invalid or unsupported/);
+});
+
 test('STT state validates untrusted API data and rejects misleading metrics',()=>{
   assert.deepEqual(parseSTTState(state),state);
   for(const value of [null,{}, {...state,review:{...review,metric_kind:'wer'}},{...state,review:{...review,metric_kind:'wer',reference_human_verified:true}},{...state,review:{...review,findings:[{...finding,status:'confirmed_error'}]}},{...state,review:{...review,metric_value:-1}},{...state,review:{...review,status:'partial'}},{...state,bolna:{...transcript,segments:[{...segment,end:null}]}},{...state,audio:{...state.audio,channels:0}},{...state,reference:{...transcript,source:'human',human_verified:false}}]) assert.throws(()=>parseSTTState(value),/invalid or unsupported/);
@@ -147,6 +155,9 @@ test('saved setup reuses confirmed coverage and roles without guessing unknown s
   const known={...state,audio:{...state.audio,scope:'mixed'},reference:{...transcript,source:'deepgram',scope:'mixed',segments:[{...segment,speaker:'dg_9'}, {...segment,speaker:'dg_2',role:'agent'}]}};
   assert.deepEqual(savedSTTSetup(known),{scope:'mixed',scopeConfirmed:true,mapping:{dg_9:'caller',dg_2:'agent'},mappingConfirmed:true});
   assert.equal(savedSTTSetup({...known,reference:{...known.reference,segments:[{...segment,role:'unknown'}]}}).mappingConfirmed,false);
+  const synthetic={...known,bolna:{...known.bolna,source:'synthetic'},reference:{...known.reference,source:'synthetic'}};
+  assert.equal(savedSTTSetup(synthetic).scopeConfirmed,false);
+  assert.equal(savedSTTSetup(synthetic).mappingConfirmed,false);
 });
 
 test('display diff highlights changed words while preserving both sources and bounded work',async()=>{

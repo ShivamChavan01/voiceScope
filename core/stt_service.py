@@ -47,6 +47,7 @@ def original_transcript(run: dict) -> Transcript:
 
 def state_for_run(run: dict, stored: dict | None) -> dict:
     import os
+    from core.staging import demo_enabled
     stored = stored or {}
     original = original_transcript(run)
     review = stored.get('review')
@@ -76,7 +77,7 @@ def state_for_run(run: dict, stored: dict | None) -> dict:
         'reference': stored.get('reference'),
         'bolna': original.model_dump(mode='json'),
         'audio': stored.get('audio_info') or AudioInfo().model_dump(),
-        'provider': {'name': 'deepgram', 'configured': bool(os.getenv('DEEPGRAM_API_KEY')), 'requires_consent': False},
+        'provider': {'name': 'deepgram', 'configured': bool(os.getenv('DEEPGRAM_API_KEY')) and not demo_enabled(), 'requires_consent': False},
     }
 
 

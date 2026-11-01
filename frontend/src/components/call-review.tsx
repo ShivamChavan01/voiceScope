@@ -53,6 +53,19 @@ export function CallSummary({ run }: { run: Run }) {
 
 export function FindingsPanel({ run, onEvidence }: { run: Run; onEvidence: (turn: number) => void }) {
   const report = readReliability(run.evaluation?.reliability);
+  const example = run.evaluation?.synthetic_contradiction;
+  const source = example && Number.isInteger(example.source_turn) ? run.transcript_speakers?.[example.source_turn] : undefined;
+  const claim = example && Number.isInteger(example.claim_turn) ? run.transcript_speakers?.[example.claim_turn] : undefined;
+  if (run.run_id?.startsWith('demo-') && run.provider === 'synthetic' && run.evaluation?.data_source === 'synthetic_demo'
+      && example && source?.role === 'customer' && claim?.role === 'agent'
+      && typeof source.text === 'string' && typeof claim.text === 'string') {
+    return <article className="finding-card finding-card-needs_review">
+      <div className="finding-meta"><span className="review-badge review-badge-review">Synthetic hallucination example</span><span className="finding-certainty">Hand-labeled fixture</span></div>
+      <h3>Contradictory receipt total</h3><p>The agent claim conflicts with the supplied receipt statement in this authored example. No live model detector ran, and this is not a verified claim about a real call.</p>
+      <div className="finding-evidence"><span className="review-eyebrow">Supplied fixture evidence</span><blockquote>{source.text}</blockquote><button className="evidence-jump" onClick={()=>onEvidence(example.source_turn)}>Turn {example.source_turn+1} · Customer <ArrowUpRight size={13}/></button></div>
+      <div className="finding-evidence"><span className="review-eyebrow">Conflicting agent claim</span><blockquote>{claim.text}</blockquote><button className="evidence-jump" onClick={()=>onEvidence(example.claim_turn)}>Turn {example.claim_turn+1} · Agent <ArrowUpRight size={13}/></button></div>
+    </article>;
+  }
   return (
     <div className="review-stack">
       {!report ? (

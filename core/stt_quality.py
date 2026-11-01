@@ -39,7 +39,7 @@ class Segment(BaseModel):
 
 class Transcript(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    source: Literal['bolna', 'deepgram', 'human']
+    source: Literal['bolna', 'deepgram', 'human', 'synthetic']
     scope: Scope = 'unknown'
     segments: list[Segment] = Field(default_factory=list, max_length=2000)
     audio_sha256: str | None = Field(default=None, pattern=r'^[0-9a-f]{64}$')
@@ -191,6 +191,8 @@ def _finding(bolna: str, reference: str, role: Role, start, end, counts, verifie
 
 def compare_transcripts(bolna: Transcript, reference: Transcript, audio: AudioInfo) -> STTReview:
     result = STTReview(audio=audio, reference_source=reference.source, reference_human_verified=reference.human_verified, verified_by=reference.verified_by)
+    if bolna.source == 'synthetic' or reference.source == 'synthetic':
+        result.limitations.append('Synthetic authored transcript fixtures with offline generated speech. No Bolna or Deepgram transcription was performed; this rate demonstrates text comparison, not measured STT accuracy.')
     if not audio.available or not audio.sha256:
         result.issues.append('Original recording is unavailable. No STT quality score was calculated.')
         return result

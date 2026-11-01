@@ -1,0 +1,46 @@
+# Demo only: Free Render instances have ephemeral local storage.
+# This creates a separate service; it does not update the production service.
+services:
+  - type: web
+    name: voicescope-staging-demo
+    runtime: docker
+    plan: free
+    region: oregon
+    repo: https://github.com/ShivamChavan01/voiceScope
+    branch: feat/voicescope-reliability-stt-demo
+    autoDeployTrigger: "off"
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    numInstances: 1
+    envVars:
+      - key: STAGING_DEMO_ONLY
+        value: "true"
+      - key: VALID_API_KEYS
+        sync: false
+      - key: BOLNA_WEBHOOK_SECRET
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: PYTHON_DOTENV_DISABLED
+        value: "1"
+      - key: DATA_DIR
+        value: /app/data
+      - key: MONITORING_DB_PATH
+        value: /app/data/monitoring.db
+      - key: POLICY_DB_PATH
+        value: /app/data/policies.db
+      - key: KNOWLEDGE_DB_PATH
+        value: /app/data/knowledge.db
+      - key: COST_DB_PATH
+        value: /app/data/costs.db
+      - key: CHROMA_PERSIST_DIR
+        value: /app/data/chroma_db
+      - key: STT_REVIEW_DIR
+        value: /app/data/stt_reviews
+      - key: STT_PROVIDER
+        value: deepgram
+      - key: LLM_PROVIDER
+        value: groq
+      - key: RATE_LIMIT_RPM
+        value: "60"

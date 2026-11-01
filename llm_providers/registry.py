@@ -18,6 +18,8 @@ class ProviderRegistry:
 
     @classmethod
     def get(cls, name: Optional[str] = None) -> LLMProvider:
+        from core.staging import require_live_services
+        require_live_services()
         name = name or os.getenv("LLM_PROVIDER", "openai")
 
         if name in cls._instances:
@@ -62,6 +64,8 @@ class ProviderRegistry:
         (rate limit, quota, outage, open circuit), the request falls through to
         each provider listed in LLM_BACKUP_PROVIDERS.
         """
+        from core.staging import require_live_services
+        require_live_services()
         name = name or os.getenv("LLM_PROVIDER", "openai")
         assert name is not None
 

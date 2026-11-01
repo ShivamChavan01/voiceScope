@@ -14,6 +14,8 @@ from api.routes import router
 from core import __version__
 from middleware.auth import APIKeyAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
+from middleware.staging_demo import StagingDemoMiddleware
+from core.staging import demo_enabled
 from storage.db import close_pool, init_schema
 from utils.logger import logger, set_correlation_id
 from utils.tracing import RequestContext, set_request_context
@@ -23,7 +25,11 @@ IS_PRODUCTION = os.getenv("APP_ENV") == "production"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if os.environ.get("DATABASE_URL"):
+    if demo_enabled():
+        from core.staging_demo import seed_staging_demo
+        await seed_staging_demo()
+        logger.info('[Startup] Synthetic demo restored; live services disabled; local storage is ephemeral')
+    elif os.environ.get("DATABASE_URL"):
         try:
             await init_schema()
             logger.info("[Startup] PostgreSQL connected")
@@ -59,6 +65,7 @@ if ALLOWED_ORIGINS:
         allow_headers=["X-API-Key", "Content-Type", "X-Correlation-ID"],
     )
 
+app.add_middleware(StagingDemoMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(APIKeyAuthMiddleware)
 

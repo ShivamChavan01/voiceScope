@@ -7,11 +7,13 @@ type Props = {
 };
 
 export function STTTranscripts({ bolna, reference, onSeek }: Props) {
+  const sourceTitle = bolna.source === 'synthetic' ? 'Synthetic source transcript' : 'Bolna transcript';
+  const referenceTitle = reference?.source === 'synthetic' ? 'Synthetic comparison fixture' : reference?.human_verified ? 'Human-verified reference' : 'Deepgram reference';
   return <section className="review-stack">
     <div className="review-section-heading"><h3>Compare transcripts</h3><span>Read each source independently</span></div>
     <p className="review-description">Messages are grouped by source. Rows are not time-aligned; timestamps appear only where supplied.</p>
     <div className="stt-transcript-columns">
-      {[{ title: 'Bolna transcript', transcript: bolna }, { title: reference?.human_verified ? 'Human-verified reference' : 'Deepgram reference', transcript: reference }].map(({ title, transcript }) => <section className="stt-transcript-panel" key={title} aria-label={title}>
+      {[{ title: sourceTitle, transcript: bolna }, { title: referenceTitle, transcript: reference }].map(({ title, transcript }) => <section className="stt-transcript-panel" key={title} aria-label={title}>
         <h4>{title}</h4>
         {!transcript?.segments.length ? <p className="review-description">{title === 'Bolna transcript' ? 'Original transcript unavailable.' : 'No reference transcript is available yet.'}</p> : <ol className="conversation stt-transcript-messages" aria-label={`${title} messages`}>
           {transcript.segments.map((segment, index) => <li className={`conversation-message conversation-message-${segment.role}`} key={index}>

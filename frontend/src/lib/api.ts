@@ -54,6 +54,7 @@ export interface Run {
     source_call?: { call_id?: string; agent_id?: string; platform?: string };
     report?: { executive_summary?: string };
     raw_transcript?: string;
+    synthetic_contradiction?: { source_turn: number; claim_turn: number };
     evaluation_status?: "failed" | "needs_review" | "validated" | "deterministic_checks_completed";
     errors?: string[];
     harness?: { validation_passed: boolean; validation_errors: string[] };

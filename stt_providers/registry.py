@@ -16,6 +16,8 @@ class STTRegistry:
 
     @classmethod
     def get(cls, name: Optional[str] = None) -> STTProvider:
+        from core.staging import require_live_services
+        require_live_services()
         name = name or cls._detect_provider()
 
         if name in cls._instances:

@@ -88,6 +88,19 @@ test('empty findings use one short state and keep assessment limits visible with
   assert.match(render(ReviewBadge, base), /Insufficient evidence/);
 });
 
+test('authored hallucination fixture shows its provenance and exact turn evidence', () => {
+  const fixture={...base,run_id:'demo-staging-hallucination',provider:'synthetic',transcript_speakers:[
+    {speaker:0,role:'customer',text:'My receipt total is $100.'},
+    {speaker:1,role:'agent',text:'Your total is $900.'},
+  ],evaluation:{data_source:'synthetic_demo',synthetic_contradiction:{source_turn:0,claim_turn:1}}};
+  const html=render(FindingsPanel,fixture);
+  for(const text of ['Hand-labeled fixture','No live model detector ran','$100','$900','Turn 1','Turn 2']) assert.ok(html.includes(text),text);
+  assert.doesNotMatch(html,/Confirmed rule match|AI-generated/);
+  for(const changed of [{provider:'groq'},{run_id:'real-call'},{evaluation:{...fixture.evaluation,synthetic_contradiction:{source_turn:99,claim_turn:1}}}]) {
+    assert.doesNotMatch(render(FindingsPanel,{...fixture,...changed}),/Hand-labeled fixture/);
+  }
+});
+
 const fakeApi = `data:text/javascript,${encodeURIComponent('export async function getSTTReview(){throw new Error("SSR must not fetch")}; export async function retrieveSTTRecording(){throw new Error("SSR must not fetch")}')}`;
 const { CallRecording } = await component('call-recording.tsx', { react: import.meta.resolve('react'), '../lib/api': fakeApi });
 test('recording panel never invents retained audio or fetches during server rendering', () => {

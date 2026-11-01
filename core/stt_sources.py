@@ -41,7 +41,7 @@ def deepgram_reference(result: TranscriptionResult, audio_sha256: str) -> Transc
 
 
 def validate_bolna_annotations(original: Transcript, annotated: Transcript) -> Transcript:
-    if annotated.source != 'bolna':
+    if original.source not in ('bolna', 'synthetic') or annotated.source != original.source:
         raise ValueError('Annotations must describe the Bolna transcript')
     def by_role(document):
         return {role: words(' '.join(segment.text for segment in document.segments if segment.role == role)) for role in ('caller', 'agent', 'unknown')}
