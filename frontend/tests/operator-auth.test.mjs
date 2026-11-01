@@ -64,3 +64,33 @@ test('NextRequest preserves the exact browser loopback origin through normalizat
     assert.equal(operatorAccess(request, credentials).status, 403, host);
   }
 });
+
+test('public synthetic demo is opt-in, Preview-only, and retains origin and HTTPS checks', () => {
+  const names = ['PUBLIC_SYNTHETIC_DEMO', 'STAGING_DEMO_ONLY', 'VERCEL_ENV'];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  try {
+    process.env.PUBLIC_SYNTHETIC_DEMO = 'true';
+    process.env.STAGING_DEMO_ONLY = 'true';
+    process.env.VERCEL_ENV = 'preview';
+    assert.equal(operatorAccess(new Request('https://demo.example/runs'), {}), null);
+    assert.equal(operatorAccess(new Request('https://demo.example/api/v1/runs/demo-staging-stt/stt-review/audio'), {}), null);
+    assert.equal(operatorAccess(new Request('https://demo.example/runs', { headers: { origin: 'https://attacker.example' } }), {}).status, 403);
+    assert.equal(operatorAccess(new Request('http://demo.example/runs'), {}).status, 403);
+    for (const environment of ['production', 'development', '']) {
+      process.env.VERCEL_ENV = environment;
+      assert.equal(operatorAccess(new Request('https://demo.example/runs'), {}).status, 503);
+      assert.equal(operatorAccess(new Request('https://demo.example/runs'), credentials).status, 401);
+    }
+    process.env.VERCEL_ENV = 'preview';
+    for (const flag of ['PUBLIC_SYNTHETIC_DEMO', 'STAGING_DEMO_ONLY']) {
+      process.env[flag] = 'false';
+      assert.equal(operatorAccess(new Request('https://demo.example/runs'), {}).status, 503);
+      process.env[flag] = 'true';
+    }
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
+});

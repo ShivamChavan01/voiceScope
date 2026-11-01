@@ -3,7 +3,8 @@ import { operatorAccess } from "@/lib/operator-auth";
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_KEY = process.env.API_KEY || "";
-// Enable only behind operator authentication; the shared public proxy is not an identity boundary.
+// Real recordings require operator authentication. The explicitly public synthetic
+// Preview uses its separate demo-only backend, never production recordings.
 const STT_REVIEW_ENABLED = process.env.STT_REVIEW_PROXY_ENABLED === "true";
 
 const ALLOWED_PREFIXES = [

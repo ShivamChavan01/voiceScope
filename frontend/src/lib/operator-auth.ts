@@ -11,9 +11,6 @@ export function operatorAccess(
 ): Response | null {
   const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow", "X-Frame-Options": "DENY" };
   const { username, password } = credentials;
-  if (!username || username.includes(":") || !password || password.length < 24) {
-    return Response.json({ detail: "Private operator access is not configured." }, { status: 503, headers });
-  }
   const url = new URL(request.url);
   // NextURL canonicalizes loopback IPs to localhost. Recover the wire host only
   // for explicit loopback authorities on the same port; aliases remain distinct.
@@ -35,6 +32,16 @@ export function operatorAccess(
     && request.headers.get("sec-fetch-dest") === "document";
   if ((request.headers.get("sec-fetch-site") === "cross-site" && !documentNavigation) || (origin && origin !== url.origin)) {
     return Response.json({ detail: "Cross-origin access is forbidden." }, { status: 403, headers });
+  }
+  // Public access is limited to an explicitly synthetic Vercel Preview.
+  // Production never takes this path, even if these flags are copied there.
+  if (process.env.PUBLIC_SYNTHETIC_DEMO === "true"
+      && process.env.STAGING_DEMO_ONLY === "true"
+      && process.env.VERCEL_ENV === "preview") {
+    return null;
+  }
+  if (!username || username.includes(":") || !password || password.length < 24) {
+    return Response.json({ detail: "Private operator access is not configured." }, { status: 503, headers });
   }
   const authorization = request.headers.get("authorization") || "";
   const match = /^Basic ([A-Za-z0-9+/]+={0,2})$/i.exec(authorization);
