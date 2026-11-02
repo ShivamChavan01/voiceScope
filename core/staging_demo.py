@@ -10,7 +10,7 @@ from pathlib import Path
 from core.reliability import PolicyRule
 from core.reliability_demo import demo_scenarios
 from core.speakers import parse_speaker_turns
-from core.staging import demo_enabled, validate_demo_environment
+from core.staging import demo_enabled, public_demo_enabled, validate_demo_environment
 from core.stt_quality import Segment, Transcript, compare_transcripts
 from core.stt_recording import inspect_recording
 from storage.monitoring import MonitoringStore
@@ -83,6 +83,18 @@ async def seed_staging_demo() -> dict:
     keys = validate_demo_environment()
     store = MonitoringStore()
     reviews = STTReviewStore()
+    if public_demo_enabled():
+        offset = 0
+        while True:
+            page = await store.get_runs(limit=200, offset=offset)
+            for item in page['runs']:
+                saved = await store.get_run(item['run_id'])
+                if (not saved or not item['run_id'].startswith('demo-')
+                        or (saved.get('evaluation') or {}).get('data_source') != 'synthetic_demo'):
+                    raise ValueError('Public demo storage contains non-synthetic records; no records were deleted')
+            if len(page['runs']) < 200:
+                break
+            offset += 200
     samples = staging_scenarios()
     for sample in samples:
         artifact = None

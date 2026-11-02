@@ -8,6 +8,10 @@ def demo_enabled() -> bool:
     return os.getenv('STAGING_DEMO_ONLY') == 'true'
 
 
+def public_demo_enabled() -> bool:
+    return demo_enabled() and os.getenv('PUBLIC_SYNTHETIC_DEMO') == 'true'
+
+
 def require_live_services() -> None:
     if demo_enabled():
         raise RuntimeError('Synthetic demo mode disables live providers and recording downloads')

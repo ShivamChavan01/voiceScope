@@ -106,17 +106,19 @@ _QUOTED = re.compile(r'(?:^|\s)["“”]|(?:^|\s)\'[^\']+\'')
 _COMPLETED = re.compile(
     r"\b(?:(?:i|we)(?:['’]ve|\s+have)?\s+(?:(?:already|just|successfully)\s+){0,2}"
     r"(?:processed|completed|issued|sent)\s+(?:(?:your|the|a)\s+)?refund\b|"
+    r"(?:the|your)\s+money\s+has\s+been\s+returned\s+to\s+your\s+card\b|"
     r"your\s+refund\s+(?:has\s+been|is|was)\s+(?:processed|completed|issued|sent)\b)",
     re.IGNORECASE,
 )
 _REQUEST = re.compile(
-    r"\b(?:(?:i\s+(?:want|need|would like)|(?:can|could|may)\s+i)\b.{0,55}\b(?:speak|talk)\b|"
-    r"(?:please\s+)?(?:transfer|connect)\s+me\b).{0,50}\b(?:human|supervisor|manager|person|representative)\b",
+    r"\b(?:(?:i\s+(?:want|need|would like)|(?:can|could|may)\s+i|please\s+let\s+me)\b.{0,55}\b(?:speak|talk)\b|"
+    r"(?:please\s+)?(?:transfer|connect)\s+me\b).{0,50}\b(?:human|supervisor|manager|team\s+lead|person|representative)\b",
     re.IGNORECASE,
 )
 _REFUSAL = re.compile(
-    r"\b(?:(?:i|we)\s+(?:cannot|can't|won't|will not)\s+(?:transfer|connect|escalate)\b|"
-    r"you\s+(?:cannot|can't|will not|won't)\s+(?:speak|talk)\b.{0,30}\b(?:human|supervisor|manager|person)\b)",
+    r"\b(?:(?:i|we)\s+(?:will not|won't)\s+let\s+you\s+(?:speak|talk)\b.{0,30}\b(?:human|supervisor|manager|team\s+lead|person)\b|"
+    r"(?:i|we)\s+(?:cannot|can't|won't|will not)\s+(?:transfer|connect|escalate)\b|"
+    r"you\s+(?:cannot|can't|will not|won't)\s+(?:speak|talk)\b.{0,30}\b(?:human|supervisor|manager|team\s+lead|person)\b)",
     re.IGNORECASE,
 )
 _TRANSFER_OFFER = re.compile(
@@ -142,7 +144,7 @@ def _same_day_guarantee(sentence: str) -> bool:
     passive = re.search(r'\byour refund (?:is )?guaranteed (?:to arrive )?today\b', normalized)
     if passive:
         return _direct_statement(sentence[:passive.end()])
-    match = re.search(r'\b(?:i|we) (?:can )?(?:guarantee|promise) (?:that )?', normalized)
+    match = re.search(r'\b(?:i|we) (?:can )?(?:(?:guarantee|promise) |assure you )(?:that )?', normalized)
     if not match:
         return False
     outcome = normalized[match.end():]
@@ -170,7 +172,7 @@ def _refund_completion(sentence: str) -> bool:
 
 def _targeted_transfer_offer(sentence: str) -> bool:
     return any(re.match(
-        r'\s+(?:directly )?(?:to|with) (?:a |the |our )?(?:human|human agent|supervisor|manager|person|representative)\b',
+        r'\s+(?:directly )?(?:to|with) (?:a |the |our )?(?:human|human agent|supervisor|manager|team\s+lead|person|representative)\b',
         sentence[match.end():], re.IGNORECASE,
     ) for match in _TRANSFER_OFFER.finditer(sentence))
 
@@ -186,7 +188,7 @@ def _refuses_requested_transfer(sentence: str) -> bool:
             return True
         if re.match(
             r'\s+(?:you\s+)?(?:directly\s+)?(?:to|with)\s+(?:a\s+|the\s+|our\s+)?'
-            r'(?:human|supervisor|manager|person|representative)\b', refusal, re.IGNORECASE,
+            r'(?:human|supervisor|manager|team\s+lead|person|representative)\b', refusal, re.IGNORECASE,
         ):
             return True
     return False

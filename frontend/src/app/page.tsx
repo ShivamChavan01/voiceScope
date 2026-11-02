@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useReadOnlyDemo } from '@/components/demo-access';
 import Link from 'next/link';
 import { ArrowRight, AudioLines, FileSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { ReviewBadge } from '@/components/call-review';
@@ -10,6 +11,7 @@ import { formatDuration, relativeTime } from '@/lib/reliability';
 type Overview = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; summary: RunSummary; runs: Run[]; costs: CostSummary | null };
 
 export default function OverviewPage() {
+  const readOnly=useReadOnlyDemo();
   const [state, setState] = useState<Overview>({ kind: 'loading' });
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function OverviewPage() {
   const ready = state.kind === 'ready' ? state : null;
   return <>
     <div className="review-page-header"><div><div className="review-eyebrow">VoiceScope / Overview</div><h1 className="page-title">Know what happened on the call.</h1><p className="page-subtitle">Trace policy findings to the conversation. Keep missing evidence visible.</p></div><Link className="btn btn-primary" href="/runs">Review calls <ArrowRight size={15} /></Link></div>
-    <section className="review-intro"><div className="review-intro-copy"><span className="review-eyebrow">Evidence before a verdict</span><h2>A clear path from claim to policy.</h2><p>Inspect the exact words, the rule that applied, and what remains unverified. Speech diagnostics help investigate the conversation without guessing the cause.</p><div className="review-intro-actions"><button className="btn btn-ghost" disabled={demoLoading} onClick={demo}>{demoLoading ? 'Loading scenarios…' : 'Explore 3 synthetic scenarios'}</button><Link href="/settings" className="review-text-link">Configure policies <ArrowRight size={14} /></Link></div>{demoError && <p className="review-inline-error" role="alert">{demoError}</p>}</div><div className="review-intro-flow"><div><span className="review-flow-icon"><AudioLines size={18} /></span><strong>Conversation</strong><p>Attributed turns</p></div><span className="review-flow-arrow">→</span><div><span className="review-flow-icon"><SlidersHorizontal size={18} /></span><strong>Your policy</strong><p>Explicit supported rule</p></div><span className="review-flow-arrow">→</span><div><span className="review-flow-icon"><FileSearch size={18} /></span><strong>Finding</strong><p>Quote and explanation</p></div></div></section>
+    <section className="review-intro"><div className="review-intro-copy"><span className="review-eyebrow">Evidence before a verdict</span><h2>A clear path from claim to policy.</h2><p>Inspect the exact words, the rule that applied, and what remains unverified. Speech diagnostics help investigate the conversation without guessing the cause.</p><div className="review-intro-actions">{!readOnly && <button className="btn btn-ghost" disabled={demoLoading} onClick={demo}>{demoLoading ? 'Loading scenarios…' : 'Explore 3 synthetic scenarios'}</button>}<Link href="/settings" className="review-text-link">{readOnly ? "View demo policies" : "Configure policies"} <ArrowRight size={14} /></Link></div>{demoError && <p className="review-inline-error" role="alert">{demoError}</p>}</div><div className="review-intro-flow"><div><span className="review-flow-icon"><AudioLines size={18} /></span><strong>Conversation</strong><p>Attributed turns</p></div><span className="review-flow-arrow">→</span><div><span className="review-flow-icon"><SlidersHorizontal size={18} /></span><strong>Your policy</strong><p>Explicit supported rule</p></div><span className="review-flow-arrow">→</span><div><span className="review-flow-icon"><FileSearch size={18} /></span><strong>Finding</strong><p>Quote and explanation</p></div></div></section>
     {state.kind === 'error' ? <section className="review-error" role="alert"><strong>Overview unavailable</strong><p>{state.message}</p><button className="btn btn-ghost" onClick={() => void load()}>Retry loading</button></section> : <>
       <div className="review-stat-grid" aria-busy={state.kind === 'loading'}>
         <Stat label="Stored calls" value={ready?.summary.total_calls} detail={ready ? `${ready.summary.real_calls} real inputs · ${ready.summary.demo_calls} synthetic` : 'Loading persisted totals'} />

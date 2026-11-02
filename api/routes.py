@@ -7,7 +7,7 @@ from typing import Literal, Optional
 from urllib.parse import urlparse
 
 import aiohttp
-from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
 
@@ -256,6 +256,10 @@ async def remove_policy_rule(rule_id: str):
 
 @router.post("/demo/reliability")
 async def seed_reliability_demo():
+    from core.staging import demo_enabled
+    if demo_enabled():
+        from core.staging_demo import seed_staging_demo
+        return await seed_staging_demo()
     from core.reliability_demo import demo_scenarios
     from core.speech_diagnostics import SpeechDiagnostics
 
@@ -423,8 +427,8 @@ async def get_costs():
 
 @router.get("/runs")
 async def get_runs(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0, le=2_147_483_647),
     search: Optional[str] = None,
     status: Optional[str] = None,
 ):
@@ -439,7 +443,7 @@ async def get_run_summary():
 
 
 @router.get("/runs/history")
-async def get_run_history(limit: int = 12):
+async def get_run_history(limit: int = Query(12, ge=1, le=200)):
     scores = await get_monitoring_store().get_truth_history(limit=limit)
     return {"scores": scores, "count": len(scores)}
 
@@ -693,7 +697,7 @@ async def delete_alert_rule(rule_id: int):
 
 
 @router.get("/monitoring/incidents")
-async def get_incidents(limit: int = 50):
+async def get_incidents(limit: int = Query(50, ge=1, le=200)):
     return await get_monitoring_store().list_incidents(limit)
 
 
@@ -752,7 +756,7 @@ async def score_call(cohort_id: int, req: QAScoreRequest):
 
 
 @router.get("/qa/cohorts/{cohort_id}/results")
-async def get_qa_results(cohort_id: int, limit: int = 100):
+async def get_qa_results(cohort_id: int, limit: int = Query(100, ge=1, le=200)):
     return await get_qa_store().get_cohort_results(cohort_id, limit)
 
 
@@ -802,7 +806,7 @@ async def run_extractions(schema_id: int, req: ExtractionRunRequest):
 
 
 @router.get("/extractions/schemas/{schema_id}/results")
-async def get_extraction_results(schema_id: int, limit: int = 100):
+async def get_extraction_results(schema_id: int, limit: int = Query(100, ge=1, le=200)):
     return await get_extraction_store().get_results(schema_id, limit)
 
 

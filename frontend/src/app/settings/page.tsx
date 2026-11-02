@@ -1,5 +1,7 @@
 "use client";
 
+import { useReadOnlyDemo } from "@/components/demo-access";
+
 import { useState, useEffect, useMemo } from "react";
 import { PolicyRulesPanel } from "@/components/policy-rules";
 import {
@@ -576,17 +578,18 @@ function IntegrationsTab() {
 }
 
 export default function SettingsPage() {
+  const readOnly=useReadOnlyDemo();
   const [tab, setTab] = useState("policies");
 
   return (
     <>
       <div className="page-header">
         <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">Configure providers, guardrails, alerts, and integrations</p>
+        <p className="page-subtitle">{readOnly ? "View fictional demo policies. Configuration is disabled." : "Configure providers, guardrails, alerts, and integrations"}</p>
       </div>
 
       <div className="settings-tabs">
-        {(["policies", "integrations", "providers", "guardrails", "alerts", "schemas", "cohorts", "knowledge"] as const).map((t) => (
+        {(readOnly ? ["policies"] : ["policies", "integrations", "providers", "guardrails", "alerts", "schemas", "cohorts", "knowledge"]).map((t) => (
           <button key={t} className={`settings-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
             {t === "knowledge" ? "Reference knowledge" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>

@@ -25,9 +25,9 @@ def test_production_predictions_are_reproducible_and_challenges_are_not_hidden()
     assert result.supported_cases == 24
     assert result.supported_passed == 24
     assert result.challenge_cases == 4
-    assert result.challenge_passed < 4
-    assert result.passed_cases < result.total_cases
-    assert result.metrics.false_negatives > 0
+    assert result.challenge_passed == 4
+    assert result.passed_cases == result.total_cases == 28
+    assert result.metrics.false_negatives == 0
     assert len(result.dataset_sha256) == 64
     assert not any(case.evidence_errors for case in result.results)
 
@@ -123,7 +123,7 @@ def test_api_returns_actual_predictions_and_mismatches(monkeypatch):
     response = TestClient(app).get('/api/v1/loop/benchmark/reliability', headers={'X-API-Key': 'benchmark-test'})
     assert response.status_code == 200
     assert response.json() == run_reliability_benchmark().model_dump(mode='json')
-    assert response.json()['passed_cases'] < response.json()['total_cases']
+    assert response.json()['passed_cases'] == response.json()['total_cases'] == 28
     monkeypatch.setattr('core.reliability_benchmark.run_reliability_benchmark', lambda: (_ for _ in ()).throw(FileNotFoundError()))
     failed = TestClient(app).get('/api/v1/loop/benchmark/reliability', headers={'X-API-Key': 'benchmark-test'})
     assert failed.status_code == 503
@@ -145,10 +145,15 @@ def test_cli_reports_challenge_failures_and_writes_artifact(tmp_path):
     script = FIXTURE.parents[2] / 'scripts/run_reliability_benchmark.py'
     artifact = tmp_path / 'result.json'
     process = subprocess.run([sys.executable, str(script), '--json', str(artifact)], capture_output=True, text=True)
-    assert process.returncode == 1
-    assert 'MISMATCH: challenge-' in process.stdout
-    assert 'FAIL' in process.stdout
-    assert json.loads(artifact.read_text())['metrics']['false_negatives'] > 0
+    assert process.returncode == 0
+    assert '28/28 exact case matches' in process.stdout
+    assert 'PASS' in process.stdout
+    assert json.loads(artifact.read_text())['metrics']['false_negatives'] == 0
+    wrong_labels = write_fixture(tmp_path, lambda data: data['cases'][-1].update(expected=[]))
+    rejected = subprocess.run([sys.executable, str(script), '--dataset', str(wrong_labels)], capture_output=True, text=True)
+    assert rejected.returncode == 1
+    assert 'MISMATCH: challenge-polite' in rejected.stdout
+    assert 'FAIL' in rejected.stdout
     passing = write_fixture(tmp_path, lambda data: data.update(cases=data['cases'][:1]))
     process = subprocess.run([sys.executable, str(script), '--dataset', str(passing)], capture_output=True, text=True)
     assert process.returncode == 0

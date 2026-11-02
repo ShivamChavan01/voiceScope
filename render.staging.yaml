@@ -16,6 +16,8 @@ services:
     envVars:
       - key: STAGING_DEMO_ONLY
         value: "true"
+      - key: PUBLIC_SYNTHETIC_DEMO
+        value: "true"
       - key: VALID_API_KEYS
         sync: false
       - key: BOLNA_WEBHOOK_SECRET

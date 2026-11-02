@@ -1,7 +1,7 @@
 import { parseSTTState, type STTReview } from "./stt-quality";
 import { requestErrorMessage, type PolicyRule, type ReliabilityReport, type ReliabilitySummary, type SpeechDiagnostics } from "./reliability";
 
-// Use local proxy to avoid CORS — /api/[...path] forwards to Railway backend
+// Same-origin proxy keeps the backend API key server-side.
 
 const API_BASE = "";
 
@@ -146,18 +146,25 @@ export async function getRuns(params?: {
   const searchParams = new URLSearchParams();
   if (params?.search) searchParams.set("search", params.search);
   if (params?.status) searchParams.set("status", params.status);
-  if (params?.limit) searchParams.set("limit", String(params.limit));
-  if (params?.offset) searchParams.set("offset", String(params.offset));
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset != null) searchParams.set("offset", String(params.offset));
   const qs = searchParams.toString();
-  return fetchJson<RunsResponse>(`/api/v1/runs${qs ? `?${qs}` : ""}`);
+  const result = await fetchJson<RunsResponse>(`/api/v1/runs${qs ? `?${qs}` : ""}`, { signal: AbortSignal.timeout(30_000) });
+  if (!result || !Array.isArray(result.runs) || !Number.isSafeInteger(result.total) || result.total < 0
+      || !result.runs.every(run => run && typeof run.run_id === "string" && run.run_id.length > 0)) {
+    throw new Error("Calls API returned an invalid response. Retry loading calls.");
+  }
+  return result;
 }
 
 export async function getRun(runId: string): Promise<Run> {
-  return fetchJson<Run>(`/api/v1/runs/${runId}`);
+  const result = await fetchJson<Run>(`/api/v1/runs/${encodeURIComponent(runId)}`, { signal: AbortSignal.timeout(30_000) });
+  if (!result || result.run_id !== runId) throw new Error("Call API returned an invalid response. Retry loading the call.");
+  return result;
 }
 
 export async function deleteRun(runId: string): Promise<{ status: string }> {
-  return fetchJson(`/api/v1/runs/${runId}`, { method: "DELETE" });
+  return fetchJson(`/api/v1/runs/${encodeURIComponent(runId)}`, { method: "DELETE" });
 }
 
 export async function getRunHistory(

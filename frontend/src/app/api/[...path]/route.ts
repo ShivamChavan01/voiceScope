@@ -29,6 +29,8 @@ const ALLOWED_PREFIXES = [
 const ALLOWED_RESPONSE_HEADERS = new Set([
   "content-type",
   "cache-control",
+  "accept-ranges",
+  "content-range",
 ]);
 
 async function proxyRequest(
@@ -65,6 +67,12 @@ async function proxyRequest(
   const headers = new Headers();
   headers.set("X-API-Key", API_KEY);
   if (STT_REVIEW_ENABLED) headers.set("X-STT-Review", "1");
+  if (request.method === "GET" && targetPath.endsWith("/stt-review/audio")) {
+    for (const name of ["range", "if-range"]) {
+      const value = request.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+  }
   headers.set("Content-Type", request.headers.get("Content-Type") || "application/json");
 
   const init: RequestInit = {

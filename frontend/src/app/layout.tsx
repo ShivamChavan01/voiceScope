@@ -5,6 +5,9 @@ import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 
+import { DemoAccessProvider } from "@/components/demo-access";
+import { isPublicSyntheticDemo } from "@/lib/operator-auth";
+
 export const metadata: Metadata = {
   title: "VoiceScope — Operator Dashboard",
   description: "Voice AI observability platform",
@@ -22,6 +25,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="h-full bg-background text-foreground" suppressHydrationWarning>
+        <DemoAccessProvider readOnly={isPublicSyntheticDemo()}>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <div className="app">
           <Sidebar />
@@ -32,6 +36,7 @@ export default function RootLayout({
             </div>
           </div>
         </div>
+        </DemoAccessProvider>
       </body>
     </html>
   );

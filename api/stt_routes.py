@@ -2,6 +2,7 @@
 
 import hashlib
 import copy
+import re
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -101,4 +102,28 @@ async def review_audio(run_id: str, request: Request):
     stored = STTReviewStore().read(owner_for(request), run_id)
     if not stored or not stored.get('audio'):
         raise HTTPException(status_code=404, detail='Private recording is unavailable or expired')
-    return Response(content=stored['audio'], media_type=stored.get('content_type') or 'audio/wav', headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+    audio = stored['audio']
+    size = len(audio)
+    headers = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Accept-Ranges': 'bytes'}
+    value = request.headers.get('range')
+    status = 200
+    if value and not request.headers.get('if-range'):
+        match = re.fullmatch(r'bytes=(\d*)-(\d*)', value) if len(value) <= 128 else None
+        start, end = 0, size - 1
+        valid = bool(match and any(match.groups()) and size)
+        if valid and match:
+            first, last = match.groups()
+            if first:
+                start = int(first)
+                end = min(int(last), size - 1) if last else size - 1
+            else:
+                suffix = int(last)
+                valid = suffix > 0
+                start = max(0, size - suffix)
+            valid = valid and start <= end and start < size
+        if not valid:
+            return Response(status_code=416, headers={**headers, 'Content-Range': f'bytes */{size}'})
+        headers['Content-Range'] = f'bytes {start}-{end}/{size}'
+        audio = audio[start:end + 1]
+        status = 206
+    return Response(content=audio, status_code=status, media_type=stored.get('content_type') or 'audio/wav', headers=headers)

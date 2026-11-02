@@ -314,3 +314,53 @@ def test_transfer_you_money_is_not_a_refusal_to_transfer_the_caller():
 ])
 def test_reported_or_example_suffix_does_not_become_a_confirmed_guarantee(statement):
     assert not evaluate_reliability([turn(statement)], [refund_policy()]).findings
+
+@pytest.mark.parametrize('text,expected', [
+    ('I assure you your refund will arrive today.', True),
+    ('I assure you that your refund will arrive today.', True),
+    ('I assure you your refund might arrive today.', False),
+    ('I cannot assure you your refund will arrive today.', False),
+    ('If approved, I assure you your refund will arrive today.', False),
+    ('The agent said I assure you your refund will arrive today.', False),
+    ('"I assure you your refund will arrive today."', False),
+    ('Refunds usually arrive today.', False),
+])
+def test_assurance_guarantees_remain_bounded(text, expected):
+    findings = evaluate_reliability([turn(text)], [refund_policy()]).findings
+    assert any(f.category == 'policy_violation' for f in findings) is expected
+
+
+@pytest.mark.parametrize('refusal,expected', [
+    ('I will not let you speak with the team lead.', True),
+    ('I cannot transfer you to the team lead.', True),
+    ('I will transfer you to the team lead.', False),
+    ('I cannot transfer you money.', False),
+    ('I cannot transfer your money to the team lead.', False),
+    ('I said "I will not let you speak with the team lead."', False),
+    ('If unavailable, I will not let you speak with the team lead.', False),
+])
+def test_team_lead_request_and_refusal_with_financial_guards(refusal, expected):
+    findings = evaluate_reliability([turn('Please let me speak with your team lead.', 'customer'), turn(refusal)], [escalation_policy()]).findings
+    assert any(f.category == 'policy_violation' for f in findings) is expected
+
+
+@pytest.mark.parametrize('text,expected', [
+    ('The money has been returned to your card.', True),
+    ('The money has not been returned to your card.', False),
+    ('The money will be returned to your card.', False),
+    ('The money might have been returned to your card.', False),
+    ('The money has been transferred to your card.', False),
+    ('The customer said the money has been returned to your card.', False),
+    ('"The money has been returned to your card."', False),
+])
+def test_returned_money_is_an_unverified_claim_not_a_confirmed_action(text, expected):
+    findings = evaluate_reliability([turn(text)], []).findings
+    claims = [f for f in findings if f.category == 'unverified_claim']
+    assert bool(claims) is expected
+    if claims:
+        assert claims[0].status == 'needs_review'
+        assert claims[0].missing_evidence == ['action_result']
+
+
+def test_assurance_by_customer_is_not_an_agent_violation():
+    assert not evaluate_reliability([turn('I assure you your refund will arrive today.', 'customer')], [refund_policy()]).findings

@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source=await readFile(new URL('../src/lib/api.ts',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
-const {analyzeAudioStream}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const {analyzeAudioStream,getRuns,getRun}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const file=new File(['synthetic audio'],'test.wav',{type:'audio/wav'});
 const sse=text=>new Response(text,{headers:{'content-type':'text/event-stream'}});
 async function collect(response){
@@ -46,4 +46,27 @@ test('HTTP service errors, dropped connections, and aborts cannot become empty s
     globalThis.fetch=async()=>{throw new DOMException('Aborted','AbortError');};
     await assert.rejects(async()=>{for await(const event of analyzeAudioStream(file))void event;},/Analysis timed out/);
   }finally{globalThis.fetch=original;}
+});
+
+
+test('malformed call-list and detail responses become actionable errors',async()=>{
+ const original=globalThis.fetch;
+ try{
+  for(const body of [{},null,{runs:null,total:1},{runs:[{}],total:1},{runs:[],total:-1}]){
+   globalThis.fetch=async()=>Response.json(body);
+   await assert.rejects(getRuns(),/invalid.*response/i);
+  }
+  globalThis.fetch=async()=>Response.json({});await assert.rejects(getRun('demo'),/invalid.*response/i);
+  globalThis.fetch=async()=>Response.json({runs:[],total:0});assert.deepEqual(await getRuns(),{runs:[],total:0});
+ }finally{globalThis.fetch=original}
+});
+
+
+test('call reads time out and propagate a retryable failure instead of waiting forever',async()=>{
+ const originalFetch=globalThis.fetch;const originalTimeout=AbortSignal.timeout;
+ try{
+  AbortSignal.timeout=ms=>{assert.equal(ms,30000);return originalTimeout(5)};
+  globalThis.fetch=async(_url,options)=>new Promise((_,reject)=>{options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});setTimeout(()=>{},10)});
+  await assert.rejects(getRuns(),{name:'TimeoutError'});await assert.rejects(getRun('demo'),{name:'TimeoutError'});
+ }finally{globalThis.fetch=originalFetch;AbortSignal.timeout=originalTimeout}
 });

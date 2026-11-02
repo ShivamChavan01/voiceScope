@@ -414,3 +414,21 @@ def test_old_scored_review_is_withheld_until_recompared_without_losing_reference
     refreshed = client.post('/api/v1/runs/run-stt/stt-review', headers=HEADERS, json=human_body()).json()
     assert refreshed['review']['metric_value'] == 1 / 6
     assert refreshed['review']['comparison_version'] == 'signed_numbers_v2'
+
+@pytest.mark.parametrize('value,start,end', [('bytes=0-3', 0, 3), ('bytes=3-', 3, len(AUDIO)-1), ('bytes=-4', len(AUDIO)-4, len(AUDIO)-1)])
+def test_recording_byte_ranges(value, start, end):
+    seed_recording()
+    response = TestClient(app).get('/api/v1/runs/run-stt/stt-review/audio', headers={**HEADERS, 'Range': value})
+    assert response.status_code == 206
+    assert response.content == AUDIO[start:end+1]
+    assert response.headers['content-range'] == f'bytes {start}-{end}/{len(AUDIO)}'
+    assert response.headers['accept-ranges'] == 'bytes'
+    assert response.headers['content-length'] == str(end-start+1)
+
+
+@pytest.mark.parametrize('value', ['bytes=999999-', 'bytes=4-2', 'bytes=-0', 'bytes=x-y', 'bytes=0-1,3-4'])
+def test_recording_invalid_ranges(value):
+    seed_recording()
+    response = TestClient(app).get('/api/v1/runs/run-stt/stt-review/audio', headers={**HEADERS, 'Range': value})
+    assert response.status_code == 416
+    assert response.headers['content-range'] == f'bytes */{len(AUDIO)}'

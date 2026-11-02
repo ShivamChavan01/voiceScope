@@ -102,3 +102,11 @@ test('encoded and normalized paths cannot bypass the private STT gate',async()=>
     }
   }finally{globalThis.fetch=original;}
 });
+
+test('audio byte ranges and seekable response headers survive the frontend proxy',async()=>{
+ const api=await load('true');const original=globalThis.fetch;
+ try{globalThis.fetch=async(_url,options)=>{assert.equal(options.headers.get('range'),'bytes=10-19');return new Response('0123456789',{status:206,headers:{'content-type':'audio/wav','accept-ranges':'bytes','content-range':'bytes 10-19/100'}})};
+ const response=await api.GET(authenticatedRequest('http://localhost/api/v1/runs/run/stt-review/audio',{headers:{Range:'bytes=10-19'}}),{params:Promise.resolve({path:['v1','runs','run','stt-review','audio']})});
+ assert.equal(response.status,206);assert.equal(response.headers.get('content-range'),'bytes 10-19/100');assert.equal(response.headers.get('accept-ranges'),'bytes');assert.equal(response.headers.get('content-length'),'10');
+ }finally{globalThis.fetch=original}
+});

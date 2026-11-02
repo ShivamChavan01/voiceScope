@@ -35,9 +35,7 @@ export function operatorAccess(
   }
   // Public access is limited to an explicitly synthetic Vercel Preview.
   // Production never takes this path, even if these flags are copied there.
-  if (process.env.PUBLIC_SYNTHETIC_DEMO === "true"
-      && process.env.STAGING_DEMO_ONLY === "true"
-      && process.env.VERCEL_ENV === "preview") {
+  if (isPublicSyntheticDemo()) {
     return null;
   }
   if (!username || username.includes(":") || !password || password.length < 24) {
@@ -56,4 +54,10 @@ export function operatorAccess(
     status: 401,
     headers: { ...headers, "WWW-Authenticate": 'Basic realm="VoiceScope private operator", charset="UTF-8"' },
   });
+}
+
+export function isPublicSyntheticDemo(): boolean {
+  return process.env.PUBLIC_SYNTHETIC_DEMO === "true"
+    && process.env.STAGING_DEMO_ONLY === "true"
+    && process.env.VERCEL_ENV === "preview";
 }
