@@ -4,8 +4,8 @@ import {readFile} from 'node:fs/promises';
 import ts from 'typescript';
 
 const source=await readFile(new URL('../src/lib/api.ts',import.meta.url),'utf8');
-const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
-const {analyzeAudioStream,getRuns,getRun}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./run-summary"',JSON.stringify(new URL('../src/lib/run-summary.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
+const {analyzeAudioStream,getRuns,getRun,getRunSummary}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const file=new File(['synthetic audio'],'test.wav',{type:'audio/wav'});
 const sse=text=>new Response(text,{headers:{'content-type':'text/event-stream'}});
 async function collect(response){
@@ -69,4 +69,14 @@ test('call reads time out and propagate a retryable failure instead of waiting f
   globalThis.fetch=async(_url,options)=>new Promise((_,reject)=>{options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});setTimeout(()=>{},10)});
   await assert.rejects(getRuns(),{name:'TimeoutError'});await assert.rejects(getRun('demo'),{name:'TimeoutError'});
  }finally{globalThis.fetch=originalFetch;AbortSignal.timeout=originalTimeout}
+});
+
+
+test('call assessment is sent independently from processing and search; malformed overview data is rejected',async()=>{
+ const original=globalThis.fetch;
+ try{
+  globalThis.fetch=async url=>{const q=new URL(url,'https://demo.example').searchParams;assert.equal(q.get('status'),'completed');assert.equal(q.get('assessment'),'policy_matches');assert.equal(q.get('search'),'refund 雪');return Response.json({runs:[],total:0})};
+  await getRuns({status:'completed',assessment:'policy_matches',search:'refund 雪'});
+  globalThis.fetch=async()=>Response.json({});await assert.rejects(getRunSummary(),/invalid response/);
+ }finally{globalThis.fetch=original}
 });

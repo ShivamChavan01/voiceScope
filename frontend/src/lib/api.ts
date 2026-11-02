@@ -1,3 +1,4 @@
+import { parseRunSummary } from "./run-summary";
 import { parseSTTState, type STTReview } from "./stt-quality";
 import { requestErrorMessage, type PolicyRule, type ReliabilityReport, type ReliabilitySummary, type SpeechDiagnostics } from "./reliability";
 
@@ -140,12 +141,14 @@ export interface QACohort {
 export async function getRuns(params?: {
   search?: string;
   status?: string;
+  assessment?: string;
   limit?: number;
   offset?: number;
 }): Promise<RunsResponse> {
   const searchParams = new URLSearchParams();
   if (params?.search) searchParams.set("search", params.search);
   if (params?.status) searchParams.set("status", params.status);
+  if (params?.assessment) searchParams.set("assessment", params.assessment);
   if (params?.limit != null) searchParams.set("limit", String(params.limit));
   if (params?.offset != null) searchParams.set("offset", String(params.offset));
   const qs = searchParams.toString();
@@ -460,7 +463,7 @@ export interface RunSummary {
 }
 
 export async function getRunSummary(): Promise<RunSummary> {
-  return fetchJson("/api/v1/runs/summary");
+  return parseRunSummary(await fetchJson<unknown>("/api/v1/runs/summary"));
 }
 
 export async function getPolicyRules(): Promise<PolicyRule[]> {

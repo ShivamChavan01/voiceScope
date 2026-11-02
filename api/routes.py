@@ -23,7 +23,7 @@ from core.stt_recording import download_recording
 from core.qa import QACohort, QAStore, ResolutionCriterion
 from core.test_harness import TestHarness
 from storage.cost_store import CostStore
-from storage.monitoring import MonitoringStore
+from storage.monitoring import AssessmentFilter, MonitoringStore
 from utils.guardrails import guardrails
 from utils.logger import logger
 from utils.security import hash_api_key, sanitize_log_input, validate_callback_url_async
@@ -430,10 +430,11 @@ async def get_runs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0, le=2_147_483_647),
     search: Optional[str] = None,
-    status: Optional[str] = None,
+    status: Optional[Literal['completed', 'partial', 'failed']] = None,
+    assessment: Optional[AssessmentFilter] = None,
 ):
     return await get_monitoring_store().get_runs(
-        limit=limit, offset=offset, search=search, status=status
+        limit=limit, offset=offset, search=search, status=status, assessment=assessment
     )
 
 

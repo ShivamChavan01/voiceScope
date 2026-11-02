@@ -13,3 +13,19 @@ export function syntheticScenarioNote(id: string): string | null {
   };
   return Object.hasOwn(copies, id) ? `Earlier synthetic sample: same authored conversation as ${copies[id]}. Preserved for existing links.` : null;
 }
+
+export type RunFilters = { search: string; status: string; assessment: string };
+
+export function runFiltersFromUrl(current: string): RunFilters {
+  const params = new URL(current).searchParams;
+  return { search: params.get('search') || '', status: params.get('status') || '', assessment: params.get('assessment') || '' };
+}
+
+export function runFiltersUrl(current: string, filters: RunFilters): string {
+  const url = new URL(current);
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  }
+  return url.pathname + url.search + url.hash;
+}

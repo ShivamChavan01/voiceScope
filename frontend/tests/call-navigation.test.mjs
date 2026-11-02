@@ -11,3 +11,13 @@ test('earlier duplicate samples are described rather than deleted or relabeled a
  assert.match(syntheticScenarioNote('demo-review-promise'),/same authored conversation as demo-staging-policy/);
  assert.equal(syntheticScenarioNote('real-user-call'),null);assert.equal(syntheticScenarioNote('constructor'),null);assert.equal(syntheticScenarioNote(''),null);assert.equal(syntheticScenarioNote('demo-staging-stt'),null);
 });
+
+test('search, processing and assessment URLs round-trip without losing call or unrelated parameters',async()=>{
+ const {runFiltersUrl,runFiltersFromUrl}=await import('../src/lib/call-navigation.ts');
+ const original='https://demo.example/runs?call=demo-staging-policy&keep=yes#evidence';
+ const filters={search:'refund 雪 &',status:'completed',assessment:'policy_matches'};
+ const changed=new URL(runFiltersUrl(original,filters),'https://demo.example');assert.deepEqual(runFiltersFromUrl(changed.href),filters);assert.equal(changed.searchParams.get('call'),'demo-staging-policy');assert.equal(changed.searchParams.get('keep'),'yes');assert.equal(changed.hash,'#evidence');
+ const closed=new URL(callNavigationUrl(changed.href,null),'https://demo.example');assert.deepEqual(runFiltersFromUrl(closed.href),filters);
+ const reset=new URL(runFiltersUrl(closed.href,{search:'',status:'',assessment:''}),'https://demo.example');assert.equal(reset.searchParams.get('keep'),'yes');assert.equal(reset.searchParams.has('assessment'),false);
+ assert.equal(runFiltersFromUrl('https://demo.example/runs?assessment=invalid').assessment,'invalid');
+});

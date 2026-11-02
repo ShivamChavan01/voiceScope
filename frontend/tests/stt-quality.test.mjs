@@ -61,7 +61,7 @@ test('STT evidence renders both texts, timestamp, severity and uncertainty',()=>
 
 test('STT API helpers select the authorized provider and preserve encoded IDs and errors',async()=>{
   const source=await readFile(new URL('../src/lib/api.ts',import.meta.url),'utf8');
-  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
+  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./run-summary"',JSON.stringify(new URL('../src/lib/run-summary.ts',import.meta.url).href)).replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
   const api=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   const original=globalThis.fetch;
   const calls=[];
@@ -86,7 +86,7 @@ test('STT API helpers select the authorized provider and preserve encoded IDs an
 
 test('opening a real STT review prepares missing references automatically and respects existing results',async()=>{
   const source=await readFile(new URL('../src/lib/api.ts',import.meta.url),'utf8');
-  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
+  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./run-summary"',JSON.stringify(new URL('../src/lib/run-summary.ts',import.meta.url).href)).replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
   const api=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
   const original=globalThis.fetch;
   const automatic={...state,review:null,reference:{...transcript,source:'deepgram',audio_sha256:'a'.repeat(64)}};

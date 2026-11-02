@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useReadOnlyDemo } from '@/components/demo-access';
-import { callNavigationUrl, syntheticScenarioNote } from '@/lib/call-navigation';
+import { callNavigationUrl, runFiltersFromUrl, runFiltersUrl, syntheticScenarioNote } from '@/lib/call-navigation';
 import { AudioLines, ArrowUpRight, Search, Upload, X } from 'lucide-react';
 import { HarnessBar, HARNESS_KEYS } from '@/components/harness-bar';
 import { CallReport, CallSummary, FindingsPanel, ReviewBadge, SpeechPanel } from '@/components/call-review';
@@ -29,6 +29,8 @@ export default function RunsPage() {
   const [tab, setTab] = useState<Tab>('findings');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [assessment,setAssessment]=useState('');
+  const [filtersReady,setFiltersReady]=useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [actionError, setActionError] = useState<string | undefined>();
@@ -40,6 +42,7 @@ export default function RunsPage() {
   const turnRefs = useRef(new Map<number, HTMLDivElement>());
   const detailRequest = useRef(0);
   const listRequest = useRef(0);
+  const filtersRef = useRef({search:'',status:'',assessment:''});
   const open = detail.kind !== 'closed';
   const selected = detail.kind === 'ready' ? detail.run : null;
 
@@ -48,23 +51,24 @@ export default function RunsPage() {
     setLoading(true);
     setListError(null);
     try {
-      const response = await getRuns({ limit: 50, search, status });
+      const response = await getRuns({ limit: 50, search, status, assessment });
       if(request===listRequest.current){setRuns(response.runs);setTotal(response.total);}
     } catch (error) {
       if(request===listRequest.current)setListError(error instanceof Error ? error.message : 'Calls could not be loaded.');
     } finally { if(request===listRequest.current)setLoading(false); }
-  }, [search, status]);
+  }, [search, status, assessment]);
 
   useEffect(() => {
+    if(!filtersReady)return;
     let active = true;
     const request=++listRequest.current;
-    getRuns({ limit: 50, search, status }).then(response => {
+    getRuns({ limit: 50, search, status, assessment }).then(response => {
       if (active && request===listRequest.current) { setRuns(response.runs); setTotal(response.total); }
     }).catch(error => {
       if (active && request===listRequest.current) setListError(error instanceof Error ? error.message : 'Calls could not be loaded.');
     }).finally(() => { if (active && request===listRequest.current) setLoading(false); });
     return () => { active = false; listRequest.current+=1; };
-  }, [search, status]);
+  }, [search, status, assessment, filtersReady]);
 
   const loadDetail = useCallback((call: string | null) => {
     const request = ++detailRequest.current;
@@ -79,11 +83,30 @@ export default function RunsPage() {
     });
   }, []);
   useEffect(() => {
-    const sync = () => loadDetail(new URL(window.location.href).searchParams.get('call'));
+    const sync = () => {
+      const filters=runFiltersFromUrl(window.location.href);
+      const previous=filtersRef.current;
+      if(filters.search!==previous.search||filters.status!==previous.status||filters.assessment!==previous.assessment){setLoading(true);setListError(null);}
+      filtersRef.current=filters;
+      setSearch(filters.search);setStatus(filters.status);setAssessment(filters.assessment);
+      setFiltersReady(true);
+      loadDetail(new URL(window.location.href).searchParams.get('call'));
+    };
     sync();
     window.addEventListener('popstate', sync);
     return () => { detailRequest.current += 1; window.removeEventListener('popstate', sync); };
   }, [loadDetail]);
+
+  const filter = (next: {search:string;status:string;assessment:string}, replace=false) => {
+    const current=filtersRef.current;
+    if(next.search===current.search&&next.status===current.status&&next.assessment===current.assessment)return;
+    const url=runFiltersUrl(window.location.href,next);
+    if(replace)window.history.replaceState(null,'',url);
+    else window.history.pushState(null,'',url);
+    filtersRef.current=next;
+    setSearch(next.search);setStatus(next.status);setAssessment(next.assessment);
+    setLoading(true);setListError(null);
+  };
 
   const close = useCallback(() => {
     if (new URL(window.location.href).searchParams.has('call')) {
@@ -164,9 +187,9 @@ export default function RunsPage() {
     }
     <UploadProgress events={uploading ? events : []} error={uploading ? actionError : undefined} />
     {!uploading && actionError && <div className="review-error" role="alert">{actionError}</div>}
-    <div className="review-toolbar"><label className="review-search"><Search size={16} /><input aria-label="Search calls" placeholder="Search calls…" value={search} onChange={event => { setLoading(true); setListError(null); setSearch(event.target.value); }} /></label><select className="filter-input" aria-label="Filter by processing status" value={status} onChange={event => { setLoading(true); setListError(null); setStatus(event.target.value); }}><option value="">All statuses</option><option value="completed">Processed</option><option value="partial">Review required</option><option value="failed">Processing failed</option></select><span>{loading ? 'Loading calls…' : `${total} ${total === 1 ? 'call' : 'calls'}`}</span></div>
-    {listError ? <div className="review-error" role="alert"><strong>Calls are unavailable</strong><p>{listError}</p><button className="btn btn-ghost" onClick={() => void refresh()}>Retry loading</button></div> : <div className="table-wrap"><div className="table-scroll"><table className="review-calls-table"><thead><tr><th>Call</th><th>Assessment</th><th>Source</th><th>Duration</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{loading ? <tr><td colSpan={5} className="review-table-empty">Loading stored calls…</td></tr> : !runs.length ? <tr><td colSpan={5}><div className="review-empty"><AudioLines size={28} /><h3>{search || status ? 'No calls match these filters' : 'Your first call starts here'}</h3><p>{readOnly?'Try another filter. This demo contains fixed synthetic examples.':'Upload a recording or load the three synthetic scenarios to inspect an evidence-backed finding.'}</p></div></td></tr> : runs.map(run => <tr key={run.run_id} role="button" tabIndex={0} aria-label={`Review ${run.intent || run.run_id}`} onClick={event => void openRun(run, event.currentTarget)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openRun(run, event.currentTarget); } }}><td><strong className="call-intent">{run.intent || 'Untitled call'}</strong>{syntheticScenarioNote(run.run_id) && <span className="call-id">{syntheticScenarioNote(run.run_id)}</span>}<span className="call-id">{run.run_id.slice(0, 16)} · {relativeTime(run.created_at)}</span></td><td><ReviewBadge run={run} />{run.status !== 'completed' && <span className="call-processing-label">{run.status === 'failed' ? 'Processing failed' : run.status === 'partial' ? 'Review required' : run.status}</span>}</td><td><span className={`source-label ${run.run_id.startsWith('demo-') ? 'source-synthetic' : ''}`}>{run.run_id.startsWith('demo-') ? 'Synthetic demo' : 'Real input'}</span></td><td className="mono">{formatDuration(run.duration_seconds)}</td><td>{!readOnly && <button className="review-delete" disabled={deleting === run.run_id} onClick={event => void remove(event, run.run_id)} aria-label={`Delete call ${run.run_id}`} title="Delete stored call">{deleting === run.run_id ? '…' : '×'}</button>}</td></tr>)}</tbody></table></div></div>}
-    <p className="calls-footer-note">Policy reviews cover configured checks. A call without findings is not a guarantee of compliance.</p>
+    <div className="review-toolbar"><label className="review-search"><Search size={16} /><input aria-label="Search calls" placeholder="Search calls…" value={search} onChange={event => filter({search:event.target.value,status,assessment},true)} /></label><select className="filter-input" aria-label="Filter by processing status" value={status} onChange={event => filter({search,status:event.target.value,assessment})}><option value="">All processing states</option><option value="completed">Processed</option><option value="partial">Processing incomplete</option><option value="failed">Processing failed</option>{!['','completed','partial','failed'].includes(status) && <option value={status}>Invalid processing filter</option>}</select><select className="filter-input" aria-label="Filter by policy assessment" value={assessment} onChange={event=>filter({search,status,assessment:event.target.value})}><option value="">All policy assessments</option><option value="policy_matches">Policy match found</option><option value="no_matches">No matches in supported checks</option><option value="not_assessed">Not assessed</option><option value="needs_review">Needs evidence review</option><option value="insufficient_evidence">Insufficient policy evidence</option>{!['','policy_matches','no_matches','not_assessed','needs_review','insufficient_evidence'].includes(assessment) && <option value={assessment}>Invalid assessment filter</option>}</select>{(search||status||assessment) && <button className="btn btn-ghost" onClick={()=>filter({search:'',status:'',assessment:''})}>Reset filters</button>}<span>{loading ? 'Loading calls…' : `${total} ${total === 1 ? 'call' : 'calls'}`}</span></div>
+    {listError ? <div className="review-error" role="alert"><strong>Calls are unavailable</strong><p>{listError}</p><button className="btn btn-ghost" onClick={() => void refresh()}>Retry loading</button></div> : <div className="table-wrap"><div className="table-scroll"><table className="review-calls-table"><thead><tr><th>Call</th><th>Assessment</th><th>Source</th><th>Duration</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{loading ? <tr><td colSpan={5} className="review-table-empty">Loading stored calls…</td></tr> : !runs.length ? <tr><td colSpan={5}><div className="review-empty"><AudioLines size={28} /><h3>{search || status ? 'No calls match these filters' : 'Your first call starts here'}</h3><p>{readOnly?'Try another filter. This demo contains fixed synthetic examples.':'Upload a recording or load the three synthetic scenarios to inspect an evidence-backed finding.'}</p></div></td></tr> : runs.map(run => <tr key={run.run_id} role="button" tabIndex={0} aria-label={`Review ${run.intent || run.run_id}`} onClick={event => void openRun(run, event.currentTarget)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openRun(run, event.currentTarget); } }}><td><strong className="call-intent">{run.intent || 'Untitled call'}</strong>{syntheticScenarioNote(run.run_id) && <span className="call-id">{syntheticScenarioNote(run.run_id)}</span>}<span className="call-id">{run.run_id.slice(0, 16)} · {relativeTime(run.created_at)}</span></td><td><ReviewBadge run={run} />{run.status !== 'completed' && <span className="call-processing-label">{run.status === 'failed' ? 'Processing failed' : run.status === 'partial' ? 'Processing incomplete' : run.status}</span>}</td><td><span className={`source-label ${run.run_id.startsWith('demo-') ? 'source-synthetic' : ''}`}>{run.run_id.startsWith('demo-') ? 'Synthetic demo' : 'Real input'}</span></td><td className="mono">{formatDuration(run.duration_seconds)}</td><td>{!readOnly && <button className="review-delete" disabled={deleting === run.run_id} onClick={event => void remove(event, run.run_id)} aria-label={`Delete call ${run.run_id}`} title="Delete stored call">{deleting === run.run_id ? '…' : '×'}</button>}</td></tr>)}</tbody></table></div></div>}
+    <p className="calls-footer-note">Processing status describes analysis completion; policy assessment describes supported checks. Policy reviews cover configured checks. A call without findings is not a guarantee of compliance.</p>
     <div className={`drawer-overlay ${open ? 'open' : ''}`} onClick={close} />
     <div className={`drawer review-drawer ${open ? 'open' : ''}`} ref={drawerRef} role="dialog" aria-modal="true" aria-hidden={!open} inert={!open} aria-label={`Call detail: ${id.slice(0, 12)}`}>
       <div className="drawer-header"><div className="review-drawer-title"><strong>{selected?.intent || 'Call review'}</strong><span>{selected ? `${formatDuration(selected.duration_seconds)} · ${relativeTime(selected.created_at)}` : 'Loading call…'}</span></div>{selected && <span className={`source-label ${selected.run_id.startsWith('demo-') ? 'source-synthetic' : ''}`}>{selected.run_id.startsWith('demo-') ? 'Synthetic' : 'Real input'}</span>}<button className="drawer-close" ref={closeRef} onClick={close} aria-label="Close drawer"><X size={18} /></button></div>

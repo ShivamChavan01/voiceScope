@@ -28,7 +28,7 @@ test('no positives is unmeasured, not a perfect precision score', () => {
 
 test('benchmark fetch uses the read-only detector endpoint and exposes service errors', async () => {
   const source = await readFile(new URL('../src/lib/api.ts',import.meta.url),'utf8');
-  const js = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
+  const js = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText.replace('"./run-summary"',JSON.stringify(new URL('../src/lib/run-summary.ts',import.meta.url).href)).replace('"./stt-quality"',JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href)).replace('"./reliability"',JSON.stringify(new URL('../src/lib/reliability.ts',import.meta.url).href));
   const {getPolicyBenchmark} = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
   const original=globalThis.fetch;
   try {

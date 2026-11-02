@@ -2,7 +2,7 @@ import json
 import os
 from contextlib import closing
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from storage.db import get_pool
 from utils.logger import logger
@@ -32,6 +32,22 @@ def reliability_summary(evaluation) -> dict | None:
         "review_count": sum(f.status == "needs_review" for f in report.findings),
         "unverified_claim_count": sum(f.category == "unverified_claim" for f in report.findings),
     }
+
+
+AssessmentFilter = Literal['policy_matches', 'no_matches', 'not_assessed', 'needs_review', 'insufficient_evidence']
+
+
+def assessment_kind(summary: dict | None) -> AssessmentFilter:
+    """Classify the validated policy summary independently of processing state."""
+    if summary is None:
+        return 'not_assessed'
+    if summary['confirmed_policy_count'] > 0:
+        return 'policy_matches'
+    if summary['review_count'] > 0 or summary['unverified_claim_count'] > 0:
+        return 'needs_review'
+    if summary['status'] != 'assessed' or summary['checked_rule_count'] == 0:
+        return 'insufficient_evidence'
+    return 'no_matches'
 
 
 class MonitoringStore:
@@ -156,11 +172,29 @@ class MonitoringStore:
                 return bool(result.endswith("1"))
         return await self._delete_run_sqlite(run_id)
 
-    async def get_runs(self, limit: int = 50, offset: int = 0, search: Optional[str] = None, status: Optional[str] = None) -> dict:
+    async def get_runs(self, limit: int = 50, offset: int = 0, search: Optional[str] = None,
+                       status: Optional[str] = None, assessment: Optional[AssessmentFilter] = None) -> dict:
         pool = await self._get_pool()
-        if pool:
-            return await self._get_runs_pg(pool, limit, offset, search, status)
-        return await self._get_runs_sqlite(limit, offset, search, status)
+        async def page(size: int, start: int) -> dict:
+            if pool:
+                return await self._get_runs_pg(pool, size, start, search, status)
+            return await self._get_runs_sqlite(size, start, search, status)
+        if assessment is None:
+            return await page(limit, offset)
+        # Reuse validated summaries on both databases. Filter before pagination,
+        # scanning bounded batches so the result count covers the full search.
+        matches, total, start = [], 0, 0
+        while True:
+            batch = await page(200, start)
+            for run in batch['runs']:
+                if assessment_kind(run['reliability_summary']) == assessment:
+                    if offset <= total < offset + limit:
+                        matches.append(run)
+                    total += 1
+            if len(batch['runs']) < 200:
+                break
+            start += 200
+        return {'runs': matches, 'total': total, 'limit': limit, 'offset': offset}
 
     async def get_run_summary(self) -> dict:
         """All-time persisted runs. Demo IDs are reserved by the legacy seeder."""
@@ -382,7 +416,7 @@ class MonitoringStore:
         async with pool.acquire() as conn:
             total = await conn.fetchval(f"SELECT COUNT(*) FROM runs {where_sql}", *params)
             rows = await conn.fetch(
-                f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at, evaluation FROM runs {where_sql} ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx+1}",
+                f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at, evaluation FROM runs {where_sql} ORDER BY created_at DESC, run_id DESC LIMIT ${idx} OFFSET ${idx+1}",
                 *params, limit, offset
             )
 
@@ -533,7 +567,7 @@ class MonitoringStore:
                 params.append(status)
             where_sql = f"WHERE {' AND '.join(where)}" if where else ""
             total = conn.execute(f"SELECT COUNT(*) as cnt FROM runs {where_sql}", params).fetchone()["cnt"]
-            rows = conn.execute(f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at, evaluation FROM runs {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
+            rows = conn.execute(f"SELECT run_id, intent, sentiment, outcome, hallucination_detected, escalation_signal, truth_score, confidence, quality_score, cost_usd, provider, model, duration_seconds, word_count, transcript_preview, layer_scores, status, created_at, evaluation FROM runs {where_sql} ORDER BY created_at DESC, run_id DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
         runs = []
         for r in rows:
             d = dict(r)
