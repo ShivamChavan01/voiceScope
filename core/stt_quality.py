@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Role = Literal['caller', 'agent', 'unknown']
 Scope = Literal['caller_only', 'mixed', 'unknown']
-COMPARISON_VERSION: Literal['signed_numbers_v2'] = 'signed_numbers_v2'
+COMPARISON_VERSION: Literal['reference_alignment_v3'] = 'reference_alignment_v3'
 
 
 class AlignedInterval(TypedDict):
@@ -89,11 +89,29 @@ class STTFinding(BaseModel):
     confidence_basis: str
     explanation: str
     edits: EditCounts | None
+    timing_basis: Literal['supplied_intervals', 'reference_anchors'] = 'supplied_intervals'
+
+
+class SpeakerAnchorEvidence(BaseModel):
+    speaker: str
+    role: Literal['caller', 'agent']
+    matched_words: int
+    competing_words: int
+
+
+class AutomaticAlignment(BaseModel):
+    method: Literal['unique_text_anchors_v1'] = 'unique_text_anchors_v1'
+    scope: Literal['mixed'] = 'mixed'
+    timing_basis: Literal['reference_derived'] = 'reference_derived'
+    speaker_roles: dict[str, Literal['caller', 'agent']]
+    speaker_evidence: list[SpeakerAnchorEvidence]
+    original_token_coverage: float
+    reference_token_coverage: float
 
 
 class STTReview(BaseModel):
     schema_version: Literal['1'] = '1'
-    comparison_version: Literal['signed_numbers_v2'] = COMPARISON_VERSION
+    comparison_version: Literal['reference_alignment_v3'] = COMPARISON_VERSION
     status: Literal['completed', 'partial', 'blocked', 'failed'] = 'blocked'
     reference_source: str | None = None
     reference_human_verified: bool = False
@@ -104,6 +122,7 @@ class STTReview(BaseModel):
     edits: EditCounts | None = None
     compared_groups: int = 0
     findings: list[STTFinding] = Field(default_factory=list)
+    alignment: AutomaticAlignment | None = None
     issues: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=lambda: [
         'Agreement between STT models does not prove transcription accuracy.',
@@ -118,13 +137,36 @@ _TOKEN = re.compile(r"(?<!\w)(?:(?:[+-]\s*)?[$€£₹]\s*|[$€£₹]\s*[+-]?\s
 
 def words(text: str) -> list[str]:
     normalized = unicodedata.normalize('NFKC', text).casefold().replace('’', "'").replace('−', '-')
-    tokens = []
-    for token in _TOKEN.findall(normalized):
+    tokens: list[list[str]] = []
+    previous_end = 0
+    for match in _TOKEN.finditer(normalized):
+        token = match.group()
+        gap = normalized[previous_end:match.start()]
+        marks = ''.join(character for character in gap if unicodedata.category(character).startswith('M'))
+        if tokens and gap and len(marks) == len(gap):
+            tokens[-1].extend([gap, token])
+            previous_end = match.end()
+            continue
+        if tokens:
+            prefix = []
+            for character in gap:
+                if not unicodedata.category(character).startswith('M'):
+                    break
+                prefix.append(character)
+            tokens[-1].append(''.join(prefix))
         token = re.sub(r'\s+', '', token)
         if len(token) > 1 and token[0] in '+-' and token[1] in '$€£₹':
             token = token[1] + token[0] + token[2:]
-        tokens.append(token)
-    return tokens
+        tokens.append([token])
+        previous_end = match.end()
+    if tokens:
+        suffix = []
+        for character in normalized[previous_end:]:
+            if not unicodedata.category(character).startswith('M'):
+                break
+            suffix.append(character)
+        tokens[-1].append(''.join(suffix))
+    return [''.join(parts) for parts in tokens]
 
 
 def edit_counts(reference: str, hypothesis: str) -> EditCounts:
@@ -196,7 +238,7 @@ def compare_transcripts(bolna: Transcript, reference: Transcript, audio: AudioIn
     if not audio.available or not audio.sha256:
         result.issues.append('Original recording is unavailable. No STT quality score was calculated.')
         return result
-    if reference.audio_sha256 != audio.sha256:
+    if reference.audio_sha256 != audio.sha256 or bolna.audio_sha256 and bolna.audio_sha256 != audio.sha256:
         result.issues.append('Reference is not tied to this recording hash.')
         return result
     if audio.scope == 'unknown' or bolna.scope == 'unknown' or reference.scope == 'unknown':

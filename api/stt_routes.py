@@ -7,7 +7,8 @@ import re
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.stt_service import CompareRequest, create_reference, evaluate_run, retrieve_recording, state_for_run
+from core.stt_service import CompareRequest, create_reference, evaluate_run, restore_reference, retrieve_recording, state_for_run
+from core.stt_quality import Transcript
 from storage.stt_reviews import STTReviewStore
 
 router = APIRouter()
@@ -47,6 +48,7 @@ def attach_stt_report(run: dict, request: Request) -> dict:
             'reference_human_verified': review['reference_human_verified'],
             'verified_by': review['verified_by'], 'edits': review['edits'],
             'limitations': review['limitations'],
+            'alignment': review.get('alignment'),
             'evidence': review['findings'],
         }
         run['evaluation'] = evaluation
@@ -72,6 +74,7 @@ class ReferenceRequest(BaseModel):
     provider: str = Field(default='deepgram', pattern='^deepgram$')
     # Preserve an explicit opt-out from older clients without requiring repeated consent.
     consent_to_deepgram: bool | None = Field(default=None, strict=True)
+    saved_reference: Transcript | None = None
 
 
 @router.post('/runs/{run_id}/stt-review/reference')
@@ -87,6 +90,10 @@ async def generate_reference(run_id: str, body: ReferenceRequest, request: Reque
     if body.consent_to_deepgram is False:
         raise HTTPException(status_code=422, detail='Deepgram transcription was explicitly declined')
     try:
+        if body.saved_reference:
+            if not qa_agent_id():
+                raise HTTPException(status_code=403, detail='Cached provider restoration is restricted to authorized QA staging')
+            return restore_reference(run, owner_for(request), body.saved_reference, STTReviewStore())
         return await create_reference(run, owner_for(request), STTReviewStore())
     except ValueError:
         raise HTTPException(status_code=422, detail='Reference preparation is unavailable. Check provider configuration and the saved original transcript.')

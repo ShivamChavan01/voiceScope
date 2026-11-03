@@ -5,7 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.stt_quality import COMPARISON_VERSION, AudioInfo, Scope, STTReview, Transcript, compare_transcripts
+from core.stt_quality import COMPARISON_VERSION, AudioInfo, Scope, STTReview, Transcript
+from core.stt_alignment import compare_with_automatic_alignment
 from core.stt_recording import inspect_recording, retrieve_bolna_recording
 from core.stt_sources import bolna_transcript, deepgram_reference, validate_bolna_annotations
 from storage.stt_reviews import STTReviewStore
@@ -122,7 +123,10 @@ async def _create_reference(run: dict, owner: str, store: STTReviewStore) -> dic
     run_id = run['run_id']
     stored = store.read(owner, run_id) or {}
     if stored.get('reference'):
-        return state_for_run(run, stored)
+        if (stored.get('review') or {}).get('comparison_version') != COMPARISON_VERSION:
+            review = _compare_saved(run, stored, Transcript.model_validate(stored['reference']))
+            store.save(owner, run_id, review=review.model_dump(mode='json'))
+        return state_for_run(run, store.read(owner, run_id))
     if not os.getenv('DEEPGRAM_API_KEY'):
         raise ValueError('Deepgram credentials are not configured')
     source = (run.get('evaluation') or {}).get('source_call') or {}
@@ -148,7 +152,7 @@ async def _create_reference(run: dict, owner: str, store: STTReviewStore) -> dic
         reference = deepgram_reference(result, info.sha256)
         if not reference.segments:
             raise ValueError('Provider produced no reference speech')
-        review = compare_transcripts(original_transcript(run), reference, info)
+        review = _compare_saved(run, store.read(owner, run_id) or {}, reference)
         review.limitations.append('This is a separate Deepgram transcription pass; the original recognizer may use the same model family.')
         review.limitations.append(f"Reference provider settings: model={os.getenv('DEEPGRAM_MODEL', 'nova-2')}, language={os.getenv('DEEPGRAM_LANGUAGE', 'en')}. Language support is not proof of accuracy.")
         store.save(owner, run_id, reference=reference.model_dump(mode='json'), review=review.model_dump(mode='json'))
@@ -158,6 +162,33 @@ async def _create_reference(run: dict, owner: str, store: STTReviewStore) -> dic
         review = STTReview(status='failed', audio=AudioInfo.model_validate(existing.get('audio_info') or {}), reference_source='deepgram', issues=['Recording retrieval or reference transcription failed. No transcript quality rate is available. Retry after checking provider availability.'])
         store.save(owner, run_id, review=review.model_dump(mode='json'))
     return state_for_run(run, store.read(owner, run_id))
+
+
+def _compare_saved(run: dict, stored: dict, reference: Transcript) -> STTReview:
+    info = AudioInfo.model_validate(stored.get('audio_info') or {})
+    original = original_transcript(run)
+    if stored.get('annotations'):
+        annotation = Transcript.model_validate(stored['annotations'])
+        if annotation.audio_sha256 != info.sha256:
+            raise ValueError('Saved annotations do not match the recording')
+        original = validate_bolna_annotations(original, annotation)
+    return compare_with_automatic_alignment(original, reference, info)
+
+
+def restore_reference(run: dict, owner: str, reference: Transcript, store: STTReviewStore) -> dict:
+    """Restore an operator-held provider result, bound to the actual cached audio."""
+    stored = store.read(owner, run['run_id']) or {}
+    if (not stored.get('audio') or reference.source != 'deepgram' or reference.human_verified
+            or not reference.segments or reference.audio_sha256 != (stored.get('audio_info') or {}).get('sha256')):
+        raise ValueError('Saved reference must match the retained recording and automatic provider source')
+    if inspect_recording(stored['audio']).sha256 != reference.audio_sha256:
+        raise ValueError('Retained audio bytes do not match the saved reference')
+    if stored.get('reference') and stored['reference'] != reference.model_dump(mode='json'):
+        raise ValueError('A different reference is already retained; it was not overwritten')
+    review = _compare_saved(run, stored, reference)
+    review.limitations.append('Automatic provider output restored by the authorized operator from the saved result for this recording. No new transcription was submitted.')
+    store.save(owner, run['run_id'], reference=reference.model_dump(mode='json'), review=review.model_dump(mode='json'))
+    return state_for_run(run, store.read(owner, run['run_id']))
 
 
 def evaluate_run(run: dict, owner: str, request: CompareRequest, store: STTReviewStore) -> dict:
@@ -182,7 +213,7 @@ def evaluate_run(run: dict, owner: str, request: CompareRequest, store: STTRevie
             reference.scope = 'unknown' if 'unknown' in roles else 'mixed' if 'agent' in roles else 'caller_only'
         if request.target == 'caller_only' and original.scope != 'unknown':
             original = original.model_copy(update={'segments': [segment for segment in original.segments if segment.role == 'caller'], 'scope': 'caller_only'})
-        review = compare_transcripts(original, reference, info)
+        review = compare_with_automatic_alignment(original, reference, info)
         if reference.source == 'deepgram':
             review.limitations.append('A separate Deepgram pass is not ground truth and may share the original recognizer model family.')
     # Persist only explicit reviewer choices, never inferred speaker identities.

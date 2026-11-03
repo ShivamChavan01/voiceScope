@@ -33,7 +33,7 @@ def validate_qa_event(event: WebhookEvent) -> None:
         raise HTTPException(status_code=422, detail='Completed QA calls require the original Bolna transcript; no transcription provider will be called')
 
 
-async def process_qa_call(event: WebhookEvent) -> dict:
+async def process_qa_call(event: WebhookEvent, *, prepare_reference: bool = True) -> dict:
     validate_qa_event(event)
     transcript = event.transcript or ''
     turns = parse_speaker_turns(transcript)
@@ -83,7 +83,7 @@ async def process_qa_call(event: WebhookEvent) -> dict:
                        review=result['stt_quality'])
     result['status'] = 'completed'
     await store.log_run(result)
-    if qa_deepgram_enabled() and keys:
+    if qa_deepgram_enabled() and keys and prepare_reference:
         from core.stt_service import create_reference
         state = await create_reference({'run_id': event.call_id, 'evaluation': result},
                                        hashlib.sha256(keys[0].encode()).hexdigest(), artifacts)

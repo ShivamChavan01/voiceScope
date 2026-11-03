@@ -413,7 +413,7 @@ def test_old_scored_review_is_withheld_until_recompared_without_losing_reference
     assert any('scoring rules' in issue for issue in reloaded['review']['issues'])
     refreshed = client.post('/api/v1/runs/run-stt/stt-review', headers=HEADERS, json=human_body()).json()
     assert refreshed['review']['metric_value'] == 1 / 6
-    assert refreshed['review']['comparison_version'] == 'signed_numbers_v2'
+    assert refreshed['review']['comparison_version'] == 'reference_alignment_v3'
 
 @pytest.mark.parametrize('value,start,end', [('bytes=0-3', 0, 3), ('bytes=3-', 3, len(AUDIO)-1), ('bytes=-4', len(AUDIO)-4, len(AUDIO)-1)])
 def test_recording_byte_ranges(value, start, end):

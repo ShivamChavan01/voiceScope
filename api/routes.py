@@ -534,7 +534,11 @@ async def webhook_call_completed(request: Request):
         if state == 'processing':
             raise HTTPException(status_code=409, detail='Call evaluation is already processing. Retry later.', headers={'Retry-After': '10'})
         try:
-            result = await _process_webhook(event)
+            if (qa_agent_id() and getattr(request.state, 'operator_authenticated', False)
+                    and request.headers.get('X-STT-Reference-Mode') == 'restore'):
+                result = await _process_webhook(event, prepare_qa_reference=False)
+            else:
+                result = await _process_webhook(event)
             run_id = result['pipeline_result'].get('run_id')
             if not run_id or not await get_monitoring_store().get_run(run_id):
                 raise HTTPException(status_code=503, detail='Call report could not be persisted. Retry later.')
@@ -558,12 +562,12 @@ def _webhook_response(result: dict, request: Request) -> dict:
             'run_id': evaluation['run_id'], 'status': evaluation.get('status')}
 
 
-async def _process_webhook(event):
+async def _process_webhook(event, *, prepare_qa_reference: bool = True):
     from core.staging import qa_agent_id
     if qa_agent_id():
         from core.staging_qa import process_qa_call
         return {'platform': event.platform, 'call_id': event.call_id,
-                'pipeline_result': await process_qa_call(event)}
+                'pipeline_result': await process_qa_call(event, prepare_reference=prepare_qa_reference)}
     if event.platform == "bolna" and event.transcript and event.transcript.strip():
         result = await get_pipeline().run_from_transcript(event.transcript)
         result.setdefault("transcript_meta", {})["duration_seconds"] = (

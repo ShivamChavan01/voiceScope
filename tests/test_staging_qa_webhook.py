@@ -208,3 +208,29 @@ async def test_deepgram_opt_in_does_not_enable_other_providers(qa, monkeypatch):
         require_live_services()
     with pytest.raises(RuntimeError, match='demo'):
         await ProviderRegistry.call('openai', prompt='Must not run')
+
+
+def test_operator_can_restore_cached_reference_without_triggering_paid_calls(qa, monkeypatch):
+    from storage.stt_reviews import STTReviewStore
+    from stt_providers.registry import STTRegistry
+    from core.stt_quality import Transcript, Segment
+    monkeypatch.setenv('STAGING_QA_DEEPGRAM', 'true')
+    monkeypatch.setenv('DEEPGRAM_API_KEY', 'test-only-deepgram')
+    provider = AsyncMock()
+    monkeypatch.setattr(STTRegistry, '_instances', {'deepgram': provider})
+    client, _ = qa
+    headers = {'X-API-Key': KEY, 'X-Webhook-Key': SECRET, 'X-STT-Reference-Mode': 'restore'}
+    assert client.post('/api/v1/webhooks/call-completed', headers=headers, json=payload()).status_code == 200
+    provider.transcribe.assert_not_awaited()
+    artifact = STTReviewStore().read(hashlib.sha256(KEY.encode()).hexdigest(), CALL)
+    reference = Transcript(source='deepgram', audio_sha256=artifact['audio_info']['sha256'],
+                           segments=[Segment(text='Hello', speaker='dg_0', start=.1, end=.5)])
+    body = {'saved_reference': reference.model_dump()}
+    assert client.post(f'/api/v1/runs/{CALL}/stt-review/reference', headers={'X-API-Key': KEY}, json=body).status_code == 403
+    response = client.post(f'/api/v1/runs/{CALL}/stt-review/reference', headers=headers, json=body)
+    assert response.status_code == 200
+    assert response.json()['reference']['audio_sha256'] == artifact['audio_info']['sha256']
+    assert response.json()['review']['metric_value'] is None
+    provider.transcribe.assert_not_awaited()
+    body['saved_reference']['audio_sha256'] = 'b' * 64
+    assert client.post(f'/api/v1/runs/{CALL}/stt-review/reference', headers=headers, json=body).status_code == 422

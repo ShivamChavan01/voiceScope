@@ -12,6 +12,23 @@ const finding={start:0,end:3,role:'caller',bolna_text:segment.text,reference_tex
 const review={schema_version:'1',status:'completed',reference_source:'deepgram',reference_human_verified:false,verified_by:null,metric_kind:'estimated_disagreement',metric_value:1/6,edits:{substitutions:0,deletions:1,insertions:0,reference_words:6},compared_groups:1,findings:[finding],issues:[],limitations:['Model agreement does not prove accuracy.']};
 const state={review,reference:null,bolna:transcript,audio:{available:true,sha256:'a'.repeat(64),channels:1,duration_seconds:10,scope:'unknown',scope_basis:'Not established'},provider:{name:'deepgram',configured:true,requires_consent:true}};
 
+test('automatic alignment is explicit and cannot be presented as confirmed WER',()=>{
+  const alignment={method:'unique_text_anchors_v1',scope:'mixed',timing_basis:'reference_derived',speaker_roles:{dg_7:'agent',dg_9:'caller'},speaker_evidence:[{speaker:'dg_7',role:'agent',matched_words:20,competing_words:0},{speaker:'dg_9',role:'caller',matched_words:16,competing_words:0}],original_token_coverage:.8,reference_token_coverage:.8};
+  const automatic={...review,alignment,findings:[{...finding,timing_basis:'reference_anchors'}]};
+  assert.equal(isSTTReview(automatic),true);
+  const html=render(automatic);
+  assert.match(html,/Automatic whole-call alignment/);
+  assert.match(html,/Inferred speaker mapping/);
+  assert.match(html,/Original Bolna timestamps remain unavailable/);
+  assert.match(html,/Listen near/);
+  assert.doesNotMatch(html,/Confirmed STT error/);
+  assert.equal(isSTTReview({...automatic,metric_kind:'wer',reference_human_verified:true,reference_source:'human',verified_by:'Reviewer'}),false);
+  assert.equal(isSTTReview({...automatic,alignment:{...alignment,reference_token_coverage:Infinity}}),false);
+  assert.equal(isSTTReview({...automatic,alignment:{...alignment,speaker_roles:{dg_7:'caller'}}}),false);
+  assert.equal(isSTTReview({...automatic,alignment:{...alignment,speaker_evidence:[]}}),false);
+  assert.equal(isSTTReview({...automatic,alignment:null}),false);
+});
+
 test('synthetic transcript provenance is accepted without inventing human verification',()=>{
   const synthetic={...transcript,source:'synthetic'};
   const fixture={...state,bolna:synthetic,reference:synthetic,review:{...review,reference_source:'synthetic'}};
@@ -122,6 +139,14 @@ const transcriptSource=await readFile(new URL('../src/components/stt-transcripts
 const transcriptJS=ts.transpileModule(transcriptSource,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.ESNext}}).outputText.replaceAll('"react/jsx-runtime"',JSON.stringify(import.meta.resolve('react/jsx-runtime'))).replaceAll("'../lib/stt-quality'",JSON.stringify(new URL('../src/lib/stt-quality.ts',import.meta.url).href));
 const {STTTranscripts}=await import(`data:text/javascript;base64,${Buffer.from(transcriptJS).toString('base64')}`);
 const renderTranscripts=(bolna,reference)=>renderToStaticMarkup(createElement(STTTranscripts,{bolna,reference,onSeek(){}}));
+
+test('inferred transcript labels remain distinct from supplied roles',()=>{
+  const reference={...transcript,source:'deepgram',segments:[{...segment,speaker:'dg_8',role:'unknown'}]};
+  const before=JSON.stringify(reference);
+  const html=renderToStaticMarkup(createElement(STTTranscripts,{bolna:transcript,reference,inferredRoles:{dg_8:'agent'},onSeek(){}}));
+  assert.match(html,/dg_8.*inferred agent/);
+  assert.equal(JSON.stringify(reference),before);
+});
 
 test('full STT sources render as message panels with honest speaker and timing labels',()=>{
   const bolna={...transcript,segments:[{...segment,start:null,end:null,text:'Caller <words>'},{...segment,role:'agent',text:'Agent reply',start:null,end:null}]};

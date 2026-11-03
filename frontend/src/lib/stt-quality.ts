@@ -25,6 +25,16 @@ export interface STTFinding {
   confidence: 'high' | 'low';
   confidence_basis: string;
   explanation: string;
+  timing_basis?: 'supplied_intervals' | 'reference_anchors';
+}
+export interface STTAlignment {
+  method: 'unique_text_anchors_v1';
+  scope: 'mixed';
+  timing_basis: 'reference_derived';
+  speaker_roles: Record<string, 'caller' | 'agent'>;
+  speaker_evidence: { speaker: string; role: 'caller' | 'agent'; matched_words: number; competing_words: number }[];
+  original_token_coverage: number;
+  reference_token_coverage: number;
 }
 export interface STTEdits {
   substitutions: number;
@@ -45,6 +55,7 @@ export interface STTReview {
   findings: STTFinding[];
   issues: string[];
   limitations: string[];
+  alignment?: STTAlignment | null;
 }
 export interface STTState {
   review: STTReview | null;
@@ -71,7 +82,15 @@ function isTranscript(value: unknown): value is STTTranscript {
   return !value.human_verified;
 }
 function isFinding(value: unknown): value is STTFinding {
-  return record(value) && time(value.start) && time(value.end) && timing(value.start, value.end) && typeof value.role === 'string' && typeof value.bolna_text === 'string' && typeof value.reference_text === 'string' && strings(value.category) && typeof value.severity === 'string' && ['confirmed_error', 'needs_review'].includes(String(value.status)) && ['high', 'low'].includes(String(value.confidence)) && typeof value.confidence_basis === 'string' && typeof value.explanation === 'string';
+  return record(value) && time(value.start) && time(value.end) && timing(value.start, value.end) && typeof value.role === 'string' && typeof value.bolna_text === 'string' && typeof value.reference_text === 'string' && strings(value.category) && typeof value.severity === 'string' && ['confirmed_error', 'needs_review'].includes(String(value.status)) && ['high', 'low'].includes(String(value.confidence)) && typeof value.confidence_basis === 'string' && typeof value.explanation === 'string' && (value.timing_basis === undefined || value.timing_basis === 'supplied_intervals' || value.timing_basis === 'reference_anchors');
+}
+function isAlignment(value: unknown): value is STTAlignment {
+  if (!record(value) || value.method !== 'unique_text_anchors_v1' || value.scope !== 'mixed' || value.timing_basis !== 'reference_derived' || !record(value.speaker_roles) || !Array.isArray(value.speaker_evidence)) return false;
+  const roles = value.speaker_roles;
+  if (!Object.values(roles).every(role => role === 'caller' || role === 'agent') || !Object.values(roles).includes('caller') || !Object.values(roles).includes('agent')) return false;
+  if (value.speaker_evidence.length !== Object.keys(roles).length || !value.speaker_evidence.every(item => record(item) && typeof item.speaker === 'string' && (item.role === 'caller' || item.role === 'agent') && roles[item.speaker] === item.role && typeof item.matched_words === 'number' && Number.isInteger(item.matched_words) && item.matched_words >= 12 && typeof item.competing_words === 'number' && Number.isInteger(item.competing_words) && item.competing_words >= 0 && item.matched_words / (item.matched_words + item.competing_words) >= .9)) return false;
+  if (new Set(value.speaker_evidence.map(item=>item.speaker)).size !== Object.keys(roles).length) return false;
+  return [value.original_token_coverage, value.reference_token_coverage].every(number => typeof number === 'number' && Number.isFinite(number) && number >= 0 && number <= 1);
 }
 function isEdits(value: unknown): value is STTEdits {
   return record(value) && ['substitutions','deletions','insertions','reference_words'].every(key => typeof value[key] === 'number' && Number.isInteger(value[key]) && value[key] >= 0);
@@ -79,6 +98,8 @@ function isEdits(value: unknown): value is STTEdits {
 export function isSTTReview(value: unknown): value is STTReview {
   if (!record(value) || value.schema_version !== '1' || !['completed', 'partial', 'blocked', 'failed'].includes(String(value.status)) || !(value.reference_source === null || ['bolna','human','deepgram','synthetic'].includes(String(value.reference_source))) || typeof value.reference_human_verified !== 'boolean' || !(value.verified_by === null || typeof value.verified_by === 'string') || !(value.metric_kind === null || value.metric_kind === 'wer' || value.metric_kind === 'estimated_disagreement') || !time(value.metric_value) || !(value.edits === null || isEdits(value.edits)) || typeof value.compared_groups !== 'number' || !Number.isInteger(value.compared_groups) || value.compared_groups < 0 || !Array.isArray(value.findings) || !value.findings.every(isFinding) || !strings(value.issues) || !strings(value.limitations)) return false;
   const verified = value.reference_human_verified && value.reference_source === 'human' && typeof value.verified_by === 'string' && Boolean(value.verified_by.trim());
+  if (value.alignment !== undefined && value.alignment !== null && (!isAlignment(value.alignment) || value.metric_kind !== 'estimated_disagreement' || verified)) return false;
+  if (value.findings.some(finding => finding.timing_basis === 'reference_anchors') && (!isAlignment(value.alignment) || verified || value.metric_kind !== 'estimated_disagreement')) return false;
   if (value.reference_human_verified && !verified || value.metric_kind === 'wer' && !verified || value.metric_kind === 'estimated_disagreement' && value.reference_human_verified) return false;
   if (value.findings.some(finding => finding.status === 'confirmed_error' && (!verified || finding.start === null))) return false;
   if (value.metric_value === null) return value.metric_kind === null;

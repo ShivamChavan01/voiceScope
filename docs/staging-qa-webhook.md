@@ -79,3 +79,21 @@ actual audio timestamps are available for listening and review; they are not sil
 copied into the original transcript as Bolna timestamps. No reference is declared
 human verified. A free-instance replacement can erase the reference cache, so replaying
 after replacement can incur another submission. Do not claim exactly-once billing.
+
+## Restore retained evidence after a free-instance replacement
+
+An operator can replay a completed event with both operator/webhook credentials and
+`X-STT-Reference-Mode: restore`. This saves the original call/audio while deferring paid
+reference generation for that replay only. A webhook-only caller cannot suppress
+normal reference preparation with this header.
+
+POST the retained provider Transcript as `saved_reference` to the existing
+dual-credential reference endpoint. It must be an automatic Deepgram source and match
+both retained audio metadata and the SHA-256 of its actual bytes. Different existing
+or human references are not overwritten. Current alignment is computed without a
+provider request. Public visitors cannot restore data. Provenance is attributed to
+the authorized operator's saved result; this is not a cryptographic provider attestation.
+
+Normal completed-call deliveries still prepare references automatically. Missing or
+ambiguous support remains unscored. Supported whole-call estimates expose inferred
+roles and reference-derived positions; see the v3 comparison contract.
