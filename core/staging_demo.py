@@ -10,7 +10,7 @@ from pathlib import Path
 from core.reliability import PolicyRule
 from core.reliability_demo import demo_scenarios
 from core.speakers import parse_speaker_turns
-from core.staging import demo_enabled, public_demo_enabled, validate_demo_environment
+from core.staging import demo_enabled, public_demo_enabled, qa_agent_id, validate_demo_environment
 from core.stt_quality import Segment, Transcript, compare_transcripts
 from core.stt_recording import inspect_recording
 from storage.monitoring import MonitoringStore
@@ -89,6 +89,13 @@ async def seed_staging_demo() -> dict:
             page = await store.get_runs(limit=200, offset=offset)
             for item in page['runs']:
                 saved = await store.get_run(item['run_id'])
+                evaluation = (saved or {}).get('evaluation') or {}
+                source = evaluation.get('source_call') or {}
+                if (qa_agent_id() and evaluation.get('data_source') == 'authorized_live_qa'
+                        and source.get('agent_id') == qa_agent_id()
+                        and source.get('call_id') == item['run_id']
+                        and source.get('platform') == 'bolna'):
+                    continue
                 if (not saved or not item['run_id'].startswith('demo-')
                         or (saved.get('evaluation') or {}).get('data_source') != 'synthetic_demo'):
                     raise ValueError('Public demo storage contains non-synthetic records; no records were deleted')

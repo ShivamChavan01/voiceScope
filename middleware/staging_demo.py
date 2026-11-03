@@ -1,15 +1,25 @@
 """Explicitly reject live processing routes in synthetic-only staging."""
 
 import re
+import hmac
+import os
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from core.staging import demo_enabled, public_demo_enabled
+from core.staging import demo_enabled, public_demo_enabled, qa_agent_id
 
 
 class StagingDemoMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        qa_enabled = bool(qa_agent_id())
+        # Authentication middleware verifies the separate webhook credential first.
+        # Public browsers only receive the operator proxy key, which is insufficient.
+        qa_webhook = (qa_enabled and request.method == 'POST'
+                      and request.url.path == '/api/v1/webhooks/call-completed'
+                      and bool(os.getenv('BOLNA_WEBHOOK_SECRET'))
+                      and hmac.compare_digest(request.headers.get('X-Webhook-Key', '').encode(),
+                                              os.environ['BOLNA_WEBHOOK_SECRET'].encode()))
         if public_demo_enabled():
             readable = request.url.path in {
                 '/', '/health', '/api/v1/health', '/api/v1/runs',
@@ -17,7 +27,9 @@ class StagingDemoMiddleware(BaseHTTPMiddleware):
                 '/api/v1/loop/benchmark', '/api/v1/loop/benchmark/reliability',
                 '/api/v1/costs', '/api/v1/harness/status',
             } or re.fullmatch(r'/api/v1/runs/demo-[A-Za-z0-9_-]+(?:/stt-review(?:/audio)?)?', request.url.path)
-            if request.method not in ('GET', 'HEAD', 'OPTIONS') or not readable:
+            if qa_enabled and re.fullmatch(r'/api/v1/runs/[0-9a-fA-F-]{36}(?:/stt-review(?:/audio)?)?', request.url.path):
+                readable = True
+            if not qa_webhook and (request.method not in ('GET', 'HEAD', 'OPTIONS') or not readable):
                 return JSONResponse(
                     status_code=403,
                     content={'detail': 'Public synthetic demo is read-only. Uploads, configuration and live processing are disabled.'},
@@ -29,7 +41,7 @@ class StagingDemoMiddleware(BaseHTTPMiddleware):
         }
         compare_fixture = re.fullmatch(r'/api/v1/runs/demo-[A-Za-z0-9_-]+/stt-review', request.url.path)
         if (demo_enabled() and request.method == 'POST'
-                and request.url.path not in safe_posts and not compare_fixture):
+                and request.url.path not in safe_posts and not compare_fixture and not qa_webhook):
             return JSONResponse(
                 status_code=503,
                 content={'detail': 'Synthetic demo mode: live processing, webhooks and external actions are disabled. Use the labeled demo calls.'},

@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from uuid import UUID
 
 
 def demo_enabled() -> bool:
@@ -10,6 +11,12 @@ def demo_enabled() -> bool:
 
 def public_demo_enabled() -> bool:
     return demo_enabled() and os.getenv('PUBLIC_SYNTHETIC_DEMO') == 'true'
+
+
+def qa_agent_id() -> str | None:
+    """An explicit QA agent opt-in; never applies outside the isolated demo."""
+    value = os.getenv('STAGING_QA_AGENT_ID')
+    return str(UUID(value)) if demo_enabled() and value else None
 
 
 def require_live_services() -> None:
@@ -29,12 +36,17 @@ def validate_demo_environment() -> list[str]:
                  'CHROMA_PERSIST_DIR']:
         if os.getenv(name) and not Path(os.environ[name]).resolve().is_relative_to(root):
             raise ValueError('Synthetic staging storage must stay inside DATA_DIR')
+    agent = qa_agent_id()
+    if agent and len(os.getenv('BOLNA_WEBHOOK_SECRET', '')) < 24:
+        raise ValueError('QA staging requires a separate webhook secret of at least 24 characters')
     for name in ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'GROQ_API_KEY',
                  'MISTRAL_API_KEY', 'DEEPGRAM_API_KEY', 'BOLNA_API_KEY', 'OPENCODE_GO_API_KEY',
                  'OPENROUTER_API_KEY']:
-        if os.getenv(name):
+        if os.getenv(name) and not (agent and name == 'BOLNA_API_KEY'):
             raise ValueError('Synthetic staging must not contain live provider credentials')
     keys = [key.strip() for key in os.getenv('VALID_API_KEYS', '').split(',') if key.strip()]
     if not keys or any(len(key) < 24 for key in keys):
         raise ValueError('Synthetic staging needs a separate API key of at least 24 characters')
+    if agent and os.getenv('BOLNA_WEBHOOK_SECRET') in keys:
+        raise ValueError('QA webhook and operator credentials must be separate')
     return keys

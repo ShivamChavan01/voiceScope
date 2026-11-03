@@ -498,6 +498,10 @@ async def webhook_call_completed(request: Request):
             raise HTTPException(status_code=400, detail='A valid Bolna execution ID is required')
     if request.headers.get('X-Webhook-Key') and event.platform != 'bolna':
         raise HTTPException(status_code=403, detail='This webhook credential is restricted to Bolna events')
+    from core.staging import qa_agent_id
+    if qa_agent_id():
+        from core.staging_qa import validate_qa_event
+        validate_qa_event(event)
 
     logger.info(
         f"[API] webhook received — platform={event.platform}"
@@ -555,6 +559,11 @@ def _webhook_response(result: dict, request: Request) -> dict:
 
 
 async def _process_webhook(event):
+    from core.staging import qa_agent_id
+    if qa_agent_id():
+        from core.staging_qa import process_qa_call
+        return {'platform': event.platform, 'call_id': event.call_id,
+                'pipeline_result': await process_qa_call(event)}
     if event.platform == "bolna" and event.transcript and event.transcript.strip():
         result = await get_pipeline().run_from_transcript(event.transcript)
         result.setdefault("transcript_meta", {})["duration_seconds"] = (

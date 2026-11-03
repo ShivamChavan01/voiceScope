@@ -60,6 +60,25 @@ async def download_recording(url: str, headers: dict[str, str] | None = None) ->
     """Stream bounded audio, pin public DNS and strip credentials across hosts."""
     from core.staging import require_live_services
     require_live_services()
+    return await _download_recording(url, headers)
+
+
+async def retrieve_qa_recording(call_id: str) -> tuple[bytes, str]:
+    """QA staging may fetch Bolna audio, never arbitrary event URLs or STT services."""
+    from core.staging import qa_agent_id
+    if not qa_agent_id():
+        raise ValueError('QA recording retrieval is not enabled')
+    execution = str(UUID(call_id))
+    key = os.getenv('BOLNA_API_KEY')
+    if not key:
+        raise ValueError('Bolna recording credentials unavailable')
+    return await _download_recording(
+        f'https://api.bolna.ai/recordings/call/{execution}',
+        {'Authorization': f'Bearer {key}'},
+    )
+
+
+async def _download_recording(url: str, headers: dict[str, str] | None = None) -> tuple[bytes, str]:
     credential_host = urlparse(url).hostname
     connector = aiohttp.TCPConnector(resolver=PublicResolver(), use_dns_cache=False)
     async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=60)) as session:
