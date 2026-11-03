@@ -51,3 +51,31 @@ under a synthetic-only configuration. Do not delete unrelated data to bypass thi
 Deploy the verified backend commit and opt in only on the existing free staging
 service. The existing frontend remains read-only; no frontend API contract changes
 are required. Keep the original production agent and production service unchanged.
+
+## Optional paid Deepgram reference preparation
+
+After operator authorization, `STAGING_QA_DEEPGRAM=true` permits the server-side
+`DEEPGRAM_API_KEY` for this agent's post-call references only. LLM keys and other
+transcription providers remain forbidden. Set `DEEPGRAM_MODEL=nova-3` and
+`DEEPGRAM_LANGUAGE=multi` for the authorized English/Hindi test recordings.
+The normal provider defaults remain Nova-2/English outside this configuration.
+
+When enabled, QA ingestion prepares a reference from the saved original recording
+through the existing STT service. Successful references are reused; duplicate
+webhooks and public page views do not submit another transcription. Provider failures
+are reported separately and do not invent a rate or discard the primary call report.
+The primary configured staging operator API key owns the reference cache.
+
+The existing POST `/api/v1/runs/{execution_id}/stt-review/reference` can be used for
+operator preparation/retry with **both** the operator API key and the separate
+`X-Webhook-Key`. It accepts only a saved QA call from the configured agent. The public
+frontend does not forward that webhook secret, so anonymous visitors still cannot
+trigger charges, upload audio or mutate shared data. No public operator control is enabled.
+
+Independent transcription does not establish caller identity or Bolna utterance
+timings. Deepgram diarization IDs remain unassigned until evidence establishes roles.
+Missing coverage/roles/timing still produces Not scored. The reference text and its
+actual audio timestamps are available for listening and review; they are not silently
+copied into the original transcript as Bolna timestamps. No reference is declared
+human verified. A free-instance replacement can erase the reference cache, so replaying
+after replacement can incur another submission. Do not claim exactly-once billing.

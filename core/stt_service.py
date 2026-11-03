@@ -47,7 +47,7 @@ def original_transcript(run: dict) -> Transcript:
 
 def state_for_run(run: dict, stored: dict | None) -> dict:
     import os
-    from core.staging import demo_enabled
+    from core.staging import demo_enabled, qa_deepgram_enabled
     stored = stored or {}
     original = original_transcript(run)
     review = stored.get('review')
@@ -77,7 +77,7 @@ def state_for_run(run: dict, stored: dict | None) -> dict:
         'reference': stored.get('reference'),
         'bolna': original.model_dump(mode='json'),
         'audio': stored.get('audio_info') or AudioInfo().model_dump(),
-        'provider': {'name': 'deepgram', 'configured': bool(os.getenv('DEEPGRAM_API_KEY')) and not demo_enabled(), 'requires_consent': False},
+        'provider': {'name': 'deepgram', 'configured': bool(os.getenv('DEEPGRAM_API_KEY')) and (not demo_enabled() or qa_deepgram_enabled()), 'requires_consent': False},
     }
 
 
@@ -150,6 +150,7 @@ async def _create_reference(run: dict, owner: str, store: STTReviewStore) -> dic
             raise ValueError('Provider produced no reference speech')
         review = compare_transcripts(original_transcript(run), reference, info)
         review.limitations.append('This is a separate Deepgram transcription pass; the original recognizer may use the same model family.')
+        review.limitations.append(f"Reference provider settings: model={os.getenv('DEEPGRAM_MODEL', 'nova-2')}, language={os.getenv('DEEPGRAM_LANGUAGE', 'en')}. Language support is not proof of accuracy.")
         store.save(owner, run_id, reference=reference.model_dump(mode='json'), review=review.model_dump(mode='json'))
     except Exception:
         # Do not persist provider errors, URLs, response bodies, credentials, or transcript fragments.

@@ -35,18 +35,24 @@ class DeepgramProvider(STTProvider):
 
     async def transcribe(self, audio_bytes: bytes, filename: str) -> TranscriptionResult:
         api_key = os.getenv("DEEPGRAM_API_KEY")
+        model = os.getenv('DEEPGRAM_MODEL', 'nova-2')
+        language_option = os.getenv('DEEPGRAM_LANGUAGE', 'en')
+        if model not in ('nova-2', 'nova-3') or language_option not in ('en', 'multi'):
+            raise ValueError('Unsupported Deepgram model/language configuration')
+        if language_option == 'multi' and model != 'nova-3':
+            raise ValueError('Multilingual QA transcription requires Nova-3')
         url = "https://api.deepgram.com/v1/listen"
         params = {
-            "model": "nova-2",
+            "model": model,
             "smart_format": "true",
             "diarize": "true",
             "paragraphs": "true",
             "punctuate": "true",
-            "language": "en",
+            "language": language_option,
         }
         headers = {
             "Authorization": f"Token {api_key}",
-            "Content-Type": "audio/mpeg",
+            "Content-Type": "audio/wav" if filename.lower().endswith('.wav') else "audio/mpeg",
             "Accept-Encoding": "identity",
         }
 

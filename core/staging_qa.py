@@ -1,4 +1,4 @@
-"""Provider-free, explicitly opted-in Bolna QA collection for ephemeral staging."""
+"""Explicitly scoped Bolna QA collection with optional authorized Deepgram review."""
 
 import asyncio
 import hashlib
@@ -14,7 +14,7 @@ from core.policy_store import PolicyStore
 from core.reliability import evaluate_reliability
 from core.speakers import attributed_transcript, parse_speaker_turns
 from core.speech_diagnostics import bolna_speech_diagnostics
-from core.staging import qa_agent_id
+from core.staging import qa_agent_id, qa_deepgram_enabled
 from core.stt_quality import STTReview
 from core.stt_recording import inspect_recording, retrieve_qa_recording
 from core.stt_sources import bolna_transcript
@@ -59,7 +59,8 @@ async def process_qa_call(event: WebhookEvent) -> dict:
         'stt_quality': review.model_dump(mode='json'),
         'report': {'quality_score': None, 'executive_summary':
                    'Authorized real QA call. Original Bolna transcript and provider diagnostics; deterministic staging policy checks only. '
-                   'No LLM evaluator or independent transcription was called. STT is Not scored. Storage is ephemeral.',
+                   'No LLM evaluator was called. Independent transcription status is reported separately in STT quality. '
+                   'STT requires verified comparison evidence. Storage is ephemeral.',
                    'stt_quality': review.model_dump(mode='json')},
         'errors': [],
     }
@@ -75,11 +76,18 @@ async def process_qa_call(event: WebhookEvent) -> dict:
     result['stt_quality'] = review.model_dump(mode='json')
     result['report']['stt_quality'] = result['stt_quality']
     artifacts = STTReviewStore()
-    for key in os.getenv('VALID_API_KEYS', '').split(','):
-        if key.strip():
-            artifacts.save(hashlib.sha256(key.strip().encode()).hexdigest(), event.call_id,
-                           audio=audio, content_type=content_type, audio_info=info.model_dump(mode='json'),
-                           review=result['stt_quality'])
+    keys = [key.strip() for key in os.getenv('VALID_API_KEYS', '').split(',') if key.strip()]
+    for key in keys:
+        artifacts.save(hashlib.sha256(key.encode()).hexdigest(), event.call_id,
+                       audio=audio, content_type=content_type, audio_info=info.model_dump(mode='json'),
+                       review=result['stt_quality'])
     result['status'] = 'completed'
     await store.log_run(result)
+    if qa_deepgram_enabled() and keys:
+        from core.stt_service import create_reference
+        state = await create_reference({'run_id': event.call_id, 'evaluation': result},
+                                       hashlib.sha256(keys[0].encode()).hexdigest(), artifacts)
+        result['stt_quality'] = state['review']
+        result['report']['stt_quality'] = state['review']
+        await store.log_run(result)
     return result

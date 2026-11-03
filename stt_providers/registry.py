@@ -16,9 +16,10 @@ class STTRegistry:
 
     @classmethod
     def get(cls, name: Optional[str] = None) -> STTProvider:
-        from core.staging import require_live_services
-        require_live_services()
+        from core.staging import qa_deepgram_enabled, require_live_services
         name = name or cls._detect_provider()
+        if name != 'deepgram' or not qa_deepgram_enabled():
+            require_live_services()
 
         if name in cls._instances:
             return cls._instances[name]

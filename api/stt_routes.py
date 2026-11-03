@@ -78,6 +78,12 @@ class ReferenceRequest(BaseModel):
 async def generate_reference(run_id: str, body: ReferenceRequest, request: Request, response: Response):
     response.headers['Cache-Control'] = 'no-store'
     run = await load_run(run_id)
+    from core.staging import qa_agent_id, qa_deepgram_enabled
+    if qa_agent_id():
+        evaluation = run.get('evaluation') or {}
+        if (not qa_deepgram_enabled() or evaluation.get('data_source') != 'authorized_live_qa'
+                or (evaluation.get('source_call') or {}).get('agent_id') != qa_agent_id()):
+            raise HTTPException(status_code=403, detail='Independent QA transcription is restricted to the configured test agent')
     if body.consent_to_deepgram is False:
         raise HTTPException(status_code=422, detail='Deepgram transcription was explicitly declined')
     try:

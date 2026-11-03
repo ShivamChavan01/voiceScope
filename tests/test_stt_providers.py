@@ -16,6 +16,35 @@ class TestSTTRegistry:
 
 
 class TestDeepgramProvider:
+    async def test_multilingual_configuration_preserves_provider_word_metadata(self, monkeypatch):
+        from stt_providers.deepgram_provider import DeepgramProvider
+        monkeypatch.setenv('DEEPGRAM_MODEL', 'nova-3')
+        monkeypatch.setenv('DEEPGRAM_LANGUAGE', 'multi')
+        words = [{'word': 'hello', 'start': 0.1, 'end': 0.5, 'speaker': 1, 'language': 'en'}]
+        response = AsyncMock(status=200)
+        response.json.return_value = {'results': {'channels': [{'alternatives': [{'transcript': 'hello', 'words': words}]}]}}
+        session = MagicMock()
+        session.__aenter__.return_value = session
+        session.post.return_value.__aenter__ = AsyncMock(return_value=response)
+        session.post.return_value.__aexit__ = AsyncMock(return_value=False)
+        with patch('stt_providers.deepgram_provider.aiohttp.ClientSession', return_value=session):
+            result = await DeepgramProvider().transcribe(b'audio', 'call.wav')
+        options = session.post.call_args.kwargs
+        assert options['params']['model'] == 'nova-3'
+        assert options['params']['language'] == 'multi'
+        assert options['headers']['Content-Type'] == 'audio/wav'
+        assert result.words == words
+
+    @pytest.mark.parametrize('model,language', [('unknown', 'en'), ('nova-3', 'unknown'), ('nova-2', 'multi')])
+    async def test_invalid_configuration_fails_before_network(self, monkeypatch, model, language):
+        from stt_providers.deepgram_provider import DeepgramProvider
+        monkeypatch.setenv('DEEPGRAM_MODEL', model)
+        monkeypatch.setenv('DEEPGRAM_LANGUAGE', language)
+        with patch('stt_providers.deepgram_provider.aiohttp.ClientSession') as session:
+            with pytest.raises(ValueError):
+                await DeepgramProvider().transcribe(b'audio', 'call.wav')
+        session.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_transcribe_success(self):
         from stt_providers.deepgram_provider import DeepgramProvider

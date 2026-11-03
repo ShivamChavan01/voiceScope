@@ -19,7 +19,7 @@ def qa(monkeypatch, tmp_path):
     import middleware.auth
     import api.routes
 
-    for name in ['DATABASE_URL', 'BOLNA_API_KEY', 'DEEPGRAM_API_KEY', 'GROQ_API_KEY',
+    for name in ['DATABASE_URL', 'BOLNA_API_KEY', 'DEEPGRAM_API_KEY', 'STAGING_QA_DEEPGRAM', 'GROQ_API_KEY',
                  'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'MISTRAL_API_KEY',
                  'OPENROUTER_API_KEY', 'OPENCODE_GO_API_KEY', 'MONITORING_DB_PATH',
                  'POLICY_DB_PATH', 'STT_REVIEW_DIR', 'CHROMA_PERSIST_DIR', 'COST_DB_PATH',
@@ -153,3 +153,58 @@ def test_qa_mode_never_permits_ai_provider_keys_or_shared_webhook_key(qa, monkey
     monkeypatch.setenv('BOLNA_WEBHOOK_SECRET', KEY)
     with pytest.raises(ValueError, match='separate'):
         validate_demo_environment()
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_opted_in_qa_reference_runs_once_and_never_invents_a_score(qa, monkeypatch, failure):
+    from stt_providers.registry import STTRegistry
+    from stt_providers.base import TranscriptionResult
+    monkeypatch.setenv('STAGING_QA_DEEPGRAM', 'true')
+    monkeypatch.setenv('DEEPGRAM_API_KEY', 'test-only-deepgram-key')
+    provider = AsyncMock()
+    provider.transcribe.return_value = TranscriptionResult(transcript='Hello', words=[
+        {'word': 'Hello', 'speaker': 0, 'start': 0.1, 'end': 0.3}])
+    if failure:
+        provider.transcribe.side_effect = RuntimeError('secret provider response must stay private')
+    monkeypatch.setattr(STTRegistry, '_instances', {'deepgram': provider})
+    client, _ = qa
+    for _ in range(2):
+        assert client.post('/api/v1/webhooks/call-completed', headers={'X-Webhook-Key': SECRET}, json=payload()).status_code == 200
+    provider.transcribe.assert_awaited_once()
+    state = client.get(f'/api/v1/runs/{CALL}/stt-review', headers={'X-API-Key': KEY}).json()
+    assert state['provider']['configured'] is True
+    assert state['review']['metric_value'] is None
+    assert state['review']['status'] == ('failed' if failure else 'blocked')
+    assert bool(state['reference']) is not failure
+    assert 'secret provider' not in str(state)
+    assert client.post(f'/api/v1/runs/{CALL}/stt-review/reference', headers={'X-API-Key': KEY}, json={}).status_code == 403
+    if not failure:
+        cached = client.post(f'/api/v1/runs/{CALL}/stt-review/reference', headers={'X-API-Key': KEY, 'X-Webhook-Key': SECRET}, json={})
+        assert cached.status_code == 200
+        provider.transcribe.assert_awaited_once()
+
+
+async def test_deepgram_opt_in_does_not_enable_other_providers(qa, monkeypatch):
+    from core.staging import validate_demo_environment
+    from stt_providers.registry import STTRegistry
+    from llm_providers.registry import ProviderRegistry
+    monkeypatch.setenv('DEEPGRAM_API_KEY', 'test-key')
+    with pytest.raises(ValueError):
+        validate_demo_environment()
+    monkeypatch.setenv('STAGING_QA_DEEPGRAM', 'true')
+    assert validate_demo_environment() == [KEY]
+    monkeypatch.delenv('DEEPGRAM_API_KEY')
+    with pytest.raises(ValueError, match='credentials'):
+        validate_demo_environment()
+    monkeypatch.setenv('DEEPGRAM_API_KEY', 'test-key')
+    assert STTRegistry.get('deepgram').name == 'deepgram'
+    with pytest.raises(RuntimeError, match='demo'):
+        STTRegistry.get('whisper')
+    monkeypatch.setenv('OPENAI_API_KEY', 'must-stay-forbidden')
+    with pytest.raises(ValueError):
+        validate_demo_environment()
+    with pytest.raises(RuntimeError, match='demo'):
+        from core.staging import require_live_services
+        require_live_services()
+    with pytest.raises(RuntimeError, match='demo'):
+        await ProviderRegistry.call('openai', prompt='Must not run')
