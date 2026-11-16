@@ -3,21 +3,37 @@ from fastapi.testclient import TestClient
 
 from api.routes import KnowledgeEntryRequest
 from main import app
-from storage.chroma_store import ChromaStore
-from storage.chroma_client import embedded_client
+from storage.transcript_store import TranscriptStore
+from storage.semantic_index import MODEL_NAME
+
+
+def test_runtime_dependencies_do_not_install_the_legacy_server_package():
+    from pathlib import Path
+    import tomllib
+
+    root = Path(__file__).resolve().parents[1]
+    dependencies = tomllib.loads((root / 'pyproject.toml').read_text())['project']['dependencies']
+    assert not any(d.startswith('chromadb') for d in dependencies)
+    assert not any(line.startswith('chromadb') for line in (root / 'requirements.txt').read_text().splitlines())
+
+
+def test_new_storage_overrides_cannot_escape_the_synthetic_demo_directory(monkeypatch, tmp_path):
+    from core.staging import validate_demo_environment
+
+    monkeypatch.setenv('DATA_DIR', str(tmp_path))
+    monkeypatch.setenv('DATABASE_URL', '')
+    monkeypatch.setenv('SEMANTIC_DB_PATH', str(tmp_path.parent / 'outside-demo.sqlite'))
+    with pytest.raises(ValueError, match='storage'):
+        validate_demo_environment()
 
 
 def test_embedded_collection_has_no_server_authorization_or_remote_embedding_configuration(monkeypatch, tmp_path):
-    monkeypatch.setenv('CHROMA_PERSIST_DIR', str(tmp_path / 'chroma'))
-    store = ChromaStore()
-    assert store.client is not None
+    monkeypatch.setenv('SEMANTIC_DB_PATH', str(tmp_path / 'semantic.sqlite'))
+    store = TranscriptStore()
     assert store.collection is not None
-    settings = store.client.get_settings()
-    assert settings.chroma_api_impl == 'chromadb.api.rust.RustBindingsAPI'
-    assert settings.chroma_server_authn_provider is None
-    assert settings.chroma_server_authz_provider is None
-    assert type(store.client._server).__module__ == 'chromadb.api.rust'
-    assert store.collection._embedding_function.name() == 'default'
+    assert store.collection.path.is_file()
+    assert MODEL_NAME == 'sentence-transformers/all-MiniLM-L6-v2'
+    assert not list(tmp_path.glob('**/chroma*'))
 
 
 @pytest.mark.parametrize('method,path', [
@@ -52,7 +68,7 @@ def test_policy_input_does_not_accept_model_configuration():
 def test_environment_cannot_select_unreviewed_chroma_server_transport(monkeypatch, tmp_path):
     monkeypatch.setenv('CHROMA_API_IMPL', 'chromadb.api.fastapi.FastAPI')
     monkeypatch.setenv('CHROMA_SERVER_AUTHZ_PROVIDER', 'chromadb.auth.simple_rbac_authz.SimpleRBACAuthorizationProvider')
-    client = embedded_client(str(tmp_path / 'forced-local'))
-    assert client.get_settings().chroma_api_impl == 'chromadb.api.rust.RustBindingsAPI'
-    assert client.get_settings().chroma_server_authz_provider is None
-    assert type(client._server).__module__ == 'chromadb.api.rust'
+    monkeypatch.setenv('SEMANTIC_DB_PATH', str(tmp_path / 'semantic.sqlite'))
+    store = TranscriptStore()
+    assert store.collection.path == tmp_path / 'semantic.sqlite'
+    assert store.collection.count() == 0

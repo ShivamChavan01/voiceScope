@@ -112,7 +112,7 @@ _COMPLETED = re.compile(
 )
 _REQUEST = re.compile(
     r"\b(?:(?:i\s+(?:want|need|would like)|(?:can|could|may)\s+i|please\s+let\s+me)\b.{0,55}\b(?:speak|talk)\b|"
-    r"(?:please\s+)?(?:transfer|connect)\s+me\b).{0,50}\b(?:human|supervisor|manager|team\s+lead|person|representative)\b",
+    r"(?:please\s+)?(?:transfer|connect)\s+me\b|i\s+(?:want|need)\s+(?:a|the)\s+).{0,50}\b(?:human|supervisor|manager|team\s+lead|person|representative)\b",
     re.IGNORECASE,
 )
 _REFUSAL = re.compile(
@@ -122,7 +122,7 @@ _REFUSAL = re.compile(
     re.IGNORECASE,
 )
 _TRANSFER_OFFER = re.compile(
-    r"\b(?:(?:i|we)(?:'ll|\s+will)|let me)\s+(?:transfer|connect)\s+you\b|"
+    r"\b(?:(?:i|we)(?:'ll|\s+(?:will|can))|let me)\s+(?:transfer|connect)\s+you\b|"
     r"\bi(?:'m| am)\s+(?:transferring|connecting)\s+you\b", re.IGNORECASE,
 )
 
@@ -135,27 +135,89 @@ def _direct_statement(sentence: str) -> bool:
     return not ('?' in sentence or _NEGATED_OR_REPORTED.search(sentence) or _QUOTED.search(sentence))
 
 
+_CLOCK = r"(?:[1-9]|1[0-2]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+_SAME_DAY = r"(?:today|same[ -]day|by (?:midnight|eod|end of (?:the )?day)|before (?:five|5)(?: (?:pm|p\.m\.))?)"
+_RECEIPT = r"(?:arrive|reach you|hit your account|be credited|be returned|be paid)"
+_HINGLISH_REFUND_GUARANTEE = re.compile(
+    r'(?:main|mai|hum) guarantee (?:karta|karti|karte) (?:hoon|hun|hain) ki '
+    r'aapka refund aaj mil (?:jayega|jaayega)[.!]?', re.IGNORECASE,
+)
+_PROMISE_TRANSCRIPTION = re.compile(r'\b(?:garuntee|guarentee)\b', re.IGNORECASE)
+
+
 def _same_day_guarantee(sentence: str) -> bool:
     normalized = sentence.lower().replace('’', "'")
+    if _HINGLISH_REFUND_GUARANTEE.fullmatch(' '.join(normalized.split())):
+        return True
     if '?' in sentence or _QUOTED.search(sentence) or re.search(
         r"\b(?:if|unless|might|could|would|example|quoted?|said|says|told|aren't|isn't|unavailable|impossible|fail|except)\b", normalized,
     ):
         return False
-    passive = re.search(r'\byour refund (?:is )?guaranteed (?:to arrive )?today\b', normalized)
+    if re.search(
+        r'\b(?:before ' + _CLOCK + r'(?: (?:pm|this evening))?|by (?:midnight|eod|end of (?:the )?day))'
+        r'[, ]+(?:tomorrow|next \w+|on \w+)\b', normalized,
+    ):
+        return False
+    passive = re.search(r'\byour refund (?:is )?guaranteed (?:to arrive )?' + _SAME_DAY + r'\b', normalized)
     if passive:
         return _direct_statement(sentence[:passive.end()])
-    match = re.search(r'\b(?:i|we) (?:can )?(?:(?:guarantee|promise) |assure you )(?:that )?', normalized)
+    match = re.search(r'\b(?:i|we) (?:(?:can|will) )?(?:(?:guarantee|promise) |assure you )(?:that )?', normalized)
     if not match:
         return False
     outcome = normalized[match.end():]
     promise = re.match(
         r'(?:(?:a|your|the) )?same[ -]day refunds?\b|'
-        r'(?:(?:a|your|the) )?refund (?:today\b|will (?:arrive|be credited|be returned|be paid) today\b)|'
+        r'(?:(?:a|your|the) )?(?:refund|money) (?:' + _SAME_DAY + r'\b|will ' + _RECEIPT + r' (?:by )?' + _SAME_DAY + r'\b)|'
         r"you(?:'ll| will) (?:get|receive|have) (?:your |the |a )?refund\b.{0,45}\btoday\b",
         outcome,
     )
     # Negation must apply to the promise, not a later contrasting time clause.
     return bool(promise and _direct_statement(sentence[:match.end() + promise.end()]))
+
+
+def _uncertain_refund_guarantee(text: str) -> bool:
+    parts = _sentences(text)
+    for sentence in parts:
+        normalized = _PROMISE_TRANSCRIPTION.sub('guarantee', sentence)
+        if normalized != sentence and _same_day_guarantee(normalized):
+            return True
+    for timing, assurance in zip(parts, parts[1:]):
+        if re.fullmatch(
+            r'(?:(?:your|the|a) )?refund ' + _SAME_DAY + r'[.!]', timing, re.IGNORECASE,
+        ) and re.fullmatch(r'(?:guaranteed|i (?:guarantee|promise) it)[.!]?', assurance, re.IGNORECASE):
+            return True
+    return False
+
+
+def _contextual_guarantee_question(text: str) -> bool:
+    # Require both questions to have one topic. Extra questions make assent ambiguous.
+    questions = _sentences(text)
+    if len(questions) != 2 or any('?' not in question or _QUOTED.search(question) for question in questions):
+        return False
+    timing, assurance = questions
+    return bool(
+        re.fullmatch(r"(?:will|can) (?:my|the) refund (?:arrive|reach me|be credited) today\?", timing, re.IGNORECASE)
+        and re.fullmatch(r"(?:can|will) you (?:guarantee|promise) (?:that|it|this)\?", assurance, re.IGNORECASE)
+    )
+
+
+def _contextual_guarantee_answer(text: str) -> bool:
+    parts = _sentences(text)
+    if len(parts) < 2 or not re.fullmatch(r"(?:absolutely|yes|certainly)[.!]", parts[0], re.IGNORECASE):
+        return False
+    return bool(re.fullmatch(
+        r"(?:it|your refund|the refund) will " + _RECEIPT
+        + r" (?:by (?:[1-9]|1[0-2]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) this evening|"
+        + _SAME_DAY + r")[.!]?", parts[1], re.IGNORECASE,
+    ))
+
+
+def _promise_retracted(text: str) -> bool:
+    for sentence in _sentences(text):
+        match = re.match(r"(?:i|we) (?:withdraw|retract|take back) (?:that|the|my|our) (?:promise|guarantee)\b", sentence, re.IGNORECASE)
+        if match and _direct_statement(sentence):
+            return True
+    return False
 
 
 def _refund_completion(sentence: str) -> bool:
@@ -171,10 +233,38 @@ def _refund_completion(sentence: str) -> bool:
 
 
 def _targeted_transfer_offer(sentence: str) -> bool:
-    return any(re.match(
-        r'\s+(?:directly )?(?:to|with) (?:a |the |our )?(?:human|human agent|supervisor|manager|team\s+lead|person|representative)\b',
-        sentence[match.end():], re.IGNORECASE,
-    ) for match in _TRANSFER_OFFER.finditer(sentence))
+    for clause in re.split(r'[,;]|\b(?:but|so)\b', sentence, flags=re.IGNORECASE):
+        if not _direct_statement(clause):
+            continue
+        for match in _TRANSFER_OFFER.finditer(clause):
+            tail = clause[match.end():]
+            if re.match(
+                r'\s+(?:directly )?(?:to|with) (?:a |the |our )?(?:human|human agent|supervisor|manager|team\s+lead|person|representative)\b',
+                tail, re.IGNORECASE,
+            ) or re.fullmatch(r'\s*(?:now|right now)?[.!]?\s*', tail, re.IGNORECASE):
+                return True
+    return False
+
+
+def _short_refusal(text: str) -> bool:
+    return bool(re.fullmatch(
+        r"\s*(?:no[.!]?(?:\s*stop asking[.!]?)?|(?:sorry[,!.]?\s*)?that['’]s not possible[.!]?|not happening[.!]?)\s*",
+        text, re.IGNORECASE,
+    ))
+
+
+def _transfer_completion(sentence: str) -> bool:
+    if not _direct_statement(sentence):
+        return False
+    for match in re.finditer(
+        r"\b(?:you have been transferred|i have transferred you|we have transferred you)\b", sentence, re.IGNORECASE,
+    ):
+        tail = sentence[match.end():]
+        if re.fullmatch(r"\s*(?:now|successfully)?[.!]?\s*", tail, re.IGNORECASE) or re.match(
+            r"\s+to (?:a |the |our )?(?:human|supervisor|manager|team lead|representative)\b", tail, re.IGNORECASE,
+        ):
+            return True
+    return False
 
 
 def _refuses_requested_transfer(sentence: str) -> bool:
@@ -206,15 +296,20 @@ def _finding_id(kind: str, policy_id: str | None, evidence: list[Evidence]) -> s
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode()).hexdigest()[:20]
 
 
-def _policy_finding(rule: PolicyRule, title: str, explanation: str, evidence: list[Evidence]) -> Finding:
-    confirmed = all(item.role_source == 'transcript_label' and item.speaker_role in ('agent', 'customer') for item in evidence)
+def _policy_finding(rule: PolicyRule, title: str, explanation: str, evidence: list[Evidence],
+                    missing_evidence: list[str] | None = None) -> Finding:
+    missing = list(missing_evidence or [])
+    attributed = all(item.role_source == 'transcript_label' and item.speaker_role in ('agent', 'customer') for item in evidence)
+    if not attributed:
+        missing.append('confirmed_speaker_roles')
+    confirmed = not missing
     return Finding(
         id=_finding_id(rule.kind, rule.id, evidence), category='policy_violation',
         status='confirmed' if confirmed else 'needs_review', severity='high' if confirmed else 'medium',
         title=title, explanation=explanation + (
-            '' if confirmed else ' Speaker attribution is inferred or unknown, so confirm the roles before concluding a violation.'
+            '' if attributed else ' Speaker attribution is inferred or unknown, so confirm the roles before concluding a violation.'
         ), evidence=evidence, policy_id=rule.id,
-        missing_evidence=[] if confirmed else ['confirmed_speaker_roles'],
+        missing_evidence=missing,
     )
 
 
@@ -224,7 +319,7 @@ def evaluate_reliability(turns: list[dict], policies: list[PolicyRule]) -> Relia
     result = ReliabilityReport(
         checked_rule_ids=[policy.id for policy in active],
         policy_snapshots=[PolicySnapshot(**policy.model_dump(exclude={'enabled'})) for policy in active],
-        limitations=['Checks cover explicit English-language patterns only; no matches do not establish overall compliance.'],
+        limitations=['Checks cover bounded English patterns and a limited romanized Hindi refund guarantee; no matches do not establish overall compliance.'],
     )
     valid_turns = [
         (index, turn) for index, turn in enumerate(turns)
@@ -251,6 +346,7 @@ def evaluate_reliability(turns: list[dict], policies: list[PolicyRule]) -> Relia
     for index, turn in valid_turns:
         if turn.get('role') not in ('agent', 'unknown', None):
             continue
+        explicit_guarantee = False
         for sentence in _sentences(turn['text']):
             if _refund_completion(sentence):
                 evidence = [_evidence(index, turn, sentence)]
@@ -260,21 +356,53 @@ def evaluate_reliability(turns: list[dict], policies: list[PolicyRule]) -> Relia
                     explanation='The speaker claims a refund completed. No external action result is available to verify it; this does not mean the refund failed.',
                     evidence=evidence, missing_evidence=['action_result'],
                 ))
+            if _transfer_completion(sentence):
+                evidence = [_evidence(index, turn, sentence)]
+                result.findings.append(Finding(
+                    id=_finding_id('transfer_completion', None, evidence), category='unverified_claim',
+                    status='needs_review', severity='medium', title='Transfer completion is unverified',
+                    explanation='The speaker claims a transfer completed. A transcript is not an external transfer result; completion remains unverified.',
+                    evidence=evidence, missing_evidence=['action_result'],
+                ))
             if not _same_day_guarantee(sentence):
                 continue
+            explicit_guarantee = True
+            retracted = _promise_retracted(turn['text'].partition(sentence)[2])
             for rule in active:
                 if rule.kind == 'no_same_day_refund_guarantee':
                     result.findings.append(_policy_finding(
                         rule, 'Forbidden same-day refund guarantee',
-                        'An explicit same-day refund guarantee contradicts this enabled unconditional policy.',
-                        [_evidence(index, turn, sentence)],
+                        ('A same-day guarantee is followed by an explicit retraction in the same turn. Review the complete statement before concluding a violation.'
+                         if retracted else 'An explicit same-day refund guarantee contradicts this enabled unconditional policy.'),
+                        [_evidence(index, turn, turn['text'] if retracted else sentence)],
+                        ['promise_intent'] if retracted else None,
+                    ))
+        if not explicit_guarantee and _uncertain_refund_guarantee(turn['text']):
+            for rule in active:
+                if rule.kind == 'no_same_day_refund_guarantee':
+                    result.findings.append(_policy_finding(
+                        rule, 'Possible same-day refund guarantee',
+                        'A misspelled promise word or adjacent transcript fragments suggest a same-day refund guarantee. Confirm the original speech and promise intent.',
+                        [_evidence(index, turn, turn['text'])], ['promise_intent'],
+                    ))
+
+    for (previous_index, previous), (index, turn) in zip(valid_turns, valid_turns[1:]):
+        if (previous.get('role') == 'customer' and turn.get('role') in ('agent', 'unknown', None)
+                and _contextual_guarantee_question(previous['text']) and _contextual_guarantee_answer(turn['text'])):
+            for rule in active:
+                if rule.kind == 'no_same_day_refund_guarantee':
+                    result.findings.append(_policy_finding(
+                        rule, 'Possible contextual same-day refund guarantee',
+                        'The response agrees to an adjacent refund guarantee question and describes same-day receipt. Confirm the intended promise; agreement and pronoun resolution are contextual.',
+                        [_evidence(previous_index, previous, previous['text']), _evidence(index, turn, turn['text'])],
+                        ['promise_intent'],
                     ))
 
     for rule in active:
         if rule.kind != 'honor_escalation_request':
             continue
         request: Evidence | None = None
-        for index, turn in valid_turns:
+        for position, (index, turn) in enumerate(valid_turns):
             role = turn.get('role') or 'unknown'
             for sentence in _sentences(turn['text']):
                 if role in ('customer', 'unknown'):
@@ -285,6 +413,16 @@ def evaluate_reliability(turns: list[dict], policies: list[PolicyRule]) -> Relia
                     ) and not _QUOTED.search(sentence):
                         request = _evidence(index, turn, sentence)
                 if role in ('agent', 'unknown') and request and index > request.turn_index:
+                    preceding_index = valid_turns[position - 1][0] if position else None
+                    if (preceding_index == request.turn_index and sentence == _sentences(turn['text'])[0]
+                            and _short_refusal(turn['text'])):
+                        result.findings.append(_policy_finding(
+                            rule, 'Possible refusal of requested escalation',
+                            'A short negative answer immediately follows an escalation request. Confirm refusal intent before concluding a violation.',
+                            [request, _evidence(index, turn, turn['text'])], ['refusal_intent'],
+                        ))
+                        request = None
+                        continue
                     if _targeted_transfer_offer(sentence):
                         request = None
                     elif _refuses_requested_transfer(sentence):
@@ -293,7 +431,5 @@ def evaluate_reliability(turns: list[dict], policies: list[PolicyRule]) -> Relia
                             'The caller explicitly requested a human or supervisor and a later agent statement explicitly refused that request.',
                             [request, _evidence(index, turn, sentence)],
                         ))
-                        request = None
-                    elif _TRANSFER_OFFER.search(sentence):
                         request = None
     return result

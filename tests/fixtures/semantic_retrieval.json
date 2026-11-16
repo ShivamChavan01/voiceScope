@@ -1,0 +1,31 @@
+{
+  "description": "Authored synthetic retrieval checks. Not held-out production accuracy.",
+  "documents": {
+    "refund": "Refunds are credited to the original payment method within five business days after approval.",
+    "supervisor": "When a caller requests a manager or supervisor, offer a transfer to a human escalation specialist.",
+    "delivery": "Order tracking provides the parcel location, shipping carrier and estimated delivery date.",
+    "card": "Never ask callers to speak their complete bank card number, security code or online banking password.",
+    "cancel": "Customers can cancel their subscription to stop automatic renewal and future monthly charges.",
+    "discount": "Promotional coupons and discount codes apply only when currently listed in the approved offer catalog.",
+    "hours": "Human customer support is open Monday to Friday from nine in the morning until six in the evening, and closed on weekends.",
+    "returns": "Damaged products can be returned within thirty days with proof of purchase for inspection."
+  },
+  "queries": [
+    {"text": "When will the reimbursement reach my original account?", "expected": "refund"},
+    {"text": "How many working days does a refund take?", "expected": "refund"},
+    {"text": "Can somebody senior take over this conversation?", "expected": "supervisor"},
+    {"text": "I need to speak with your manager.", "expected": "supervisor"},
+    {"text": "Where is my package right now?", "expected": "delivery"},
+    {"text": "Which carrier is bringing my parcel and when?", "expected": "delivery"},
+    {"text": "Should I read out my debit card security digits?", "expected": "card"},
+    {"text": "May the agent ask for my online banking password?", "expected": "card"},
+    {"text": "I want to stop my membership renewing next month.", "expected": "cancel"},
+    {"text": "How do I avoid another monthly subscription bill?", "expected": "cancel"},
+    {"text": "Can I use a promotional coupon for this purchase?", "expected": "discount"},
+    {"text": "Where do agents find approved special offers?", "expected": "discount"},
+    {"text": "Can I reach human customer service on Saturday?", "expected": "hours"},
+    {"text": "At what hour does the support team close?", "expected": "hours"},
+    {"text": "The product arrived broken. Can I send it back?", "expected": "returns"},
+    {"text": "Do I need a receipt to return a damaged item?", "expected": "returns"}
+  ]
+}

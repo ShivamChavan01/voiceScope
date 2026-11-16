@@ -108,3 +108,40 @@ class TestInitSchema:
         with patch.dict(os.environ, {"DATABASE_URL": "postgresql://test:test@localhost/test"}):
             await db_module.init_schema()
         mock_conn.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_startup_does_not_report_postgres_connected_after_connection_failure(monkeypatch):
+    import main
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/synthetic")
+    monkeypatch.setattr(main, "demo_enabled", lambda: False)
+    monkeypatch.setattr(db_module.asyncpg, "create_pool", AsyncMock(side_effect=OSError("unavailable")))
+    startup_logger = MagicMock()
+    monkeypatch.setattr(main, "logger", startup_logger)
+
+    with pytest.raises(db_module.DatabaseUnavailableError):
+        async with main.lifespan(main.app):
+            pytest.fail('Configured database failure must block startup')
+    assert db_module._pool is None
+
+    assert not any("PostgreSQL connected" in str(call) for call in startup_logger.info.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_schema_error_is_not_reported_as_success(monkeypatch):
+    import main
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/synthetic")
+    monkeypatch.setattr(main, "demo_enabled", lambda: False)
+    monkeypatch.setattr(main, "init_schema", AsyncMock(side_effect=RuntimeError("synthetic")))
+    startup_logger = MagicMock()
+    monkeypatch.setattr(main, "logger", startup_logger)
+
+    with pytest.raises(db_module.DatabaseUnavailableError):
+        async with main.lifespan(main.app):
+            pytest.fail('Schema failure must block startup')
+
+    startup_logger.info.assert_not_called()
+    startup_logger.error.assert_called_once()
+    assert "RuntimeError" in startup_logger.error.call_args.args[0]

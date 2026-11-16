@@ -26,10 +26,12 @@ def attributed_pipeline(monkeypatch, tmp_path):
     monkeypatch.setenv('DATA_DIR', str(tmp_path))
     monkeypatch.setenv('MONITORING_DB_PATH', str(tmp_path / 'monitoring.db'))
     monkeypatch.setenv('COST_DB_PATH', str(tmp_path / 'costs.db'))
+    monkeypatch.setenv('CHROMA_PERSIST_DIR', str(tmp_path / 'legacy-chroma'))
+    monkeypatch.setenv('SEMANTIC_DB_PATH', str(tmp_path / 'semantic.sqlite'))
     monkeypatch.setattr(middleware.auth, '_VALID_KEYS', frozenset({'speaker-test-key'}))
     chroma = AsyncMock()
     chroma.query.return_value = []
-    monkeypatch.setattr(core.pipeline, 'ChromaStore', lambda: chroma)
+    monkeypatch.setattr(core.pipeline, 'TranscriptStore', lambda: chroma)
     monkeypatch.setattr(core.pipeline, 'KnowledgeBase', lambda: MagicMock(available=False))
     monkeypatch.setattr(ProviderRegistry, 'get', lambda *args, **kwargs: SimpleNamespace(name='test'))
 

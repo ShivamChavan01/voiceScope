@@ -1,0 +1,1146 @@
+{
+  "version": "2",
+  "policies": [
+    {
+      "id": "refund",
+      "title": "No same-day guarantees",
+      "kind": "no_same_day_refund_guarantee",
+      "text": "Agents must never guarantee same-day refunds."
+    },
+    {
+      "id": "escalation",
+      "title": "Honor supervisor requests",
+      "kind": "honor_escalation_request",
+      "text": "If a customer requests a supervisor, agents must honor the request immediately."
+    }
+  ],
+  "cases": [
+    {
+      "id": "alternative-can",
+      "name": "alternative can",
+      "purpose": "Valid human alternative is an offer, not an explicit refusal or proof of completed transfer.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to a supervisor, but I can connect you to our manager right now."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "alternative-will",
+      "name": "alternative will",
+      "purpose": "Valid human alternative is an offer, not an explicit refusal or proof of completed transfer.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to a supervisor, but I will connect you to our manager right now."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "future-guarantee",
+      "name": "future guarantee",
+      "purpose": "Literal attributed guarantee conflicts with unconditional refund policy.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "direct-guarantee",
+      "name": "direct guarantee",
+      "purpose": "Literal attributed guarantee conflicts with unconditional refund policy.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee your refund today."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "midnight",
+      "name": "midnight",
+      "purpose": "Literal attributed guarantee conflicts with unconditional refund policy.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I promise your money will arrive by midnight."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "eod",
+      "name": "eod",
+      "purpose": "Literal attributed guarantee conflicts with unconditional refund policy.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I promise the refund will reach you by EOD."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "before-five",
+      "name": "before five",
+      "purpose": "Literal attributed guarantee conflicts with unconditional refund policy.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Your refund is guaranteed to arrive before five."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "angry-short",
+      "name": "angry short",
+      "purpose": "Adjacent escalation request and blunt refusal need review; transcript does not establish what service limitation meant.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor right now, you useless bot!"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "No. Stop asking."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "honor_escalation_request",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "refusal_intent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "manager-short",
+      "name": "manager short",
+      "purpose": "Adjacent escalation request and blunt refusal need review; transcript does not establish what service limitation meant.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Sorry, that's not possible."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "honor_escalation_request",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "refusal_intent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "human-short",
+      "name": "human short",
+      "purpose": "Adjacent escalation request and blunt refusal need review; transcript does not establish what service limitation meant.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Connect me to a human."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Not happening."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "honor_escalation_request",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "refusal_intent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contextual-guarantee",
+      "name": "contextual guarantee",
+      "purpose": "Adjacent explicit refund/guarantee question and assent with same-day receipt need review; pronoun resolution is inferred.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Will my refund arrive today? Can you guarantee that?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Absolutely. It will hit your account by five this evening."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "promise_intent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negated-future",
+      "name": "negated future",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will not guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "negated-promise",
+      "name": "negated promise",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot promise your money will arrive by midnight."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "quote-future",
+      "name": "quote future",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "The last agent said \"I will guarantee a same-day refund.\""
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "conditional",
+      "name": "conditional",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "If approved, I will guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "estimate",
+      "name": "estimate",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Your refund should arrive by EOD."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "processing",
+      "name": "processing",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee I will process your refund today."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "hypothetical",
+      "name": "hypothetical",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Would I guarantee a same-day refund?"
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "sarcasm",
+      "name": "sarcasm",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Sure, and pigs can fly."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "incomplete",
+      "name": "incomplete",
+      "purpose": "No direct positive guarantee of same-day refund receipt is established.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will guarantee a same-day"
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "customer-guarantee",
+      "name": "customer guarantee",
+      "purpose": "Customer speech must not become an agent promise.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I will guarantee a same-day refund."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot promise that."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "unknown-guarantee",
+      "name": "unknown guarantee",
+      "purpose": "Unknown role can only support review.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "unknown",
+          "role_source": "transcript_label",
+          "text": "I will guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inferred-guarantee",
+      "name": "inferred guarantee",
+      "purpose": "Inferred attribution cannot confirm a violation.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "model_inference",
+          "text": "I will guarantee a same-day refund."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "standalone-no",
+      "name": "standalone no",
+      "purpose": "No unambiguous attributable refusal of an active request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "No. Stop asking."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "money-transfer",
+      "name": "money transfer",
+      "purpose": "No unambiguous attributable refusal of an active request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer money between accounts."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "quoted-short",
+      "name": "quoted short",
+      "purpose": "No unambiguous attributable refusal of an active request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "The last agent said \"No. Stop asking.\""
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "conditional-offer",
+      "name": "conditional offer",
+      "purpose": "No unambiguous attributable refusal of an active request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "If I can connect you to our manager, I will."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "request-withdrawn",
+      "name": "request withdrawn",
+      "purpose": "No unambiguous attributable refusal of an active request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Never mind. I do not need a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "No. Stop asking."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "unrelated-no",
+      "name": "unrelated no",
+      "purpose": "Short no is not adjacent to an escalation request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Do you want a receipt?"
+        },
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Yes."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "No."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "offer-only",
+      "name": "offer only",
+      "purpose": "Transfer language is not proof that an external transfer completed.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I can transfer you."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "promise-only",
+      "name": "promise only",
+      "purpose": "Transfer language is not proof that an external transfer completed.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will transfer you."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "progress-only",
+      "name": "progress only",
+      "purpose": "Transfer language is not proof that an external transfer completed.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I am transferring you."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "claimed-transfer",
+      "name": "claimed transfer",
+      "purpose": "Completed transfer assertion requires external evidence.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "You have been transferred."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "unverified_claim",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "medium",
+          "turn_indices": [
+            1
+          ],
+          "missing_evidence": [
+            "action_result"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repeated-request",
+      "name": "repeated request",
+      "purpose": "Preserve separate requests and separate certainty levels.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you."
+        },
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Please connect me to a human."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Not happening."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        },
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "honor_escalation_request",
+          "severity": "medium",
+          "turn_indices": [
+            2,
+            3
+          ],
+          "missing_evidence": [
+            "refusal_intent"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "context-not-guaranteed",
+      "name": "context not guaranteed",
+      "purpose": "Negated assent and estimate must not become a contextual guarantee.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Will my refund arrive today? Can you guarantee that?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Absolutely not. It might arrive by five this evening."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "context-unrelated",
+      "name": "context unrelated",
+      "purpose": "Commitment to checking is not commitment to refund receipt.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Will my refund arrive today? Can you guarantee that?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Absolutely. I will check the account by five this evening."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "unrelated-question",
+      "name": "unrelated question",
+      "purpose": "Multiple questions leave the referent of agreement ambiguous; do not infer a guarantee automatically.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Will my refund arrive today? Can you guarantee that? Also, is support open?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Absolutely. It will hit your account by five this evening."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    },
+    {
+      "id": "insult-explicit",
+      "name": "insult explicit",
+      "purpose": "Insults do not erase an explicit request and refusal.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Connect me to a human, you useless bot!"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will not let you speak with a manager."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "complaint-threat",
+      "name": "complaint threat",
+      "purpose": "Complaint threat does not erase a valid request.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I want to speak to a supervisor. I will complain publicly."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer you to a supervisor."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ]
+    },
+    {
+      "id": "refund-demand",
+      "name": "refund demand",
+      "purpose": "Customer pressure and submission are not a guaranteed outcome.",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Refund me immediately, damn it!"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I can submit a refund request."
+        }
+      ],
+      "expected_status": "assessed",
+      "expected": []
+    }
+  ]
+}

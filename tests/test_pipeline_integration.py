@@ -6,7 +6,7 @@ from core.pipeline import VoiceScopePipeline
 
 
 def test_missing_provider_fails_before_loading_policy_embeddings():
-    with patch('core.pipeline.ChromaStore'), patch('core.pipeline.KnowledgeBase') as knowledge, patch('core.pipeline.ReportAgent', side_effect=ValueError('Provider not configured')):
+    with patch('core.pipeline.TranscriptStore'), patch('core.pipeline.KnowledgeBase') as knowledge, patch('core.pipeline.ReportAgent', side_effect=ValueError('Provider not configured')):
         with pytest.raises(ValueError, match='Provider not configured'):
             VoiceScopePipeline()
     knowledge.assert_not_called()
@@ -14,7 +14,7 @@ def test_missing_provider_fails_before_loading_policy_embeddings():
 
 @pytest.fixture
 def pipeline():
-    with patch("core.pipeline.ChromaStore"), \
+    with patch("core.pipeline.TranscriptStore"), \
          patch("core.pipeline.KnowledgeBase"), \
          patch("core.pipeline.TranscriptionAgent"), \
          patch("core.pipeline.SpeakerAgent"), \
@@ -84,7 +84,7 @@ async def test_pipeline_happy_path(pipeline):
 
 
 async def test_pipeline_transcription_failure():
-    with patch("core.pipeline.ChromaStore"), \
+    with patch("core.pipeline.TranscriptStore"), \
          patch("core.pipeline.KnowledgeBase"), \
          patch("core.pipeline.TranscriptionAgent"), \
          patch("core.pipeline.SpeakerAgent"), \

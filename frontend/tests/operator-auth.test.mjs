@@ -1,9 +1,31 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 import { operatorAccess } from '../src/lib/operator-auth.ts';
 
 const credentials = { username: 'operator', password: 'synthetic-private-password-for-tests' };
 const authorization = `Basic ${Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64')}`;
+
+test('the documented private setup fails closed until operator secrets are supplied', () => {
+  const template = parseEnv(readFileSync(new URL('../.env.example', import.meta.url), 'utf8'));
+  const names = [...Object.keys(template), 'VERCEL_ENV'];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  try {
+    Object.assign(process.env, template, { VERCEL_ENV: 'production' });
+    const request = new Request('https://private.example/runs');
+    assert.equal(operatorAccess(request).status, 503);
+    process.env.OPERATOR_AUTH_USER = credentials.username;
+    process.env.OPERATOR_AUTH_PASSWORD = credentials.password;
+    assert.equal(operatorAccess(request).status, 401);
+    assert.equal(operatorAccess(new Request(request.url, { headers: { authorization } })), null);
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
+});
 
 test('operator authentication fails closed for missing or weak configuration', () => {
   for (const config of [{}, { username: 'operator', password: 'short' }, { ...credentials, username: 'bad:user' }]) {

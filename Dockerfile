@@ -20,7 +20,7 @@ COPY --from=builder /install /usr/local
 
 COPY . .
 
-RUN mkdir -p /app/data /app/chroma_db /app/logs && \
+RUN mkdir -p /app/data/semantic /app/logs && \
     chown -R voicescope:voicescope /app
 
 USER voicescope

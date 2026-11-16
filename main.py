@@ -2,6 +2,8 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 
+from asyncpg import PostgresConnectionError
+
 # Load .env before importing modules that cache authentication settings.
 import utils.environment  # noqa: F401
 
@@ -16,7 +18,7 @@ from middleware.auth import APIKeyAuthMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 from middleware.staging_demo import StagingDemoMiddleware
 from core.staging import demo_enabled
-from storage.db import close_pool, init_schema
+from storage.db import DatabaseUnavailableError, close_pool, init_schema
 from utils.logger import logger, set_correlation_id
 from utils.tracing import RequestContext, set_request_context
 
@@ -25,23 +27,26 @@ IS_PRODUCTION = os.getenv("APP_ENV") == "production"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if demo_enabled():
-        from core.staging_demo import seed_staging_demo
-        await seed_staging_demo()
-        logger.info('[Startup] Synthetic demo restored; live services disabled; local storage is ephemeral')
-    elif os.environ.get("DATABASE_URL"):
-        try:
-            await init_schema()
-            logger.info("[Startup] PostgreSQL connected")
-        except Exception as e:
-            logger.warning(
-                f"[Startup] PostgreSQL unavailable — falling back to SQLite: {type(e).__name__}"
-            )
-    yield
     try:
-        await close_pool()
-    except Exception:
-        pass
+        if demo_enabled():
+            from core.staging_demo import seed_staging_demo
+            await seed_staging_demo()
+            logger.info('[Startup] Synthetic demo restored; live services disabled; local storage is ephemeral')
+        elif os.environ.get("DATABASE_URL"):
+            try:
+                await init_schema()
+            except Exception as e:
+                logger.error(f"[Startup] PostgreSQL initialization failed: {type(e).__name__}")
+                raise DatabaseUnavailableError('Configured PostgreSQL is unavailable; initialization failed') from None
+        if not demo_enabled():
+            from storage.semantic_index import validate_legacy_migration
+            validate_legacy_migration()
+        yield
+    finally:
+        try:
+            await close_pool()
+        except Exception as e:
+            logger.warning(f"[Shutdown] Database cleanup failed: {type(e).__name__}")
 
 
 app = FastAPI(
@@ -103,6 +108,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def invalid_request(request: Request, exc: RequestValidationError):
     errors = [{key: error[key] for key in ('type', 'loc', 'msg')} for error in exc.errors()]
     return JSONResponse(status_code=422, content={'detail': errors}, headers={'Cache-Control': 'no-store'})
+
+
+@app.exception_handler(DatabaseUnavailableError)
+@app.exception_handler(PostgresConnectionError)
+async def database_unavailable(request: Request, exc: DatabaseUnavailableError | PostgresConnectionError):
+    return JSONResponse(
+        status_code=503,
+        content={'detail': 'Configured database is unavailable. Please retry later.'},
+        headers={'Cache-Control': 'no-store', 'Retry-After': '5'},
+    )
 
 
 app.include_router(router, prefix="/api/v1")

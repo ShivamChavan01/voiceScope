@@ -1,10 +1,15 @@
 [build]
-builder = "dockerfile"
+builder = "DOCKERFILE"
 
 [deploy]
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 30
-restartPolicyType = "on_failure"
+restartPolicyType = "ON_FAILURE"
 
 [[volumes]]
 mountPath = "/app/data"
+
+[environments.staging.deploy]
+healthcheckTimeout = 90
+numReplicas = 1
+requiredMountPath = "/app/data"

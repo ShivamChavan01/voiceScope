@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import sqlite3
 from functools import lru_cache
 from typing import Literal, Optional
 from urllib.parse import urlparse
@@ -462,11 +463,20 @@ async def get_run(run_id: str, request: Request, response: Response):
 
 @router.delete("/runs/{run_id}")
 async def delete_run(run_id: str):
-    deleted = await get_monitoring_store().delete_run(run_id)
-    if not deleted:
+    store = get_monitoring_store()
+    if not await store.get_run(run_id):
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    from storage.semantic_index import SemanticCollection
     from storage.stt_reviews import STTReviewStore
-    STTReviewStore().delete_run(run_id)
+    try:
+        # Purge derived context first so a failure leaves the primary run present
+        # and permits an operator retry, rather than returning a false success.
+        SemanticCollection('voice_calls').delete(ids=[run_id])
+        STTReviewStore().delete_run(run_id)
+    except (OSError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail='Call evidence could not be removed. Retry deletion after checking storage.') from None
+    if not await store.delete_run(run_id):
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     return {"status": "deleted", "run_id": run_id}
 
 
@@ -534,6 +544,7 @@ async def webhook_call_completed(request: Request):
         if state == 'processing':
             raise HTTPException(status_code=409, detail='Call evaluation is already processing. Retry later.', headers={'Retry-After': '10'})
         try:
+            await get_monitoring_store().check_connection()
             if (qa_agent_id() and getattr(request.state, 'operator_authenticated', False)
                     and request.headers.get('X-STT-Reference-Mode') == 'restore'):
                 result = await _process_webhook(event, prepare_qa_reference=False)

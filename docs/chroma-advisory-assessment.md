@@ -1,5 +1,41 @@
 # Chroma advisory assessment, October 31, 2026
 
+## Superseding local replacement, November 12
+
+With explicit approval, the local candidate replaces Chroma retrieval with SQLite
+and local FastEmbed embeddings. `requirements.txt` and `pyproject.toml` no longer
+install Chroma, and the audit policy has no vulnerability waivers. The old SDK is
+isolated to explicit offline export, not loaded by the application. This removes
+the vulnerable runtime dependency; it does not patch Chroma itself. Original
+indexes are not deleted or migrated automatically.
+
+See [migration and limitations](semantic-retrieval.md) and
+[candidate verification](release-candidate-verification.md) for local evidence. The dated assessments
+below are historical and must not be used as the current candidate's release gate.
+
+## November 7 local-date recheck
+
+At 2026-11-06 19:29 UTC (November 7 in Asia/Kolkata), the official PyPI metadata
+still reports 1.5.9 as latest. The four OSV records below list no fixed release.
+A fresh raw requirements audit still reports five records for four unique Chroma
+IDs. The policy accepts only the existing four exceptions before midnight UTC;
+evaluating that same report on November 7 UTC blocks all five records with zero
+exceptions. **The deadline has not been extended and the vulnerabilities have
+not been fixed.** Do not describe that temporary policy result as a clean audit.
+
+Sources rechecked: [PyPI metadata](https://pypi.org/pypi/chromadb/json),
+[PYSEC-2026-311](https://osv.dev/vulnerability/PYSEC-2026-311),
+[PYSEC-2026-3813](https://osv.dev/vulnerability/PYSEC-2026-3813),
+[PYSEC-2026-3814](https://osv.dev/vulnerability/PYSEC-2026-3814), and
+[PYSEC-2026-3815](https://osv.dev/vulnerability/PYSEC-2026-3815).
+
+Chroma remains actively used by `core/knowledge_base.py` and
+`storage/chroma_store.py`; removing it would change retrieval behavior. Existing
+embedded-only boundary regressions still pass locally. This does not establish
+hosted applicability or authorize a replacement database. A patched compatible
+release or separately designed replacement remains required to close the release
+blocker without renewing the exception. Historical assessments follow.
+
 ## Private single-company release follow-up
 
 The release review replaces the old unconditional CVE ignore with a temporary,

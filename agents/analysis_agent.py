@@ -6,7 +6,7 @@ from core.context import PipelineContext
 from core.knowledge_base import KnowledgeBase
 from core.harness import AnalysisOutput
 from llm_providers.registry import ProviderRegistry
-from storage.chroma_store import ChromaStore
+from storage.transcript_store import TranscriptStore
 from utils.logger import logger
 
 CHUNK_WORD_LIMIT = 1000
@@ -144,15 +144,15 @@ def _chunk_turns(turns: list[str], max_words: int) -> list[str]:
 class AnalysisAgent:
     """
     Agent 2 — LLM-powered analysis of transcript.
-    Uses RAG context from ChromaDB for similar past calls.
+    Uses RAG context from the local semantic index for similar past calls.
     Uses KnowledgeBase for policy-grounded hallucination detection.
     Supports hierarchical summarization for transcripts over 4000 words.
     Populates: intent, sentiment_arc, hallucination_detected, outcome, escalation_signal
     """
 
-    def __init__(self, chroma_store: ChromaStore, knowledge_base: KnowledgeBase | None = None):
+    def __init__(self, transcript_store: TranscriptStore, knowledge_base: KnowledgeBase | None = None):
         self.provider = ProviderRegistry.get()
-        self.chroma = chroma_store
+        self.transcripts = transcript_store
         self.kb = knowledge_base
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
@@ -321,7 +321,7 @@ class AnalysisAgent:
 
     async def _get_rag_context(self, transcript: str) -> str:
         try:
-            results = await self.chroma.query(transcript, n_results=3)
+            results = await self.transcripts.query(transcript, n_results=3)
             if not results:
                 return ""
             return "\n---\n".join(results)

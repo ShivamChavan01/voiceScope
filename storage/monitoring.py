@@ -1,10 +1,11 @@
 import json
 import os
+import sqlite3
 from contextlib import closing
 from pathlib import Path
 from typing import Literal, Optional
 
-from storage.db import get_pool
+from storage.db import DatabaseUnavailableError, get_pool
 from utils.logger import logger
 
 
@@ -55,6 +56,20 @@ class MonitoringStore:
 
     async def _get_pool(self):
         return await get_pool()
+
+    async def check_connection(self) -> None:
+        """Reject known outages before provider work; later writes can still fail."""
+        try:
+            pool = await self._get_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    await conn.execute('SELECT 1')
+            else:
+                with self._sqlite_conn() as conn:
+                    conn.execute('SELECT 1')
+        except (sqlite3.Error, OSError) as exc:
+            logger.warning(f'[MonitoringStore] Run storage unavailable: {type(exc).__name__}')
+            raise DatabaseUnavailableError('Run storage is unavailable') from None
 
     async def _runs_columns(self, conn) -> set:
         """Column names actually present in the `runs` table (cached).

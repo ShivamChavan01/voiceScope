@@ -8,6 +8,11 @@ from utils.logger import logger
 
 _pool: Optional[asyncpg.Pool] = None
 _pool_lock: Optional[asyncio.Lock] = None
+CONNECT_TIMEOUT_SECONDS = 15
+
+
+class DatabaseUnavailableError(RuntimeError):
+    """The explicitly configured database could not be reached."""
 
 
 def _get_lock() -> asyncio.Lock:
@@ -25,17 +30,18 @@ async def get_pool() -> Optional[asyncpg.Pool]:
     async with _get_lock():
         if _pool is None or _pool._closed:
             try:
-                _pool = await asyncpg.create_pool(
+                _pool = await asyncio.wait_for(asyncpg.create_pool(
                     database_url,
                     min_size=2,
                     max_size=10,
                     command_timeout=15,
                     ssl="require",
-                )
+                ), timeout=CONNECT_TIMEOUT_SECONDS)
                 logger.info("[DB] PostgreSQL pool connected")
             except Exception as e:
-                logger.warning(f"[DB] PostgreSQL unavailable — using SQLite fallback: {type(e).__name__}")
+                logger.warning(f"[DB] Configured PostgreSQL unavailable: {type(e).__name__}")
                 _pool = None
+                raise DatabaseUnavailableError('Configured PostgreSQL is unavailable') from None
     return _pool
 
 

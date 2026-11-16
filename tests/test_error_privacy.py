@@ -43,7 +43,7 @@ async def test_transcription_failure_never_persists_or_logs_provider_payload():
 async def test_report_failure_does_not_return_provider_response_text():
     from agents.report_agent import ReportAgent
     with patch('agents.report_agent.ProviderRegistry.get', return_value=AsyncMock()):
-        agent = ReportAgent(chroma_store=AsyncMock())
+        agent = ReportAgent(transcript_store=AsyncMock())
     with patch('agents.report_agent.ProviderRegistry.call', new_callable=AsyncMock, side_effect=RuntimeError(CANARY)) as call:
         context = await agent.run(PipelineContext())
         call.assert_awaited_once()
@@ -77,9 +77,12 @@ async def test_database_startup_error_does_not_log_raw_exception(monkeypatch):
     output = io.StringIO()
     sink = logger.add(output, filter=private_log_record, format='{message}', diagnose=False, backtrace=False)
     try:
-        async with main.lifespan(main.app):
-            pass
+        with pytest.raises(RuntimeError) as caught:
+            async with main.lifespan(main.app):
+                pytest.fail('Database schema failure must block startup')
     finally:
         logger.remove(sink)
+    import traceback
+    assert CANARY not in ''.join(traceback.format_exception(caught.value))
     assert CANARY not in output.getvalue()
     assert 'RuntimeError' in output.getvalue()

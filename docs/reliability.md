@@ -15,20 +15,32 @@ VoiceScope checks explicit transcript statements against configured company rule
 | `no_same_day_refund_guarantee` | Agents must never guarantee same-day refunds. | An explicit same-day refund guarantee |
 | `honor_escalation_request` | If a customer requests a supervisor, agents must honor the request immediately. | An explicit customer request followed by an explicit refusal |
 
-The detector supports bounded English wording. It rejects contradictory or unrelated rule text instead of guessing its meaning. Conditional business exceptions and arbitrary prose require further implementation. It does not infer a failed transfer from an absent transfer log.
+The detector supports bounded English wording and explicit romanized Hindi refund
+guarantees of the form "Main guarantee karta hoon ki aapka refund aaj mil jayega",
+including a small set of pronoun and transliteration variants. This is not general
+Hindi/Hinglish or multilingual coverage. Policy configuration still uses the English
+templates. Contradictory or unrelated rule text is rejected. Conditional business
+exceptions and arbitrary prose require further implementation. An absent transfer
+log does not establish a failed transfer.
+
+Recognized misspellings of "guarantee", adjacent refund/guarantee fragments, and
+answers agreeing to an adjacent guarantee question produce **Needs review** with
+`promise_intent` missing. Full original quotes, including trailing caveats or
+possible sarcasm, are retained. No acoustic ASR correction or sarcasm classification
+is claimed. These matches never turn uncertain intent into a confirmed violation.
 
 ## Stored contract
 
 `evaluation.reliability` has schema version `1`, a status (`assessed` or `insufficient_evidence`), checked rule IDs, immutable policy snapshots, findings, and limitations. Each finding contains category, status, severity, title, explanation, exact evidence quotes with zero-based transcript turn indices, optional policy ID, and missing evidence.
 
 - `policy_violation` with `confirmed`: an explicit supported pattern with transcript-labeled roles contradicts the configured rule.
-- `policy_violation` with `needs_review`: matching wording has inferred or uncertain attribution.
+- `policy_violation` with `needs_review`: matching wording has inferred/unknown attribution or uncertain promise/refusal intent.
 - `unverified_claim`: refund completion is asserted, but no action result is available.
 - `insufficient_evidence`: a required transcript or attribution is unavailable.
 
 No enabled policies produces an insufficient-evidence assessment, even when there are no findings. No matches in supported checks never means the whole call is compliant. These deterministic findings survive a later model failure and are persisted with the evaluation. Historical records without this contract display **Not assessed**.
 
-Policies are stored in SQLite at `POLICY_DB_PATH`, falling back to `DATA_DIR/policies.db`. The current store and API are single-workspace; frontend authentication and tenant isolation remain open.
+Policies are stored in SQLite at `POLICY_DB_PATH`, falling back to `DATA_DIR/policies.db`. The current store and API are single-workspace, protected by private operator authentication. Shared hosting still requires company ownership and tenant isolation.
 
 ## API
 

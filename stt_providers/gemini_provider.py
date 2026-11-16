@@ -29,12 +29,13 @@ class GeminiSTTProvider(STTProvider):
         max_retries = 3
         for attempt in range(max_retries):
             try:
+                contents: list[types.PartUnion] = [
+                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                    "Transcribe this audio recording exactly. Output ONLY the transcript text, nothing else. Include speaker labels if discernible (e.g. 'Speaker 1:', 'Agent:'). Preserve the natural flow of conversation.",
+                ]
                 response = await client.aio.models.generate_content(
                     model="gemini-2.0-flash",
-                    contents=[
-                        types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                        "Transcribe this audio recording exactly. Output ONLY the transcript text, nothing else. Include speaker labels if discernible (e.g. 'Speaker 1:', 'Agent:'). Preserve the natural flow of conversation.",
-                    ],
+                    contents=contents,
                     config=types.GenerateContentConfig(temperature=0.0),
                 )
 

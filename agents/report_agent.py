@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from core.context import PipelineContext
 from core.harness import ReportOutput
 from llm_providers.registry import ProviderRegistry
-from storage.chroma_store import ChromaStore
+from storage.transcript_store import TranscriptStore
 from utils.logger import logger
 
 REPORT_PROMPT = """
@@ -32,13 +32,13 @@ Return ONLY valid JSON with these exact keys:
 class ReportAgent:
     """
     Agent 3 — Assembles final report from all pipeline data.
-    Stores report in ChromaDB for future RAG retrieval.
+    Stores report in the local semantic index for future RAG retrieval.
     Populates: ctx.report
     """
 
-    def __init__(self, chroma_store: ChromaStore):
+    def __init__(self, transcript_store: TranscriptStore):
         self.provider = ProviderRegistry.get()
-        self.chroma = chroma_store
+        self.transcripts = transcript_store
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
         logger.info(f"[ReportAgent] run_id={ctx.run_id}")
@@ -94,7 +94,7 @@ class ReportAgent:
             ctx.mark_stage("report")
 
             if ctx.raw_transcript:
-                await self.chroma.store(
+                await self.transcripts.store(
                     doc_id=ctx.run_id,
                     text=ctx.raw_transcript,
                     metadata={"outcome": ctx.outcome, "intent": ctx.intent},

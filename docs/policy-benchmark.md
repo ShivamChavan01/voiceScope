@@ -8,7 +8,7 @@ The policy benchmark calls the same `evaluate_reliability` function used for rea
 .venv/bin/python scripts/run_reliability_benchmark.py --json /tmp/policy-benchmark.json
 ```
 
-The default gate requires every case to match. The current dataset deliberately includes broader paraphrases that the bounded detector misses, so the default command exits **1** and writes the mismatches. That is an evaluation failure, not a broken runner. Do not lower the threshold to claim improved detection. A configurable `--min-case-accuracy` exists for explicitly chosen experiments; it accepts only finite values from 0 to 1.
+The default gate requires every case to match. At base commit `250bca7`, an independently rerun local evaluation returned **28/28 exact matches**, TP=13, FP=0, FN=0, and exit **0**. The dataset has since become a curated regression set; a perfect score does not establish general-world reliability. Any mismatch still exits 1 and is written to the artifact. Do not lower the threshold to claim improved detection. A configurable `--min-case-accuracy` exists for explicitly chosen experiments; it accepts only finite values from 0 to 1.
 
 Open **Benchmark** in the frontend or call authenticated `GET /api/v1/loop/benchmark/reliability`. Re-running performs a read-only evaluation. It does not change optimizer weights, company policies, prompts, or call records.
 
@@ -16,7 +16,7 @@ Open **Benchmark** in the frontend or call authenticated `GET /api/v1/loop/bench
 
 `core/data/reliability_cases.json` version 2 contains 28 manually labeled synthetic cases: 24 supported-pattern regressions and four challenge paraphrases. At introduction, exact matches were **25/28**, comprising **24/24** supported cases and **1/4** challenges. Ten findings matched, none were unexpected, and three were missed. This is a small development regression set, not a held-out test or an estimate of production accuracy.
 
-The visible misses are assurance wording for same-day refund arrival, a refused request for a team lead, and “money returned to your card” as an unverified completion claim. These remain detector coverage gaps. The broader semantic detector has not been implemented.
+Those three original misses were subsequently addressed: assurance wording for same-day refund arrival, a refused request for a team lead, and “money returned to your card” as an unverified completion claim. The original 25/28 describes a historical result, not the current detector. Broader semantic coverage remains bounded and is measured separately below.
 
 The input fixtures include compliant conversations, explicit promises and refusals, negation, quoted speech, unrelated refusals, administrative refund steps, conditional approval, caller statements, missing policies, missing transcripts, inferred/unknown roles, multiple findings, and paraphrases. Editing an expected label changes agreement without changing the detector's prediction; regression tests enforce this separation.
 
@@ -41,3 +41,23 @@ No live LLM, transcription provider, payment tool, or Bolna call is exercised by
 ## Case relevance
 
 Each case supplies only the fictional rule it tests. Refund-promise cases use the refund rule; supervisor-transfer cases use the escalation rule. Refund-action evidence cases supply no company rule and test unverified claims directly. The generic order-tracking example has been replaced by a refund estimate without a guarantee. Each case includes a human-authored purpose that is displayed alongside its synthetic conversation and is never passed to the detector. These fixture results are separate from saved real calls.
+
+## Separate adversarial evaluation
+
+The curated 28 cases are unchanged. Separately authored inputs and fixed expected labels live in `tests/data/reliability_adversarial.json`. They cover transfer alternatives, modal guarantees and arrival deadlines, adjacent short refusals, contextual agreement, negatives, and external completion claims. A second file, `tests/data/reliability_challenge.json`, contains 30 additional cases authored after the initial implementation and before running that challenge. Its ten false-positive traps, ten positive probes, and ten ambiguous/transcript-quality cases all count, including Hindi/Hinglish wording, ASR errors and possible sarcasm.
+
+```bash
+.venv/bin/python scripts/run_reliability_benchmark.py --dataset tests/data/reliability_adversarial.json --json /tmp/adversarial.json
+.venv/bin/python scripts/run_reliability_benchmark.py --dataset tests/data/reliability_challenge.json --json /tmp/challenge.json
+```
+
+Both commands retain the default exact-match gate. The original challenge misses and their remediation are summarized below; a nonzero result is not hidden or converted into a production accuracy claim. The same runner validates source quotes/roles and separately counts unexpected and missed finding labels. A wrong certainty or missing-evidence label can count as both FP and FN; these are finding-label counts, not unique failed calls. These development labels are independently authored from model output, but are not external blind human review.
+
+The November 17 local candidate addresses the four original challenge misses with
+bounded romanized Hindi matching and review-only handling for recognized promise
+misspellings, adjacent fragments and contextual answers with trailing caveats.
+All 30 original cases now run in pytest without changing their labels. They have
+informed implementation changes and are regression cases, not a held-out challenge
+or an estimate of production accuracy. Additional negative variants cover negation,
+reported speech, unrelated payments, dates, role uncertainty and disabled policies.
+See [evidence contracts](reliability.md) for the limited language/intent coverage.

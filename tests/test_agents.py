@@ -133,7 +133,7 @@ class TestAnalysisAgent:
         mock_kb.available = False
         with patch("agents.analysis_agent.ProviderRegistry") as mock_reg:
             mock_reg.get.return_value = AsyncMock()
-            return AnalysisAgent(chroma_store=mock_chroma, knowledge_base=mock_kb)
+            return AnalysisAgent(transcript_store=mock_chroma, knowledge_base=mock_kb)
 
     @pytest.mark.asyncio
     async def test_no_transcript_skips_analysis(self):
@@ -280,7 +280,7 @@ class TestReportAgent:
         mock_chroma.store = AsyncMock()
         with patch("agents.report_agent.ProviderRegistry") as mock_reg:
             mock_reg.get.return_value = AsyncMock()
-            agent = ReportAgent(chroma_store=mock_chroma)
+            agent = ReportAgent(transcript_store=mock_chroma)
 
         mock_response = MagicMock()
         mock_response.content = json.dumps({
@@ -323,7 +323,7 @@ class TestReportAgent:
         mock_chroma.store = AsyncMock()
         with patch("agents.report_agent.ProviderRegistry") as mock_reg:
             mock_reg.get.return_value = AsyncMock()
-            agent = ReportAgent(chroma_store=mock_chroma)
+            agent = ReportAgent(transcript_store=mock_chroma)
 
         mock_response = MagicMock()
         mock_response.content = json.dumps({
@@ -365,7 +365,7 @@ class TestReportAgent:
         mock_chroma = AsyncMock()
         with patch("agents.report_agent.ProviderRegistry") as mock_reg:
             mock_reg.get.return_value = AsyncMock()
-            agent = ReportAgent(chroma_store=mock_chroma)
+            agent = ReportAgent(transcript_store=mock_chroma)
         agent.provider = AsyncMock()
         agent.provider.complete = AsyncMock(side_effect=Exception("LLM error"))
 

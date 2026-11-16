@@ -1,17 +1,16 @@
 import asyncio
-import os
 from functools import partial
 from pathlib import Path
 from typing import Any
 
 from core.knowledge_store import KnowledgeStore
-from storage.chroma_client import embedded_client
+from storage.semantic_index import SemanticCollection
 from utils.logger import logger
 
 
 class KnowledgeBase:
     """
-    Policy knowledge base stored in ChromaDB.
+    Policy knowledge base stored in a local semantic index.
     Used by AnalysisAgent for grounded hallucination detection.
 
     Sources (merged, in order):
@@ -27,7 +26,6 @@ class KnowledgeBase:
         self.available = False
         self.collection: Any = None
         self.chunks: list[str] = []
-        self._client: Any = None
         self.reload()
 
     def _file_chunks(self) -> list[str]:
@@ -39,30 +37,17 @@ class KnowledgeBase:
         return [chunk.strip() for chunk in raw.split("\n\n") if chunk.strip()]
 
     def reload(self) -> None:
-        """Rebuild the ChromaDB index from the file plus user-added entries."""
+        """Atomically rebuild the semantic index from file and user entries."""
         try:
             file_chunks = self._file_chunks()
             user_chunks = self.store.get_chunks()
             self.chunks = file_chunks + user_chunks
 
-            persist_dir = os.getenv("CHROMA_PERSIST_DIR", "/tmp/chroma_db")
-            self._client = embedded_client(persist_dir)
-            self.collection = self._client.get_or_create_collection(
-                name="policy_kb", metadata={"hnsw:space": "cosine"}
-            )
+            self.collection = SemanticCollection('policy_kb')
 
             ids = [f"policy_{i}" for i in range(len(self.chunks))]
-            if self.chunks:
-                self.collection.upsert(
-                    ids=ids,
-                    documents=self.chunks,
-                    metadatas=[{"chunk_index": i} for i in range(len(self.chunks))],
-                )
-            # Remove retired chunks only after a successful upsert. Empty sources
-            # also reconcile a previously populated collection.
-            obsolete = sorted(set(self.collection.get()['ids']) - set(ids))
-            if obsolete:
-                self.collection.delete(ids=obsolete)
+            self.collection.replace(ids=ids, documents=self.chunks,
+                metadatas=[{"chunk_index": i} for i in range(len(self.chunks))])
 
             self.available = bool(self.chunks)
             logger.info(

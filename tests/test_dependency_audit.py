@@ -1,5 +1,4 @@
 import copy
-from datetime import date
 from unittest.mock import patch
 from types import SimpleNamespace
 import subprocess
@@ -7,36 +6,34 @@ import json
 
 import pytest
 
-from tools.dependency_audit import CHROMA_IDS, EXPIRES, assess, main
+from tools.dependency_audit import assess, main
 
 
 def report(identity='PYSEC-2026-3814', version='1.5.9', name='chromadb', fixes=None):
     return {'dependencies': [{'name': name, 'version': version, 'vulns': [{'id': identity, 'fix_versions': fixes or []}]}]}
 
 
-@pytest.mark.parametrize('identity', sorted(CHROMA_IDS))
-def test_only_reviewed_version_and_ids_have_a_temporary_exception(identity):
-    failures, exceptions = assess(report(identity), date(2026, 10, 31))
-    assert not failures
-    assert len(exceptions) == 1
+@pytest.mark.parametrize('identity', ['PYSEC-2026-311', 'PYSEC-2026-3813', 'PYSEC-2026-3814', 'PYSEC-2026-3815'])
+def test_previously_excepted_advisories_are_always_blocked(identity):
+    assert any(identity in failure for failure in assess(report(identity)))
 
 
-@pytest.mark.parametrize('data,today', [
-    (report(version='1.5.10'), date(2026, 10, 31)),
-    (report(name='other-package'), date(2026, 10, 31)),
-    (report(identity='NEW-UNREVIEWED'), date(2026, 10, 31)),
-    (report(fixes=['1.5.10']), date(2026, 10, 31)),
-    (report(), EXPIRES), (report(), date(2026, 11, 8)),
-    ({'dependencies': []}, date(2026, 10, 31)), ({}, date(2026, 10, 31)),
-])
-def test_audit_blocks_unknown_versions_advisories_fixes_and_expired_exceptions(data, today):
-    assert assess(data, today)[0]
+@pytest.mark.parametrize('data', [report(version='1.5.10'), report(name='other-package'),
+    report(identity='NEW-UNREVIEWED'), report(fixes=['1.5.10']),
+    {'dependencies': []}, {}])
+def test_audit_blocks_all_vulnerabilities_and_invalid_reports(data):
+    assert assess(data)
+
+
+def test_legacy_dependency_is_rejected_even_if_scan_has_no_advisories():
+    data = {'dependencies': [{'name': 'chromadb', 'version': '1.5.9', 'vulns': []}]}
+    assert assess(data)
 
 
 def test_unscanned_dependency_fails_and_input_is_not_mutated():
     data = {'dependencies': [{'name': 'unscanned', 'skip_reason': 'resolution failed'}]}
     original = copy.deepcopy(data)
-    assert assess(data, date(2026, 10, 31))[0]
+    assert assess(data)
     assert data == original
 
 
@@ -52,7 +49,7 @@ def test_audit_tool_failure_is_not_a_clean_scan():
     {'dependencies': [{'name': 'chromadb', 'version': '1.5.9', 'vulns': [{'id': 'PYSEC-2026-3814'}]}]},
 ])
 def test_invalid_reports_fail_closed(data):
-    assert assess(data, date(2026, 10, 31))[0]
+    assert assess(data)
 
 
 @pytest.mark.parametrize('error', [OSError('synthetic'), subprocess.TimeoutExpired('pip-audit', 1)])

@@ -8,7 +8,7 @@ from core.harness import ValidationHarness
 from core.knowledge_base import KnowledgeBase
 from core.speakers import attributed_transcript, parse_speaker_turns
 from core.speech_diagnostics import SpeechDiagnostics
-from storage.chroma_store import ChromaStore
+from storage.transcript_store import TranscriptStore
 from utils.logger import logger
 
 
@@ -22,13 +22,13 @@ class VoiceScopePipeline:
     """
 
     def __init__(self):
-        self.chroma = ChromaStore()
+        self.transcripts = TranscriptStore()
         # Validate the configured provider before downloading or embedding policy data.
-        self.report_agent = ReportAgent(self.chroma)
+        self.report_agent = ReportAgent(self.transcripts)
         self.kb = KnowledgeBase()
         self.transcription_agent = TranscriptionAgent()
         self.speaker_agent = SpeakerAgent()
-        self.analysis_agent = AnalysisAgent(self.chroma, self.kb)
+        self.analysis_agent = AnalysisAgent(self.transcripts, self.kb)
         self.harness = ValidationHarness()
         self.audio_checker = AudioQualityChecker()
 

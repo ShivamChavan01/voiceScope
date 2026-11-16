@@ -7,6 +7,10 @@ __pycache__
 .venv
 venv/
 chroma_db/
+semantic/
+**/*.db-journal
+**/*.sqlite-journal
+**/*.sqlite3-journal
 *.db
 .git
 .github

@@ -118,7 +118,7 @@ def test_inferred_role_turns_still_split_for_long_call_analysis():
 async def test_plain_transcript_without_speaker_structure_requires_review():
     from core.pipeline import VoiceScopePipeline
 
-    with patch('core.pipeline.ChromaStore'), patch('core.pipeline.KnowledgeBase'), \
+    with patch('core.pipeline.TranscriptStore'), patch('core.pipeline.KnowledgeBase'), \
          patch('core.pipeline.AnalysisAgent'), patch('core.pipeline.ReportAgent'), \
          patch('core.pipeline.SpeakerAgent') as factory, \
          patch('agents.speaker_agent.ProviderRegistry') as registry:

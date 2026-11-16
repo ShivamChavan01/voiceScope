@@ -162,6 +162,11 @@ class TestGeminiSTTProvider:
 
         assert result.transcript == "Hello from gemini"
         assert len(result.speakers) == 1
+        contents = mock_client.aio.models.generate_content.call_args.kwargs['contents']
+        assert contents[0].inline_data.data == b'fake audio'
+        assert contents[0].inline_data.mime_type == 'audio/mpeg'
+        assert isinstance(contents[1], str)
+        assert 'Output ONLY the transcript text' in contents[1]
 
     @pytest.mark.asyncio
     async def test_transcribe_rate_limit_retries(self):

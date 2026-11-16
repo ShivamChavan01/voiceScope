@@ -1,14 +1,15 @@
 """Real embedded index reconciliation, with deterministic local embeddings."""
 import pytest
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+import numpy as np
+from storage import semantic_index
 from core.knowledge_base import KnowledgeBase
 
 
 @pytest.fixture
 def knowledge(monkeypatch, tmp_path):
     monkeypatch.setenv('KNOWLEDGE_DB_PATH', str(tmp_path / 'knowledge.db'))
-    monkeypatch.setenv('CHROMA_PERSIST_DIR', str(tmp_path / 'chroma'))
-    monkeypatch.setattr(DefaultEmbeddingFunction, '__call__', lambda self, input: [[1.0, 0.0] for _ in input])
+    monkeypatch.setenv('SEMANTIC_DB_PATH', str(tmp_path / 'semantic.sqlite'))
+    monkeypatch.setattr(semantic_index, 'embed', lambda texts: [np.ones(384, dtype='<f4') for _ in texts])
     path = tmp_path / 'policy.md'
     path.write_text('Synthetic current guidance.\n\nSynthetic retired guidance.')
     return KnowledgeBase(str(path)), path
@@ -41,7 +42,7 @@ async def test_failed_upsert_retains_previous_index(knowledge, monkeypatch):
     previous = kb.collection.get()['documents']
     def fail(self, **kwargs):
         raise RuntimeError('Synthetic index write failure')
-    monkeypatch.setattr(type(kb.collection), 'upsert', fail)
+    monkeypatch.setattr(type(kb.collection), 'replace', fail)
     path.write_text('Synthetic replacement guidance.')
     kb.reload()
     assert not kb.available

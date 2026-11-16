@@ -1,0 +1,928 @@
+{
+  "version": "2",
+  "policies": [
+    {
+      "id": "refund",
+      "title": "No same-day guarantees",
+      "kind": "no_same_day_refund_guarantee",
+      "text": "Agents must never guarantee same-day refunds."
+    },
+    {
+      "id": "escalation",
+      "title": "Honor supervisor requests",
+      "kind": "honor_escalation_request",
+      "text": "If a customer requests a supervisor, agents must honor the request immediately."
+    }
+  ],
+  "cases": [
+    {
+      "id": "fp-money-alternative",
+      "name": "fp-money-alternative",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Please connect me to a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot transfer funds, but I can connect you to a human."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Financial limitations are unrelated; human offer remains an offer."
+    },
+    {
+      "id": "fp-denied-promise",
+      "name": "fp-denied-promise",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "We will not promise the refund today."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Negation reverses the promise."
+    },
+    {
+      "id": "fp-reported-assurance",
+      "name": "fp-reported-assurance",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "My colleague said I assure you your refund today."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Reported assurance is not an agent commitment."
+    },
+    {
+      "id": "fp-hypothetical-guarantee",
+      "name": "fp-hypothetical-guarantee",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "If a bank were instant, I would guarantee your refund today."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Hypothetical scenario is not a real commitment."
+    },
+    {
+      "id": "fp-probabilistic-arrival",
+      "name": "fp-probabilistic-arrival",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Your refund may reach you by midnight."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "An estimate is not a guarantee."
+    },
+    {
+      "id": "fp-caller-invents-completion",
+      "name": "fp-caller-invents-completion",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "You have been transferred."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I cannot verify that."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Caller assertion must not become agent action evidence."
+    },
+    {
+      "id": "fp-request-cancelled",
+      "name": "fp-request-cancelled",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Please let me speak with a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Never mind, keep helping me."
+        },
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Sorry, that's not possible."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Withdrawn request cannot support a later escalation refusal."
+    },
+    {
+      "id": "fp-negated-demand",
+      "name": "fp-negated-demand",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I do not need a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "No."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "No active escalation request."
+    },
+    {
+      "id": "fp-payment-system",
+      "name": "fp-payment-system",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I need a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "We cannot connect the payment system."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Object of connection is not the caller."
+    },
+    {
+      "id": "fp-wage-guarantee",
+      "name": "fp-wage-guarantee",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I promise your wages will arrive by midnight."
+        }
+      ],
+      "expected": [],
+      "expected_status": "assessed",
+      "purpose": "Same-day wage receipt is not a refund."
+    },
+    {
+      "id": "fn-plural-promise",
+      "name": "fn-plural-promise",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "We will promise a same-day refund."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-ability-guarantee",
+      "name": "fn-ability-guarantee",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I can guarantee your refund will arrive today."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-assure-timing",
+      "name": "fn-assure-timing",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "We assure you the refund today."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-passive-timing",
+      "name": "fn-passive-timing",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Your refund guaranteed today."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-card-return",
+      "name": "fn-card-return",
+      "scope": "challenge_paraphrases",
+      "policies": [],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "The money has been returned to your card."
+        }
+      ],
+      "expected": [
+        {
+          "category": "unverified_claim",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "action_result"
+          ]
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns. Annotation correction: no active policy means policy assessment remains insufficient_evidence, independently of the unverified completion finding."
+    },
+    {
+      "id": "fn-manager-demand",
+      "name": "fn-manager-demand",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I need a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "We cannot connect you."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-forbidden-human",
+      "name": "fn-forbidden-human",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Connect me with a human."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "You can't speak to a human."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-team-lead-demand",
+      "name": "fn-team-lead-demand",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Please let me speak to the team lead."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I will not let you talk to a manager."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "honor_escalation_request",
+          "severity": "high",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-transfer-assertion",
+      "name": "fn-transfer-assertion",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Please connect me to a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I have transferred you."
+        }
+      ],
+      "expected": [
+        {
+          "category": "unverified_claim",
+          "status": "needs_review",
+          "policy_kind": null,
+          "severity": "medium",
+          "turn_indices": [
+            1
+          ],
+          "missing_evidence": [
+            "action_result"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "fn-receipt-at-midnight",
+      "name": "fn-receipt-at-midnight",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I promise a refund will reach you by midnight."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Explicit positive case with changed wording; evidence must retain exact source turns."
+    },
+    {
+      "id": "amb-unknown-source",
+      "name": "amb-unknown-source",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "unknown",
+          "role_source": "unknown",
+          "text": "We will promise a same-day refund."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles"
+          ]
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "purpose": "Unknown roles must not confirm."
+    },
+    {
+      "id": "amb-context-inferred",
+      "name": "amb-context-inferred",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Can my refund reach me today? Will you promise it?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "model_inference",
+          "text": "Certainly. Your refund will reach you by six this evening."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles",
+            "promise_intent"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Adjacent commitment requires contextual and attribution review."
+    },
+    {
+      "id": "amb-short-limitation",
+      "name": "amb-short-limitation",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "escalation"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "I need a manager."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "That's not possible!"
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "honor_escalation_request",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "refusal_intent"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Short negative response is ambiguous and must be reviewed."
+    },
+    {
+      "id": "amb-hinglish",
+      "name": "amb-hinglish",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Main guarantee karta hoon ki aapka refund aaj mil jayega."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Human semantic label is a same-day refund guarantee; Hindi/Hinglish is outside documented coverage."
+    },
+    {
+      "id": "amb-asr-substitution",
+      "name": "amb-asr-substitution",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I garuntee your refund today."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "promise_intent"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Likely ASR substitution cannot establish a confirmed promise from audio-free text."
+    },
+    {
+      "id": "amb-fragment",
+      "name": "amb-fragment",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Refund today. Guaranteed."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "promise_intent"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Fragmented assertion suggests a guarantee but needs intent review."
+    },
+    {
+      "id": "amb-overlap",
+      "name": "amb-overlap",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "unknown",
+          "role_source": "unknown",
+          "text": "I guarantee your refund today no I do not"
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "confirmed_speaker_roles"
+          ]
+        }
+      ],
+      "expected_status": "insufficient_evidence",
+      "purpose": "Overlapping correction with unknown attribution cannot confirm."
+    },
+    {
+      "id": "amb-repeated-segments",
+      "name": "amb-repeated-segments",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee the refund today."
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee the refund today."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": []
+        },
+        {
+          "category": "policy_violation",
+          "status": "confirmed",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "high",
+          "turn_indices": [
+            1
+          ],
+          "missing_evidence": []
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Without audio/timing, identical turns cannot safely be assumed to be duplicate ASR output; retain both evidence locations."
+    },
+    {
+      "id": "amb-explicit-correction",
+      "name": "amb-explicit-correction",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "I guarantee your refund today. I withdraw that promise; it may take days."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0
+          ],
+          "missing_evidence": [
+            "promise_intent"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Retraction changes confidence in an earlier promise and needs review rather than invented certainty."
+    },
+    {
+      "id": "amb-sarcastic-answer",
+      "name": "amb-sarcastic-answer",
+      "scope": "challenge_paraphrases",
+      "policies": [
+        "refund"
+      ],
+      "turns": [
+        {
+          "speaker": 0,
+          "role": "customer",
+          "role_source": "transcript_label",
+          "text": "Will my refund arrive today? Can you guarantee that?"
+        },
+        {
+          "speaker": 1,
+          "role": "agent",
+          "role_source": "transcript_label",
+          "text": "Yes. Your refund will arrive today. As if banks ever move that fast."
+        }
+      ],
+      "expected": [
+        {
+          "category": "policy_violation",
+          "status": "needs_review",
+          "policy_kind": "no_same_day_refund_guarantee",
+          "severity": "medium",
+          "turn_indices": [
+            0,
+            1
+          ],
+          "missing_evidence": [
+            "promise_intent"
+          ]
+        }
+      ],
+      "expected_status": "assessed",
+      "purpose": "Sarcasm makes contextual commitment uncertain; no audio is available."
+    }
+  ]
+}

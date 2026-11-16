@@ -26,7 +26,7 @@ def _isolate_stores(monkeypatch):
     tmp = tempfile.mkdtemp()
     monkeypatch.setenv("MONITORING_DB_PATH", os.path.join(tmp, "monitoring.db"))
     monkeypatch.setenv("KNOWLEDGE_DB_PATH", os.path.join(tmp, "knowledge.db"))
-    monkeypatch.setenv("CHROMA_PERSIST_DIR", os.path.join(tmp, "chroma"))
+    monkeypatch.setenv("SEMANTIC_DB_PATH", os.path.join(tmp, "semantic.sqlite"))
     routes.get_monitoring_store.cache_clear()
     routes.get_knowledge_store.cache_clear()
     routes.get_pipeline.cache_clear()

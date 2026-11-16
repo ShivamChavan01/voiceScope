@@ -6,6 +6,15 @@ import pytest
 os.environ["DATABASE_URL"] = ""
 
 
+@pytest.fixture(autouse=True)
+def isolated_semantic_index(monkeypatch, tmp_path):
+    import numpy as np
+    from storage import semantic_index
+    monkeypatch.setenv('SEMANTIC_DB_PATH', str(tmp_path / 'semantic.sqlite'))
+    monkeypatch.setenv('KNOWLEDGE_DB_PATH', str(tmp_path / 'knowledge.sqlite'))
+    monkeypatch.setattr(semantic_index, 'embed', lambda texts: [np.ones(384, dtype='<f4') for _ in texts])
+
+
 class TestKnowledgeBase:
     def test_missing_file_disables_kb(self):
         from core.knowledge_base import KnowledgeBase

@@ -269,7 +269,7 @@ def _cmd_status():
     checks.append(("Python", py_ver, sys.version_info >= (3, 11)))
 
     # Dependencies
-    deps = ["fastapi", "openai", "chromadb", "asyncpg"]
+    deps = ["fastapi", "openai", "fastembed", "asyncpg"]
     for dep in deps:
         try:
             __import__(dep)

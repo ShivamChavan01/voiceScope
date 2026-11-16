@@ -37,7 +37,7 @@ def validate_demo_environment() -> list[str]:
     root = root.resolve()
     for name in ['MONITORING_DB_PATH', 'COST_DB_PATH', 'POLICY_DB_PATH', 'KNOWLEDGE_DB_PATH',
                  'QA_DB_PATH', 'EXTRACTIONS_DB_PATH', 'OPTIMIZER_DB_PATH', 'STT_REVIEW_DIR',
-                 'CHROMA_PERSIST_DIR']:
+                 'CHROMA_PERSIST_DIR', 'SEMANTIC_DB_PATH', 'EMBEDDING_CACHE_DIR', 'SEMANTIC_MODEL_PATH']:
         if os.getenv(name) and not Path(os.environ[name]).resolve().is_relative_to(root):
             raise ValueError('Synthetic staging storage must stay inside DATA_DIR')
     agent = qa_agent_id()

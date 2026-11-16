@@ -19,7 +19,7 @@ flowchart LR
     Analysis --> Report[LLM report]
     Report --> Checks[Deterministic evaluation checks]
     Checks --> Runs[PostgreSQL or SQLite runs]
-    Analysis <--> Chroma[Chroma policy and transcript indexes]
+    Analysis <--> Semantic[SQLite semantic indexes with local FastEmbed]
 ```
 
 The transcript API skips STT. Speaker roles are preserved from attributed transcripts and inferred for diarized audio in both regular and streaming flows. The UI distinguishes transcript labels, inferred roles, and unknown roles. See [speaker attribution](docs/speaker-attribution.md). The pipeline supports multiple LLM providers and configured fallback providers. The API also exposes batch processing, monitoring, knowledge entries, QA cohorts, extraction schemas, and feedback. Batch jobs and rate limits use process memory.
@@ -42,11 +42,14 @@ Edit `.env` locally. Set `VALID_API_KEYS` and the credentials for the LLM and ST
 uvicorn main:app --reload --port 8000
 ```
 
-Configure the frontend in `frontend/.env.local`:
+Copy `frontend/.env.example` to `frontend/.env.local`. Set `API_KEY` to a backend
+`VALID_API_KEYS` entry, choose `OPERATOR_AUTH_USER` without a colon, and supply a
+random `OPERATOR_AUTH_PASSWORD` of at least 24 characters through your private
+environment. Keep these values server-only. The template leaves secrets empty and
+returns 503 until configured.
 
 ```dotenv
 BACKEND_URL=http://localhost:8000
-API_KEY=your-local-voicescope-api-key
 ```
 
 ```bash
@@ -57,11 +60,17 @@ npm run dev
 
 The UI opens at `http://localhost:3000`. FastAPI documentation is at `http://localhost:8000/docs` outside production. Backend requests require `X-API-Key`, except health and documentation routes.
 
-**Access-control limitation:** the frontend currently attaches its server-side API key to proxied requests without authenticating the visitor. Use a private local environment for real call data until frontend authentication and operation permissions are implemented. A hidden backend key alone does not protect this proxy.
+The frontend requires HTTP Basic operator authentication for pages, assets and API
+requests. Use HTTPS outside loopback and keep `PUBLIC_SYNTHETIC_DEMO=false` for a
+private installation. There are no separate company accounts or per-operator
+permission levels. See [private operator deployment](docs/private-operator-deployment.md)
+before configuring a hosted instance.
 
 ## Data and persistence
 
-Set `DATABASE_URL` for PostgreSQL. Without it, stores use SQLite under `DATA_DIR` or their configured paths. The PostgreSQL client currently requires SSL; a local PostgreSQL instance without SSL falls back to SQLite. Database connection failure also falls back to SQLite, which can produce separate datasets across instances.
+Set `DATABASE_URL` for PostgreSQL with TLS. Without it, runs, costs and metrics deliberately use SQLite under `DATA_DIR` or their configured paths. With it, connection or schema initialization failure blocks startup; runtime connection failures return a private HTTP 503 instead of switching to a different SQLite dataset. Local PostgreSQL must support TLS. Policies, webhook receipts, STT artifacts and semantic indexes still require separate persistent local storage even when PostgreSQL is configured. See [storage and recovery](docs/storage-reliability.md) for the storage boundary and non-overwriting SQLite snapshot tool.
+
+Semantic retrieval uses SQLite and a local MiniLM model through FastEmbed. Chroma is no longer a runtime dependency. Existing indexes are left untouched and require an explicit offline export/import before upgrading an existing installation. See [semantic setup, migration and limitations](docs/semantic-retrieval.md).
 
 New runs store the full evaluation and transcript in `runs.evaluation`. Existing databases gain this column during schema initialization. Legacy rows may have only a truncated transcript and cannot recover missing evidence automatically. No production data migration or re-evaluation has been run.
 
@@ -96,7 +105,7 @@ Regression tests cover numeric support, invalid scores, incomplete model output,
 
 For the evidence review demo, select **Explore 3 synthetic scenarios** on Overview. This seeds a compliant conversation, a forbidden same-day refund promise, and an explicit supervisor-transfer refusal. Findings are computed from fictional policies and attributed transcripts. Seeding is idempotent and does not activate company policies. Synthetic rows have no fabricated timings, payment results, cost, or quality score and are excluded from real-call counters. The CLI above retains the older heuristic fixtures.
 
-Configure actual company rules in **Settings → Policies** before evaluating real calls. Only two bounded English rule types are supported: no same-day refund guarantees and honoring explicit escalation requests. Reference knowledge does not activate these rules. Each assessment stores the applied policy version and exact transcript quotes. A refund-completion statement without an action result is an **unverified claim**. See [reliability contracts and setup](docs/reliability.md).
+Configure actual company rules in **Settings → Policies** before evaluating real calls. Two bounded rule types are supported: no same-day refund guarantees and honoring explicit escalation requests. Policy configuration uses English templates; transcript checks cover bounded English wording and a limited romanized Hindi refund-guarantee construction. Reference knowledge does not activate these rules. Each assessment stores the applied policy version and exact transcript quotes. A refund-completion statement without an action result is an **unverified claim**. See [reliability contracts and setup](docs/reliability.md).
 
 ## Post-call STT quality
 
